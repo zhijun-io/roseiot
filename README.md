@@ -19,6 +19,11 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 当前候选技术基线为 Java 25、Spring Boot 4.1.1 和 Maven，实际建项前需要验证
 版本兼容性。
 
+## 本地配置
+
+敏感信息只放在未跟踪的 `.env` 或 `application-local.*` 中。可参考
+[`.env.example`](.env.example) 中的变量名，不要提交真实凭证。
+
 ## 文档
 
 - [产品需求（PRD）](docs/product/prd.md)
