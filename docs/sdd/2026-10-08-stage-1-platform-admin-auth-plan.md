@@ -8,8 +8,11 @@
 | --- | --- |
 | `io.roseiot.config` | 应用壳：Security 过滤器链、JSON 401/403 等横切装配 |
 | `io.roseiot.shared.api` | 跨能力 HTTP 错误契约（`ApiErrorResponse`、全局 `@RestControllerAdvice`、Servlet 错误写入） |
-| `io.roseiot.platform.auth` | 平台管理员认证用例、JWT 签发、领域异常 |
-| `io.roseiot.platform.auth.api` | 认证 REST 适配（Controller、请求/响应 DTO）；能力内 `api`，非 shared |
+| `io.roseiot.platform.auth.web` | 认证 HTTP：`RestController`、请求/响应 DTO、能力内异常映射 |
+| `io.roseiot.platform.auth.application` | 认证用例（`@Service`、事务边界） |
+| `io.roseiot.platform.auth.domain` | 认证领域异常与纯工具 |
+| `io.roseiot.platform.auth.infra` | JWT、会话撤销、限速、恢复通知等集成 |
+| `io.roseiot.platform.auth.config` | 认证相关 Spring 配置 |
 | `io.roseiot.platform.persistence` | 平台阶段表与 MyBatis Mapper（后续能力拆分前临时归 `platform`） |
 
 `shared` 仅放无业务所有权、稳定复用的最小内容；业务成功体仍用各能力 DTO，不放入 shared。
@@ -89,7 +92,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - Acceptance: AC-2, AC-5, AC-1
 - Depends on: Slice 1
 - Test or proof：Testcontainers → seed 管理员 → login → me；错误密码与不存在邮箱断言同 body 结构。
-- Implementation outline：`PlatformAdminLoginUseCase`；refresh 会话入库；JWT 签发。
+- Implementation outline：`PlatformAdminLoginService`；refresh 会话入库；JWT 签发。
 - Verification：`./mvnw -q verify`
 - Done: true
 
@@ -153,8 +156,8 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 ## Build log
 
 - **Slice 1**（2026-10-08）：`V3__platform_admin_auth.sql`；`SecurityConfig` + `JsonSecurityHandlers`；OAuth2 Resource Server + `PlatformAuthJwtConfig`（`roseiot.auth.jwt.hmac-secret` / `ROSEIOT_AUTH_JWT_SECRET`）；`PlatformMeController` 占位 `GET /api/platform/me`；集成测试匿名 401 JSON + 表存在；REST 前缀 `/api`（无 URL 版本号）；共享 `io.roseiot.shared.api` 错误体（`ApiErrorResponse` + `ApiExceptionHandler` + `ApiErrorBodyWriter`）。验证：`./mvnw -q verify` 通过。
-- **Slice 2**（2026-10-08）：`PlatformAdminLoginUseCase` / `PlatformAdminProfileUseCase`；`POST /api/auth/login`、`GET /api/platform/me`；refresh 会话入库 + JWT 签发；`PlatformAdminAuthMockMvcTests` / `PlatformAdminAuthTests`。验证：`./mvnw -q verify` 通过。
-- **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshUseCaseTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
+- **Slice 2**（2026-10-08）：`PlatformAdminLoginService` / `PlatformAdminProfileService`；`POST /api/auth/login`、`GET /api/platform/me`；refresh 会话入库 + JWT 签发；`PlatformAdminAuthMockMvcTests` / `PlatformAdminAuthTests`。验证：`./mvnw -q verify` 通过。
+- **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshServiceTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
 - **Slice 4**（2026-10-08）：`POST /api/auth/logout`、`/logout-all`；`PATCH /api/platform/me/password` 改密并撤销全部 refresh；MockMvc + 用例单元测试。验证：`./mvnw -q verify` 通过。
 - **Slice 5**（2026-10-08）：`POST /api/auth/recovery/request`（202 统一 body）、`/confirm`（204）；`RecoveryNotificationPort` + 默认 logging 适配器；测试 `InMemoryRecoveryNotificationAdapter`；confirm 改密、标记 `used_at`、撤销全部 refresh；`OpaqueTokens` 复用于 login/refresh/recovery；MockMvc AC-6/7/8。验证：`./mvnw -q verify` 通过。
 - **Slice 6**（2026-10-08）：README Spec #2 端点与 AC-2/4/6 curl；`.env.example` JWT/限速占位；登录与恢复内存限速（429 `rate_limited`，测试默认关闭）；`PlatformAdminAuthRateLimitMockMvcTests`。验证：`./mvnw -q verify` 通过。

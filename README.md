@@ -48,7 +48,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 - `*MockMvcTests`：继承 `AbstractIt`，只使用 `mvc`，**不用** `restTestClient`。
 - 其他集成 `*Tests`：继承 `AbstractIt`，**不用** `mvc`；需要真实 HTTP 时可选 `restTestClient`。
-- `*UseCaseTests` 等单元测试：不启 Spring。
+- `*ServiceTests` 等单元测试：不启 Spring。
 
 ### 单元测试
 
@@ -56,7 +56,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 **写单元测试当**：
 
-- 业务规则、分支、错误码映射在 **UseCase**（或纯函数）里，用 Mock 替代 Mapper、Encoder、时钟等即可断言。
+- 业务规则、分支、错误码映射在 **application 层 Service**（或纯函数）里，用 Mock 替代 Mapper、Encoder、时钟等即可断言。
 - 同一逻辑已有集成测试覆盖 Happy path，但失败分支多、起容器成本高——用单元测试补分支。
 - 无 I/O：UUID 生成、格式校验、小工具类。
 
@@ -79,7 +79,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 **不写集成测试当**：
 
-- 仅验证 UseCase 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
+- 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
 - 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/platform/me` 即可）。
 
 ### 基类
@@ -93,12 +93,12 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 | 类型 | 示例类 |
 | --- | --- |
-| 单元 | `PlatformAdminLoginUseCaseTests` |
+| 单元 | `PlatformAdminSessionServiceTests`、`PlatformAdminAccountServiceTests` |
 | MockMvc | `PlatformAdminAuthMockMvcTests`、`ActuatorHealthMockMvcTests` |
 | RestTestClient（可选） | `PlatformAdminAuthTests` |
 | 冒烟 + Flyway | `PlatformFlywaySchemaTests`（含 `contextLoads`） |
 
-**原则**：能写 `*UseCaseTests` 的不要写继承 `AbstractIt` 的类；集成测试只保留契约/接线证据。
+**原则**：能写 `*ServiceTests` 的不要写继承 `AbstractIt` 的类；集成测试只保留契约/接线证据。
 
 
 ## 文档
@@ -222,7 +222,7 @@ curl -sS -X POST "$BASE/api/auth/token" \
 
 ### 手动验证（AC-6：账户恢复）
 
-默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试 double 或后续邮件适配器取得令牌。自动化路径见 `InMemoryRecoveryNotificationAdapter` 与 `PlatformAdminAuthMockMvcTests`。
+默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `PlatformAdminAuthMockMvcTests`。
 
 ```bash
 curl -sS -X POST "$BASE/api/auth/recovery/request" \

@@ -11,12 +11,12 @@ import org.springframework.stereotype.Component;
 public class BootstrapApplicationRunner implements ApplicationRunner {
 
     private final Environment environment;
-    private final BootstrapPlatformAdminUseCase bootstrapPlatformAdminUseCase;
+    private final BootstrapPlatformAdminService bootstrapPlatformAdminService;
 
     public BootstrapApplicationRunner(
-            Environment environment, BootstrapPlatformAdminUseCase bootstrapPlatformAdminUseCase) {
+            Environment environment, BootstrapPlatformAdminService bootstrapPlatformAdminService) {
         this.environment = environment;
-        this.bootstrapPlatformAdminUseCase = bootstrapPlatformAdminUseCase;
+        this.bootstrapPlatformAdminService = bootstrapPlatformAdminService;
     }
 
     @Override
@@ -26,6 +26,6 @@ public class BootstrapApplicationRunner implements ApplicationRunner {
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
             throw new BootstrapValidationException("BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD are required");
         }
-        bootstrapPlatformAdminUseCase.bootstrap(email, password);
+        bootstrapPlatformAdminService.bootstrap(email, password);
     }
 }

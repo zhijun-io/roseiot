@@ -82,6 +82,17 @@
 ## 架构约束
 
 - 默认采用模块化单体，不提前拆分微服务。
+- **能力分包 + 技术分层**（模块化单体内的默认布局）：
+  - **能力（capability）**：`io.roseiot.platform.<能力名>`（如 `auth`、`bootstrap`），一个业务闭环一包；禁止在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`。
+  - **能力内分层**（按需创建子包，无调用方不建空包）：
+    - `web` — HTTP：`@RestController`、请求/响应 DTO、能力内 `@RestControllerAdvice`；
+    - `application` — 应用服务：`@Service`（命名 `*Service`，**不用** `*UseCase`）、事务边界、编排 Mapper 与 `infra`；
+    - `domain` — 无 Spring 依赖优先：领域异常、值对象、纯规则工具（如令牌摘要、opaque 生成）；
+    - `infra` — 技术实现：JWT、会话撤销、限速、邮件/消息等可替换集成（接口 + 实现可同在 `infra` 子包）；
+    - `config` — 该能力的 `@Configuration` / `@ConfigurationProperties`。
+  - **跨能力共享**：`io.roseiot.platform.persistence`（多能力共用的表/Mapper）、`io.roseiot.platform.<Policy>`（如密码策略）、`io.roseiot.shared.*`（HTTP 错误体等）；能力独占表将来可迁入 `<能力>.infra.persistence`。
+  - **测试**：尽量与主代码同能力路径镜像（如 `platform.auth.web.*MockMvcTests`）。
+- **不采用六边形架构**：不用 Port/Adapter 命名与「入站/出站端口」目录；分层是 **技术职责**，不是第二套架构词汇。
 - 只有真实用例证明数据所有权、稳定契约和独立测试边界后，才新增模块。
 - 优先完成最小业务闭环，不创建空模块、占位接口或没有当前调用方的通用框架。
 - 引入依赖前，先确认 JDK、Spring 或已有依赖不能合理解决当前问题。
@@ -91,12 +102,12 @@
 
 ## Spring Boot 编程约束
 
-- 按业务能力组织代码，避免以 `controller`、`service`、`repository` 作为全局顶层分包；只创建当前切片需要的包。
+- 按 **能力分包 + 技术分层**（见架构约束）组织代码；只创建当前切片需要的子包。
 - 将主应用类放在根包，业务代码位于其子包；不要使用 default package。
 - 优先使用构造器注入；禁止字段注入，不通过静态上下文或 `ApplicationContext` 查找普通业务依赖。
 - Controller 和协议适配层只负责协议映射、输入格式校验、认证入口和响应转换，不承载业务规则或事务编排。
 - 不直接将持久化实体作为 HTTP、MQTT 或其他外部协议的请求和响应模型。
-- 将事务边界放在应用服务或用例入口；不要依赖 Controller 事务、私有方法事务或同类内部调用触发代理事务。
+- 将事务边界放在 `application` 层 `*Service` 入口；不要依赖 Controller 事务、私有方法事务或同类内部调用触发代理事务。
 - 外部输入先做结构和格式校验；租户隔离、资源授权、唯一性和状态转换等业务约束必须在服务端业务边界校验，并由数据库约束提供最终防线。
 - 结构化配置优先使用类型安全的 `@ConfigurationProperties`；凭证和密钥不得硬编码或写入默认配置。
 - 对外错误响应必须稳定且可测试，不泄漏堆栈、SQL、凭证或内部实现细节。

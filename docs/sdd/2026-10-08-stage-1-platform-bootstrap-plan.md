@@ -34,7 +34,7 @@
 - Depends on: Slice 1
 - Test or proof：集成测试 — Testcontainers 空库 → 触发引导（`ApplicationContextRunner` / 带 `--bootstrap` 的 `SpringApplication` 或 documented 等价）→ 断言 count=1、邮箱规范化、hash 非空且不含明文。
 - Implementation outline：
-  - 用例服务：`BootstrapPlatformAdminUseCase`（构造器注入）；检查 count=0、校验邮箱/密码、写库。
+  - 用例服务：`BootstrapPlatformAdminService`（构造器注入）；检查 count=0、校验邮箱/密码、写库。
   - CLI：`CommandLineRunner` 或 `ApplicationRunner`，仅当显式参数/环境（如 `--bootstrap` + `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`）时运行并 `SpringApplication.exit`。
   - 默认 `RoseiotApplication` 正常启动不受影响（无 bootstrap 参数时不执行引导）。
 - Verification：`./mvnw -q verify`
@@ -79,6 +79,6 @@
 ## Build log
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过。MyBatis Plus **3.5.17** `mybatis-plus-spring-boot4-starter`（Boot 3 starter 在 Boot 4.1.1 下不注册 SqlSessionFactory）。Flyway `V2__platform_admin`；`PlatformAdminSchemaIntegrationTest` 断言空表。
-- 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`PostgresUuidTypeHandler`；`BootstrapPlatformAdminUseCase` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
+- 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`PostgresUuidTypeHandler`；`BootstrapPlatformAdminService` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
 - 2026-10-08 Slice 3：`./mvnw -q verify` 通过。重复引导抛 `AlreadyBootstrappedException`；`runBootstrapCommand` 非零退出且 stderr 不含密码；`PlatformBootstrapIntegrationTest` 覆盖用例拒绝与 seed 后再跑 CLI 路径。
 - 2026-10-08 Slice 4：`./mvnw -q verify` 通过。README「平台引导」与 AC-2/AC-3 手验步骤；`.env.example` 增加 `BOOTSTRAP_*`；引导失败 stderr 输出不含密码。

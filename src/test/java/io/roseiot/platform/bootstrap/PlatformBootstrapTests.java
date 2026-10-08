@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 引导 CLI 路径（需真实 Postgres + 独立 Spring 进程），用例规则见 {@link BootstrapPlatformAdminUseCaseTests}。 */
+/** 引导 CLI 路径（需真实 Postgres + 独立 Spring 进程），用例规则见 {@link BootstrapPlatformAdminServiceTests}。 */
 class PlatformBootstrapTests extends AbstractIt {
 
     private static final String PASSWORD = "password1234";
@@ -24,7 +24,7 @@ class PlatformBootstrapTests extends AbstractIt {
     PostgreSQLContainer<?> postgresContainer;
 
     @Autowired
-    BootstrapPlatformAdminUseCase bootstrapPlatformAdminUseCase;
+    BootstrapPlatformAdminService bootstrapPlatformAdminService;
 
     @Autowired
     PlatformAdminMapper platformAdminMapper;
@@ -37,7 +37,7 @@ class PlatformBootstrapTests extends AbstractIt {
     @Test
     void duplicateBootstrapCliPathExitsNonZeroAndKeepsSingleAdmin() {
         String secondPassword = "anotherPass1";
-        bootstrapPlatformAdminUseCase.bootstrap("first@example.com", PASSWORD);
+        bootstrapPlatformAdminService.bootstrap("first@example.com", PASSWORD);
 
         PrintStream originalErr = System.err;
         ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
