@@ -9,9 +9,9 @@
 - 验证并固定 **Java、Spring Boot、Maven** 的实际可用版本组合（以候选 Java 25、Spring Boot 4.1.1 为起点，验证失败时选用最近稳定组合并记录）。
 - **单个 Maven 工程**、单个可运行 Spring Boot 应用（不拆 Maven module）。
 - 根包 `io.roseiot`，仅建立 `RoseiotApplication` 与阶段 0 所需的最小支撑包（配置、健康、迁移）；不创建 identity、device、telemetry 等业务空包。
-- **类型化配置**（`@ConfigurationProperties`）加载服务端口、数据源等；凭证与密钥仅来自环境变量或本地未跟踪配置（见 README / `.env.example`）。
+- **外部化配置**：标准 `spring.datasource.*` / `server.port`；凭证来自环境变量、可选 `spring.config.import` 加载的未跟踪 `.env` 或 `application-local.*`（见 README / `.env.example`）。
 - **Spring Boot Actuator**：对外暴露最小健康能力，**区分 liveness 与 readiness**；就绪检查包含当前阶段必需的 PostgreSQL 连通性。
-- **Flyway**：对空库可重复执行迁移；迁移身份与应用运行时身份分离（配置层面区分，即使阶段 0 仅一条占位迁移）。
+- **Flyway**：对空库可重复执行迁移（阶段 0 使用同一数据源账号；独立迁移账号留待有运维需求时再拆）。
 - **测试入口**：`./mvnw verify` 包含至少一个不需要完整业务的单元测试，以及验证迁移 + 应用上下文/就绪行为的自动化测试（允许 Testcontainers 提供 PostgreSQL）。
 - **README**：记录经执行验证的启动、健康检查、测试命令及 JDK 要求。
 
@@ -20,13 +20,13 @@
 - 用户/租户/设备/物模型/MQTT/规则/告警等业务 API 与领域模块。
 - 多 Maven module、微服务、消息队列、缓存、gRPC、独立 Starter。
 - 生产级 CI/CD、Kubernetes、分布式追踪、完整监控栈。
-- Docker Compose 或部署脚本（可在 README 中文字说明本地 PostgreSQL 前提，但不作为本 Spec 交付物）。
+- 生产级 Docker Compose / K8s 部署清单（本地开发可用 Spring Boot Docker Compose 支持，见 README）。
 - 统一 HTTP 错误信封、API 版本前缀（阶段 1 起再引入）。
 
 ## Current Context
 
-- 仓库处于规划阶段：**无** `pom.xml`、无可运行应用；已有 PRD、路线图、`GLOSSARY.md`、`AGENTS.md`。
-- PRD 阶段 0 状态为「待编写 Spec」；访谈 **Q491** 确认首份 Spec 仅覆盖工程基线（Q491）。
+- 阶段 0 工程基线已实现：`pom.xml`、可运行应用、Flyway、健康检查与 `./mvnw verify`；PRD 阶段 0 标记为已完成。
+- 访谈 **Q491** 确认首份 Spec 仅覆盖工程基线（Q491）。
 - 访谈 **Q119** 建议单 Maven 工程；**Q120** 建议顶层包按能力而非全局 `controller/service/repository` 分层。
 - 访谈 **Q118** 要求验证 Actuator、迁移、PostgreSQL 驱动、Validation、Security 等依赖可解析且可启动。
 - 访谈 **Q246–Q247、Q145–Q146** 要求存活/就绪分离，公开健康接口不泄露依赖地址、配置与堆栈。
@@ -80,3 +80,4 @@
 ## Revision log
 
 - 2026-10-08 | 用户批准 Spec | none — clarification | no — 进入 Plan
+- 2026-10-08 | 实现与 AGENTS 最小改动对齐 | `@ConfigurationProperties` → 标准外部化配置；Flyway 单账号；可选 dev Docker Compose + `.env` import | no — 行为仍满足 AC；README/Plan 同步

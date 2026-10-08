@@ -31,6 +31,12 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 敏感信息只放在未跟踪的 `.env` 或 `application-local.*` 中。可参考
 [`.env.example`](.env.example) 中的变量名，不要提交真实凭证。
 
+配置加载顺序（简）：
+
+1. **`spring-boot:run` + `compose.yaml`**：`JdbcConnectionDetails` 优先于 `application.yml` 中的 `SPRING_DATASOURCE_*` 占位符。
+2. **`.env`**：经 `spring.config.import=optional:file:.env[.properties]` 从进程工作目录（通常在仓库根）加载；Compose 另用同一文件做 `POSTGRES_PASSWORD` 等变量替换。
+3. **集成测试**：`spring.docker.compose.skip.in-tests=true`，不启动 Compose；Testcontainers + `@DynamicPropertySource` 注入 `spring.datasource.*`，不依赖本机 `.env`。
+
 ## 文档
 
 - [产品需求（PRD）](docs/product/prd.md)
@@ -41,13 +47,19 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 验证与运行
 
-前置：**JDK 25**（与 `pom.xml` 一致）、**Docker**（Testcontainers 集成测试）、本地 **PostgreSQL**（`spring-boot:run`）。
+前置：**JDK 25**（与 `pom.xml` 一致）、**Docker**（Testcontainers 跑 `./mvnw verify`；本地启动需 Docker 以运行 `compose.yaml` 中的 PostgreSQL）。
 
 ```bash
-cp .env.example .env   # 填写 SPRING_DATASOURCE_PASSWORD 等
 ./mvnw -q verify
-./mvnw spring-boot:run
+cp .env.example .env   # 可选：覆盖 POSTGRES_PASSWORD
+./mvnw spring-boot:run # 自动 docker compose up，并注入数据源连接
 ```
+
+`spring-boot-docker-compose` 为 optional 依赖，打生产包时默认不包含。若已手动 `docker compose up` 同一文件，Boot 只会复用容器并建立 service connection，不会重复 up/stop。
+
+**不用 Compose**：在 `.env` 中设 `SPRING_DOCKER_COMPOSE_ENABLED=false` 并填写 `SPRING_DATASOURCE_*`，再 `./mvnw spring-boot:run`（仓库根存在 `compose.yaml` 时默认仍会 compose up，须显式关闭）。
+
+可选：`SERVER_PORT` 覆盖默认 8080。
 
 健康检查（未认证，不返回连接串或凭证详情）：
 

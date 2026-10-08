@@ -52,10 +52,10 @@
 
 - Goal：新人可按 README 完成 verify 与启动；跟踪文件无真实密钥。
 - Acceptance: AC-1（终验）, AC-5（终验）, AC-6（含 liveness/readiness curl）
-- Depends on: Slice 2
+- Depends on: Slice 3
 - Test or proof：按 README 执行 `./mvnw verify`；`rg` 或审查确认无密钥入库。
 - Implementation outline：
-  - README 补充 JDK、verify、启动与聚合健康检查说明（`/actuator/health`）。
+  - README 补充 JDK、verify、启动与 liveness/readiness curl。
   - 确认 `.gitignore` 覆盖 `.env`、`application-local.*`。
 - Verification：`./mvnw -q verify`
 - Done: true
@@ -81,5 +81,6 @@
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过（Java 25.0.2，Spring Boot 4.1.1，Maven Wrapper 3.9.9）。Testcontainers 依赖留待 Slice 2 加入。
 - 2026-10-08 Slice 2：`./mvnw -q verify` 通过；`RoseiotProperties`、Flyway `V1__baseline`、`FlywayMigrationIntegrationTest`（Testcontainers PostgreSQL 16）。
 - 2026-10-08 精简 Slice 2：改用标准 `spring.datasource.*` / `SPRING_DATASOURCE_*`，删除自定义 `@ConfigurationProperties` 与独立 Flyway 测试类；Slice 3 暂缓。
-- 2026-10-08 Slice 4：`./mvnw -q verify` 通过；README 终验命令与 `/actuator/health`；已跟踪文件无常见密钥模式（rg 审查）；`.gitignore` 已含 `.env` 与 `application-local.*`。
+- 2026-10-08 Slice 4：`./mvnw -q verify` 通过；README 终验命令与 liveness/readiness curl；已跟踪文件无常见密钥模式（rg 审查）；`.gitignore` 已含 `.env` 与 `application-local.*`。
 - 2026-10-08 Slice 3：`./mvnw -q verify` 通过；probes、Security 最小暴露、Actuator 集成测试（含 DB 不可达 readiness）。
+- 2026-10-08 本地开发：`compose.yaml` + `spring-boot-docker-compose`（optional）；`spring.config.import` 加载 `.env`；测试仍用 Testcontainers（`spring.docker.compose.skip.in-tests=true`）。

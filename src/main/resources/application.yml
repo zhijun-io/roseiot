@@ -1,9 +1,15 @@
 spring:
   application:
     name: roseiot
+  config:
+    import: optional:file:.env[.properties]
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  docker:
+    compose:
+      skip:
+        in-tests: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/roseiot}
     username: ${SPRING_DATASOURCE_USERNAME:roseiot}
