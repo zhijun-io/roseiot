@@ -5,8 +5,8 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-项目处于规划和最小启动阶段，尚无可运行应用。当前不承诺生产规模、性能数据
-或完整平台能力。
+项目处于阶段 0：已有最小 Spring Boot 工程与数据库迁移入口。当前不承诺生产规模、
+性能数据或完整平台能力。
 
 ## 建设原则
 
@@ -39,14 +39,12 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 - [领域词汇](GLOSSARY.md)
 - [Agent 规则](AGENTS.md)
 
-## 验证与运行（阶段 0，随切片补充）
+## 验证与运行
 
-前置：**Docker**（Testcontainers 跑集成测试）、本地 **PostgreSQL**（`spring-boot:run`）。
+集成测试需要 **Docker**（Testcontainers）。本地运行需要 **PostgreSQL** 与 `.env`。
 
 ```bash
-cp .env.example .env   # 填写 SPRING_DATASOURCE_*
+cp .env.example .env
 ./mvnw -q verify
 ./mvnw spring-boot:run
 ```
-
-健康检查 curl 命令在 Slice 3 完成后写入本文档。

@@ -5,31 +5,17 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
-    url: ${roseiot.datasource.url}
-    username: ${roseiot.datasource.username}
-    password: ${roseiot.datasource.password}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/roseiot}
+    username: ${SPRING_DATASOURCE_USERNAME:roseiot}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   flyway:
     enabled: true
-    user: ${SPRING_FLYWAY_USER:${roseiot.datasource.username}}
-    password: ${SPRING_FLYWAY_PASSWORD:${roseiot.datasource.password}}
 
 management:
   endpoints:
     web:
       exposure:
         include: health
-  endpoint:
-    health:
-      probes:
-        enabled: true
 
 server:
-  port: ${roseiot.server.port:8080}
-
-roseiot:
-  server:
-    port: ${SERVER_PORT:8080}
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/roseiot}
-    username: ${SPRING_DATASOURCE_USERNAME:roseiot}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+  port: ${SERVER_PORT:8080}

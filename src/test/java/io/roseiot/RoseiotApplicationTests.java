@@ -17,9 +17,9 @@ class RoseiotApplicationTests {
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
-        registry.add("roseiot.datasource.url", postgres::getJdbcUrl);
-        registry.add("roseiot.datasource.username", postgres::getUsername);
-        registry.add("roseiot.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
     }
 
     @Test
