@@ -1,4 +1,4 @@
-package io.roseiot.api;
+package io.roseiot.shared.api;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

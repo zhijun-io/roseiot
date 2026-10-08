@@ -1,6 +1,6 @@
 package io.roseiot.config;
 
-import io.roseiot.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiErrorBodyWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;

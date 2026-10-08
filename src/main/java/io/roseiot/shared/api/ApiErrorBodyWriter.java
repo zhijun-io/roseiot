@@ -1,4 +1,4 @@
-package io.roseiot.api;
+package io.roseiot.shared.api;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;

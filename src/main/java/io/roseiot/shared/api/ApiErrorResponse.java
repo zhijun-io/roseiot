@@ -1,4 +1,4 @@
-package io.roseiot.api;
+package io.roseiot.shared.api;
 
 /**
  * Stable JSON error body for {@code /api/**} REST responses. Success responses use domain DTOs
