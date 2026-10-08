@@ -61,6 +61,37 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
                 .isEqualTo("invalid_credentials");
     }
 
+    @Test
+    void refreshRotatesTokenAndRejectsReplayByRevokingFamily() {
+        LoginResponse login =
+                postLogin("admin@example.com", PASSWORD)
+                        .assertThat()
+                        .hasStatusOk()
+                        .bodyJson()
+                        .convertTo(LoginResponse.class)
+                        .actual();
+
+        LoginResponse rotated =
+                postRefresh(login.refreshToken())
+                        .assertThat()
+                        .hasStatusOk()
+                        .bodyJson()
+                        .convertTo(LoginResponse.class)
+                        .actual();
+
+        postRefresh(login.refreshToken())
+                .assertThat()
+                .hasStatus(HttpStatus.UNAUTHORIZED)
+                .bodyJson()
+                .extractingPath("$.code")
+                .asString()
+                .isEqualTo("invalid_refresh_token");
+
+        postRefresh(rotated.refreshToken())
+                .assertThat()
+                .hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
                 .uri("/api/auth/login")
@@ -69,10 +100,25 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
                 .exchange();
     }
 
+    private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
+        return mvc.post()
+                .uri("/api/auth/token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(refreshJson(refreshToken))
+                .exchange();
+    }
+
     private static String loginJson(String email, String password) {
         return """
                 {"email":"%s","password":"%s"}
                 """
                 .formatted(email, password);
+    }
+
+    private static String refreshJson(String refreshToken) {
+        return """
+                {"refreshToken":"%s"}
+                """
+                .formatted(refreshToken);
     }
 }
