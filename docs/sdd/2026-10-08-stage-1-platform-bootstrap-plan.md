@@ -38,7 +38,7 @@
   - CLI：`CommandLineRunner` 或 `ApplicationRunner`，仅当显式参数/环境（如 `--bootstrap` + `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`）时运行并 `SpringApplication.exit`。
   - 默认 `RoseiotApplication` 正常启动不受影响（无 bootstrap 参数时不执行引导）。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## Slice 3：重复引导拒绝
 
@@ -79,3 +79,4 @@
 ## Build log
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过。MyBatis Plus **3.5.17** `mybatis-plus-spring-boot4-starter`（Boot 3 starter 在 Boot 4.1.1 下不注册 SqlSessionFactory）。Flyway `V2__platform_admin`；`PlatformAdminSchemaIntegrationTest` 断言空表。
+- 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`PostgresUuidTypeHandler`；`BootstrapPlatformAdminUseCase` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
