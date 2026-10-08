@@ -2,7 +2,9 @@ package io.roseiot.platform.auth.api;
 
 import io.roseiot.AbstractIt;
 import io.roseiot.platform.bootstrap.BootstrapPlatformAdminUseCase;
+import io.roseiot.platform.auth.recovery.InMemoryRecoveryNotificationAdapter;
 import io.roseiot.platform.persistence.PlatformAdminMapper;
+import io.roseiot.platform.persistence.PlatformAdminRecoveryRequestMapper;
 import io.roseiot.platform.persistence.PlatformAdminRefreshSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     private static final String RAW_EMAIL = "Admin@Example.com";
     private static final String PASSWORD = "password1234";
     private static final String NEW_PASSWORD = "newPassword5678";
+    private static final String RECOVERED_PASSWORD = "recoveredPass9012";
 
     @Autowired
     BootstrapPlatformAdminUseCase bootstrapPlatformAdminUseCase;
@@ -25,10 +28,18 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     @Autowired
     PlatformAdminRefreshSessionMapper refreshSessionMapper;
 
+    @Autowired
+    PlatformAdminRecoveryRequestMapper recoveryRequestMapper;
+
+    @Autowired
+    InMemoryRecoveryNotificationAdapter recoveryNotifications;
+
     @BeforeEach
     void seedPlatformAdmin() {
+        recoveryRequestMapper.delete(null);
         refreshSessionMapper.delete(null);
         platformAdminMapper.delete(null);
+        recoveryNotifications.clear();
         bootstrapPlatformAdminUseCase.bootstrap(RAW_EMAIL, PASSWORD);
     }
 
@@ -115,6 +126,64 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     }
 
     @Test
+    void recoveryRequestReturnsSameResponseForUnknownAndRegisteredEmail() {
+        var registered = postRecoveryRequest("admin@example.com");
+        var unknown = postRecoveryRequest("nobody@example.com");
+
+        registered.assertThat().hasStatus(HttpStatus.ACCEPTED);
+        unknown.assertThat().hasStatus(HttpStatus.ACCEPTED);
+        registered.assertThat().bodyText().isEqualTo(unknown.assertThat().bodyText().actual());
+        registered
+                .assertThat()
+                .bodyJson()
+                .extractingPath("$.message")
+                .asString()
+                .isEqualTo("If an account exists, recovery instructions were sent");
+
+        recoveryNotifications.lastForEmail("admin@example.com").orElseThrow();
+        recoveryNotifications.lastForEmail("nobody@example.com").isEmpty();
+    }
+
+    @Test
+    void recoveryConfirmSetsNewPasswordRevokesRefreshAndRejectsTokenReuse() {
+        LoginResponse login =
+                postLogin("admin@example.com", PASSWORD)
+                        .assertThat()
+                        .hasStatusOk()
+                        .bodyJson()
+                        .convertTo(LoginResponse.class)
+                        .actual();
+
+        postRecoveryRequest("admin@example.com").assertThat().hasStatus(HttpStatus.ACCEPTED);
+
+        String token = recoveryNotifications
+                .lastForEmail("admin@example.com")
+                .orElseThrow()
+                .token();
+
+        postRecoveryConfirm(token, RECOVERED_PASSWORD).assertThat().hasStatus(HttpStatus.NO_CONTENT);
+
+        postLogin("admin@example.com", RECOVERED_PASSWORD).assertThat().hasStatusOk();
+        postLogin("admin@example.com", PASSWORD).assertThat().hasStatus(HttpStatus.UNAUTHORIZED);
+
+        postRefresh(login.refreshToken())
+                .assertThat()
+                .hasStatus(HttpStatus.UNAUTHORIZED)
+                .bodyJson()
+                .extractingPath("$.code")
+                .asString()
+                .isEqualTo("invalid_refresh_token");
+
+        postRecoveryConfirm(token, "anotherPass3456")
+                .assertThat()
+                .hasStatus(HttpStatus.UNAUTHORIZED)
+                .bodyJson()
+                .extractingPath("$.code")
+                .asString()
+                .isEqualTo("invalid_recovery_token");
+    }
+
+    @Test
     void changePasswordRevokesRefreshSessions() {
         LoginResponse login =
                 postLogin("admin@example.com", PASSWORD)
@@ -129,6 +198,30 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
         postRefresh(login.refreshToken()).assertThat().hasStatus(HttpStatus.UNAUTHORIZED);
 
         postLogin("admin@example.com", NEW_PASSWORD).assertThat().hasStatusOk();
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryRequest(String email) {
+        return mvc.post()
+                .uri("/api/auth/recovery/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"email":"%s"}
+                        """
+                        .formatted(email))
+                .exchange();
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryConfirm(
+            String token, String newPassword) {
+        return mvc.post()
+                .uri("/api/auth/recovery/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        """
+                        {"token":"%s","newPassword":"%s"}
+                        """
+                                .formatted(token, newPassword))
+                .exchange();
     }
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {

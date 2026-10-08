@@ -118,7 +118,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - Depends on: Slice 2（需已有 admin 与 session 表）
 - Test or proof：捕获通知 token → confirm → 新密码 login；未注册邮箱 request 与已注册 response 一致；token 重用失败。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## Slice 6：README 与限速终验（AC-9）
 
@@ -156,3 +156,4 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - **Slice 2**（2026-10-08）：`PlatformAdminLoginUseCase` / `PlatformAdminProfileUseCase`；`POST /api/auth/login`、`GET /api/platform/me`；refresh 会话入库 + JWT 签发；`PlatformAdminAuthMockMvcTests` / `PlatformAdminAuthTests`。验证：`./mvnw -q verify` 通过。
 - **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshUseCaseTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
 - **Slice 4**（2026-10-08）：`POST /api/auth/logout`、`/logout-all`；`PATCH /api/platform/me/password` 改密并撤销全部 refresh；MockMvc + 用例单元测试。验证：`./mvnw -q verify` 通过。
+- **Slice 5**（2026-10-08）：`POST /api/auth/recovery/request`（202 统一 body）、`/confirm`（204）；`RecoveryNotificationPort` + 默认 logging 适配器；测试 `InMemoryRecoveryNotificationAdapter`；confirm 改密、标记 `used_at`、撤销全部 refresh；`OpaqueTokens` 复用于 login/refresh/recovery；MockMvc AC-6/7/8。验证：`./mvnw -q verify` 通过。

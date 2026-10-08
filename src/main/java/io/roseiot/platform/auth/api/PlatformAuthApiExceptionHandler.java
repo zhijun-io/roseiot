@@ -1,6 +1,7 @@
 package io.roseiot.platform.auth.api;
 
 import io.roseiot.platform.auth.InvalidCredentialsException;
+import io.roseiot.platform.auth.InvalidRecoveryTokenException;
 import io.roseiot.platform.auth.InvalidRefreshTokenException;
 import io.roseiot.platform.auth.PasswordValidationException;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
@@ -35,6 +36,14 @@ public class PlatformAuthApiExceptionHandler {
                 HttpStatus.UNAUTHORIZED.value(),
                 "invalid_refresh_token",
                 "Invalid refresh token");
+    }
+
+    @ExceptionHandler(InvalidRecoveryTokenException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidRecoveryToken(InvalidRecoveryTokenException exception) {
+        return apiErrorBodyWriter.responseEntity(
+                HttpStatus.UNAUTHORIZED.value(),
+                "invalid_recovery_token",
+                "Invalid recovery token");
     }
 
     @ExceptionHandler(PasswordValidationException.class)

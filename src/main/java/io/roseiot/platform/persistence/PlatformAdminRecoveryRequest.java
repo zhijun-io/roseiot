@@ -1,0 +1,73 @@
+package io.roseiot.platform.persistence;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@TableName("platform_admin_recovery_request")
+public class PlatformAdminRecoveryRequest {
+
+    @TableId(type = IdType.INPUT)
+    private UUID id;
+
+    private UUID platformAdminId;
+
+    private String tokenHash;
+
+    private Instant expiresAt;
+
+    private Instant usedAt;
+
+    private Instant createdAt;
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getPlatformAdminId() {
+        return platformAdminId;
+    }
+
+    public void setPlatformAdminId(UUID platformAdminId) {
+        this.platformAdminId = platformAdminId;
+    }
+
+    public String getTokenHash() {
+        return tokenHash;
+    }
+
+    public void setTokenHash(String tokenHash) {
+        this.tokenHash = tokenHash;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public Instant getUsedAt() {
+        return usedAt;
+    }
+
+    public void setUsedAt(Instant usedAt) {
+        this.usedAt = usedAt;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+}

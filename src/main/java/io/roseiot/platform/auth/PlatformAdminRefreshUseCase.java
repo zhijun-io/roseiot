@@ -8,18 +8,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 public class PlatformAdminRefreshUseCase {
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final PlatformAdminRefreshSessionMapper refreshSessionMapper;
     private final PlatformAuthTokenIssuer tokenIssuer;
@@ -65,7 +61,7 @@ public class PlatformAdminRefreshUseCase {
         refreshSessionMapper.updateById(current);
 
         UUID newSessionId = UuidV7.generate();
-        String refreshToken = generateOpaqueToken();
+        String refreshToken = OpaqueTokens.generateUrlSafe256Bit();
 
         PlatformAdminRefreshSession next = new PlatformAdminRefreshSession();
         next.setId(newSessionId);
@@ -91,9 +87,4 @@ public class PlatformAdminRefreshUseCase {
         }
     }
 
-    private static String generateOpaqueToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
 }

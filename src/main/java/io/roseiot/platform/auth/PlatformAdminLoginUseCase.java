@@ -12,18 +12,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 public class PlatformAdminLoginUseCase {
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final PlatformAdminMapper platformAdminMapper;
     private final PlatformAdminRefreshSessionMapper refreshSessionMapper;
@@ -52,7 +48,7 @@ public class PlatformAdminLoginUseCase {
 
         UUID sessionId = UuidV7.generate();
         UUID familyId = UuidV7.generate();
-        String refreshToken = generateOpaqueToken();
+        String refreshToken = OpaqueTokens.generateUrlSafe256Bit();
         Instant now = Instant.now();
 
         PlatformAdminRefreshSession session = new PlatformAdminRefreshSession();
@@ -73,12 +69,6 @@ public class PlatformAdminLoginUseCase {
             return "";
         }
         return rawEmail.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static String generateOpaqueToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public record LoginTokens(String accessToken, String refreshToken) {}
