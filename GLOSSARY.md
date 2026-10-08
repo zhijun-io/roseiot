@@ -97,7 +97,7 @@ _避免使用_：设备重注册、凭证查看
 ## 标识与命名
 
 **内部 ID（Internal ID）**：
-平台为资源生成的不透明身份标识，不承载业务含义。
+平台为资源生成的不透明身份标识，不承载业务含义。阶段 1 起采用 RFC 9562 **UUID version 7**（`io.roseiot.platform.support.UuidV7`），后续阶段 1 实体沿用同一生成方式。
 _避免使用_：业务编码、名称
 
 **业务标识符（Business Identifier）**：
