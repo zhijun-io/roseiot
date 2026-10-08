@@ -48,7 +48,7 @@
 - Test or proof：集成测试先 seed 一名管理员（测试内 API 或 Mapper），再跑引导 → exit ≠ 0，count 仍为 1。
 - Implementation outline：用例层 `AlreadyBootstrappedException` 或等价；CLI 映射为非零 exit，stderr 不含密码。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## Slice 4：README 与密钥卫生终验
 
@@ -58,7 +58,7 @@
 - Test or proof：按 README 步骤人工或脚本复核；`rg`/审查确认迁移与示例无真实 secret。
 - Implementation outline：README「平台引导」小节；`.env.example` 增加 `BOOTSTRAP_ADMIN_*` 占位（可选）；技术基线补充 MyBatis Plus 版本。
 - Verification：`./mvnw -q verify`；README 引导命令本地跑通一次（PR 说明）
-- Done: false
+- Done: true
 
 ## AC 覆盖矩阵
 
@@ -80,3 +80,5 @@
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过。MyBatis Plus **3.5.17** `mybatis-plus-spring-boot4-starter`（Boot 3 starter 在 Boot 4.1.1 下不注册 SqlSessionFactory）。Flyway `V2__platform_admin`；`PlatformAdminSchemaIntegrationTest` 断言空表。
 - 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`PostgresUuidTypeHandler`；`BootstrapPlatformAdminUseCase` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
+- 2026-10-08 Slice 3：`./mvnw -q verify` 通过。重复引导抛 `AlreadyBootstrappedException`；`runBootstrapCommand` 非零退出且 stderr 不含密码；`PlatformBootstrapIntegrationTest` 覆盖用例拒绝与 seed 后再跑 CLI 路径。
+- 2026-10-08 Slice 4：`./mvnw -q verify` 通过。README「平台引导」与 AC-2/AC-3 手验步骤；`.env.example` 增加 `BOOTSTRAP_*`；引导失败 stderr 输出不含密码。

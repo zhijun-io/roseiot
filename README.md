@@ -5,7 +5,8 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-项目处于阶段 0：已有最小 Spring Boot 工程与数据库迁移入口。当前不承诺生产规模、
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 进行中：**Spec #1 平台引导（IAM-001）**
+已实现 CLI 一次性创建首个平台管理员；租户/登录等后续 Spec 尚未交付。不承诺生产规模、
 性能数据或完整平台能力。
 
 ## 建设原则
@@ -16,7 +17,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 - 依赖和基础设施必须由当前问题驱动；
 - 用测试、演示脚本和可复现基准证明结果。
 
-## 技术基线（阶段 0 Slice 1 已验证）
+## 技术基线（已验证）
 
 | 项 | 版本 |
 | --- | --- |
@@ -67,4 +68,47 @@ cp .env.example .env   # 可选：覆盖 POSTGRES_PASSWORD
 ```bash
 curl -sS "http://localhost:8080/actuator/health/liveness"
 curl -sS "http://localhost:8080/actuator/health/readiness"
+```
+
+## 平台引导（IAM-001）
+
+在 **`platform_admin` 表为空** 的数据库上，通过 **CLI** 创建**恰好一名**平台管理员。
+凭证只来自环境变量，勿写入 Git。引导与长期运行的 Web 服务分开：使用 `--bootstrap` 启动后进程会退出，不会监听 HTTP。
+
+前置：PostgreSQL 已就绪（Compose 或 `.env` 中的 `SPRING_DATASOURCE_*`），且 `./mvnw -q verify` 通过。
+
+在 `.env` 中设置（参见 [`.env.example`](.env.example)）：
+
+```bash
+BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+BOOTSTRAP_ADMIN_PASSWORD=your-password-at-least-12-chars
+```
+
+密码至少 12 位且同时包含字母与数字。邮箱会 trim 并转为小写入库。
+
+**首次引导（空库，期望退出码 0）：**
+
+```bash
+./mvnw -q spring-boot:run -Dspring-boot.run.arguments=--bootstrap
+echo $?   # 应为 0
+```
+
+**验证库中有一条记录**（示例：用 `psql` 或任意 SQL 客户端，勿在日志中打印密码）：
+
+```sql
+SELECT email FROM platform_admin;
+-- 期望一行，email 与规范化后的 BOOTSTRAP_ADMIN_EMAIL 一致
+```
+
+**重复引导（期望非零退出、仍为 1 条记录）：**
+
+```bash
+./mvnw -q spring-boot:run -Dspring-boot.run.arguments=--bootstrap
+echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
+```
+
+再次查询 `platform_admin` 行数应仍为 1。正常运行应用时不要带 `--bootstrap`：
+
+```bash
+./mvnw spring-boot:run
 ```
