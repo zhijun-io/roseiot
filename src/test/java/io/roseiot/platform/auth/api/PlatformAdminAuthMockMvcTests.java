@@ -14,6 +14,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
 
     private static final String RAW_EMAIL = "Admin@Example.com";
     private static final String PASSWORD = "password1234";
+    private static final String NEW_PASSWORD = "newPassword5678";
 
     @Autowired
     BootstrapPlatformAdminUseCase bootstrapPlatformAdminUseCase;
@@ -92,6 +93,44 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
                 .hasStatus(HttpStatus.UNAUTHORIZED);
     }
 
+    @Test
+    void logoutRevokesCurrentRefreshSession() {
+        LoginResponse login =
+                postLogin("admin@example.com", PASSWORD)
+                        .assertThat()
+                        .hasStatusOk()
+                        .bodyJson()
+                        .convertTo(LoginResponse.class)
+                        .actual();
+
+        postLogout(login.accessToken()).assertThat().hasStatus(HttpStatus.NO_CONTENT);
+
+        postRefresh(login.refreshToken())
+                .assertThat()
+                .hasStatus(HttpStatus.UNAUTHORIZED)
+                .bodyJson()
+                .extractingPath("$.code")
+                .asString()
+                .isEqualTo("invalid_refresh_token");
+    }
+
+    @Test
+    void changePasswordRevokesRefreshSessions() {
+        LoginResponse login =
+                postLogin("admin@example.com", PASSWORD)
+                        .assertThat()
+                        .hasStatusOk()
+                        .bodyJson()
+                        .convertTo(LoginResponse.class)
+                        .actual();
+
+        patchPassword(login.accessToken(), PASSWORD, NEW_PASSWORD).assertThat().hasStatus(HttpStatus.NO_CONTENT);
+
+        postRefresh(login.refreshToken()).assertThat().hasStatus(HttpStatus.UNAUTHORIZED);
+
+        postLogin("admin@example.com", NEW_PASSWORD).assertThat().hasStatusOk();
+    }
+
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
                 .uri("/api/auth/login")
@@ -105,6 +144,27 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
                 .uri("/api/auth/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(refreshJson(refreshToken))
+                .exchange();
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult postLogout(String accessToken) {
+        return mvc.post()
+                .uri("/api/auth/logout")
+                .header("Authorization", "Bearer " + accessToken)
+                .exchange();
+    }
+
+    private org.springframework.test.web.servlet.assertj.MvcTestResult patchPassword(
+            String accessToken, String currentPassword, String newPassword) {
+        return mvc.patch()
+                .uri("/api/platform/me/password")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                        """
+                        {"currentPassword":"%s","newPassword":"%s"}
+                        """
+                                .formatted(currentPassword, newPassword))
                 .exchange();
     }
 

@@ -2,6 +2,7 @@ package io.roseiot.platform.auth.api;
 
 import io.roseiot.platform.auth.InvalidCredentialsException;
 import io.roseiot.platform.auth.InvalidRefreshTokenException;
+import io.roseiot.platform.auth.PasswordValidationException;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
 import io.roseiot.shared.api.ApiErrorResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,5 +35,11 @@ public class PlatformAuthApiExceptionHandler {
                 HttpStatus.UNAUTHORIZED.value(),
                 "invalid_refresh_token",
                 "Invalid refresh token");
+    }
+
+    @ExceptionHandler(PasswordValidationException.class)
+    ResponseEntity<ApiErrorResponse> handlePasswordValidation(PasswordValidationException exception) {
+        return apiErrorBodyWriter.responseEntity(
+                HttpStatus.BAD_REQUEST.value(), "validation_error", exception.getMessage());
     }
 }
