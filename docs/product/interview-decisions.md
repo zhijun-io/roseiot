@@ -3942,3 +3942,9 @@ AND 凭证当前有效
 ➡️ **用户确认（2026-10-08）。** 以 README、migration-plan 与 `SecurityConfig` 为准；Q375 示例路径视为历史表述，语义不变。
 
 ➡️ **修订（2026-10-08）**：认证端点扁平化至 **`POST /api/identity/login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**，与 **`/api/identity/me/**`** 共用 **`/api/identity`** 前缀，不再使用中间 **`/auth`** 段。
+
+---
+
+❓ **Q513 — Spec #3 平台租户 HTTP 前缀**：平台侧租户生命周期 REST 是否定为 **`/api/identity/tenants/**`**（permission `identity.tenant.*`），而**不**再使用 Q375 示例中的 **`/api/platform/**`**；租户内业务仍为 **`/api/tenant/**`**（无 URL 内 tenantId）？
+
+➡️ **用户确认（2026-10-08，Spec #3 修订）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-members-spec.md) 为准；`/api/platform/me` 等历史路径仅作 Spec #2 迁移前表述。
