@@ -37,7 +37,69 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 1. **`spring-boot:run` + `compose.yaml`**：`JdbcConnectionDetails` 优先于 `application.yml` 中的 `SPRING_DATASOURCE_*` 占位符。
 2. **`.env`**：经 `spring.config.import=optional:file:.env[.properties]` 从进程工作目录（通常在仓库根）加载；Compose 另用同一文件做 `POSTGRES_PASSWORD` 等变量替换。
-3. **集成测试**：`spring.docker.compose.skip.in-tests=true`，不启动 Compose；Testcontainers + `@DynamicPropertySource` 注入 `spring.datasource.*`，不依赖本机 `.env`。
+3. **集成测试**：`spring.docker.compose.skip.in-tests=true`，不启动 Compose；`@Import(TestcontainersConfig.class)` 经 `@ServiceConnection` 注入数据源，不依赖本机 `.env`。
+4. **IDE 试跑**：运行测试源里的 `TestRoseiotApplication`（Testcontainers Postgres，等同 spring-blog 的 `TestBlogApplication`）。
+
+## 测试策略
+
+与访谈 **Q128** 一致：按风险选边界，不追求固定比例或「每表一个集成测试类」。
+
+**命名**：
+
+- `*MockMvcTests`：继承 `AbstractIt`，只使用 `mvc`，**不用** `restTestClient`。
+- 其他集成 `*Tests`：继承 `AbstractIt`，**不用** `mvc`；需要真实 HTTP 时可选 `restTestClient`。
+- `*UseCaseTests` 等单元测试：不启 Spring。
+
+### 单元测试
+
+**边界**：单类/单用例，**不启动 Spring**（`@ExtendWith(MockitoExtension.class)` + `@InjectMocks` / `@Mock`）。
+
+**写单元测试当**：
+
+- 业务规则、分支、错误码映射在 **UseCase**（或纯函数）里，用 Mock 替代 Mapper、Encoder、时钟等即可断言。
+- 同一逻辑已有集成测试覆盖 Happy path，但失败分支多、起容器成本高——用单元测试补分支。
+- 无 I/O：UUID 生成、格式校验、小工具类。
+
+**不写单元测试当**：
+
+- 被测对象只是 Spring 配置拼装（`@Configuration`、Filter 链顺序）——测了也测不到真实行为，应写集成测试。
+- 断言完全依赖 PostgreSQL 约束、Flyway 脚本或 HTTP 状态码——那是集成测试的职责。
+
+### 集成测试
+
+**边界**：`@SpringBootTest` + `TestcontainersConfig`（PostgreSQL `@ServiceConnection`），证明**真实接线**。
+
+**写集成测试当**：
+
+- **HTTP 契约（MockMvc）**：`*MockMvcTests`（401、错误体、登录失败分支等）。
+- **HTTP 契约（可选真实端口）**：`*Tests` + `AbstractIt` 的 `restTestClient`（如 JWT 往返 happy path）。
+- **持久化/迁移**：Flyway 脚本、表/索引/约束与 Mapper 在真库上可运行 → 继承 `AbstractIt`（不必调用 HTTP）。
+- **模式开关**：bootstrap CLI、`roseiot.bootstrap.enabled` 等改变 Bean 集合 → 继承 `AbstractIt`（必要时子类再加 `@SpringBootTest(properties=…)`）。
+- **Actuator / 健康检查**：继承 `AbstractIt`；若需特殊 DataSource 替身，子类用 `@DynamicPropertySource` 等覆盖。
+
+**不写集成测试当**：
+
+- 仅验证 UseCase 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
+- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/platform/me` 即可）。
+
+### 基类
+
+| 类型 | 用途 |
+| --- | --- |
+| `TestcontainersConfig` | 唯一 Postgres 容器 + `@ServiceConnection` |
+| `AbstractIt` | 集成测试基类：Testcontainers + `mvc` + `restTestClient`（按类名约定选用其一） |
+
+### 示例
+
+| 类型 | 示例类 |
+| --- | --- |
+| 单元 | `PlatformAdminLoginUseCaseTests` |
+| MockMvc | `PlatformAdminAuthMockMvcTests`、`ActuatorHealthMockMvcTests` |
+| RestTestClient（可选） | `PlatformAdminAuthTests` |
+| 冒烟 + Flyway | `PlatformFlywaySchemaTests`（含 `contextLoads`） |
+
+**原则**：能写 `*UseCaseTests` 的不要写继承 `AbstractIt` 的类；集成测试只保留契约/接线证据。
+
 
 ## 文档
 

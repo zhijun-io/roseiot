@@ -40,7 +40,7 @@
 - Goal：匿名可访问 liveness；readiness 反映 PostgreSQL；响应不泄露 URL/凭证；Security 仅放行健康路径。
 - Acceptance: AC-2, AC-3
 - Depends on: Slice 2
-- Test or proof：`ActuatorHealthIntegrationTest`（Testcontainers + JDK HttpClient）；`ActuatorHealthWhenDatabaseUnreachableTest`。
+- Test or proof：`ActuatorHealthTests`；`ActuatorHealthWhenDatabaseUnreachableTests`。
 - Implementation outline：
   - Actuator probes + `show-details: never`。
   - `SecurityFilterChain`：`/actuator/health/**` `permitAll`，其余 `denyAll`。

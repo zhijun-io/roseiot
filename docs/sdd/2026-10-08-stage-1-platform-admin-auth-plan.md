@@ -2,6 +2,18 @@
 
 **Spec:** [`docs/sdd/2026-10-08-stage-1-platform-admin-auth-spec.md`](2026-10-08-stage-1-platform-admin-auth-spec.md)
 
+## 代码包结构（与访谈 Q120 / Q124 一致）
+
+| 包 | 职责 |
+| --- | --- |
+| `io.roseiot.config` | 应用壳：Security 过滤器链、JSON 401/403 等横切装配 |
+| `io.roseiot.shared.api` | 跨能力 HTTP 错误契约（`ApiErrorResponse`、全局 `@RestControllerAdvice`、Servlet 错误写入） |
+| `io.roseiot.platform.auth` | 平台管理员认证用例、JWT 签发、领域异常 |
+| `io.roseiot.platform.auth.api` | 认证 REST 适配（Controller、请求/响应 DTO）；能力内 `api`，非 shared |
+| `io.roseiot.platform.persistence` | 平台阶段表与 MyBatis Mapper（后续能力拆分前临时归 `platform`） |
+
+`shared` 仅放无业务所有权、稳定复用的最小内容；业务成功体仍用各能力 DTO，不放入 shared。
+
 ## Risks / Dependencies
 
 - **Spring Security 6 + Boot 4.1.1**：Slice 1 须 `./mvnw verify` 证明 JWT/无状态资源过滤器与现有 `SecurityConfig`（引导模式条件装配）共存。
@@ -79,7 +91,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - Test or proof：Testcontainers → seed 管理员 → login → me；错误密码与不存在邮箱断言同 body 结构。
 - Implementation outline：`PlatformAdminLoginUseCase`；refresh 会话入库；JWT 签发。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## Slice 3：刷新轮换与重放撤销（AC-3）
 
@@ -140,4 +152,5 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 
 ## Build log
 
-- **Slice 1**（2026-10-08）：`V3__platform_admin_auth.sql`；`SecurityConfig` + `JsonSecurityHandlers`；OAuth2 Resource Server + `PlatformAuthJwtConfig`（`roseiot.auth.jwt.hmac-secret` / `ROSEIOT_AUTH_JWT_SECRET`）；`PlatformMeController` 占位 `GET /api/platform/me`；集成测试匿名 401 JSON + 表存在；REST 前缀 `/api`（无 URL 版本号）；共享 `io.roseiot.api` 错误体（`ApiErrorResponse` + `ApiExceptionHandler` + `ApiErrorBodyWriter`）。验证：`./mvnw -q verify` 通过。
+- **Slice 1**（2026-10-08）：`V3__platform_admin_auth.sql`；`SecurityConfig` + `JsonSecurityHandlers`；OAuth2 Resource Server + `PlatformAuthJwtConfig`（`roseiot.auth.jwt.hmac-secret` / `ROSEIOT_AUTH_JWT_SECRET`）；`PlatformMeController` 占位 `GET /api/platform/me`；集成测试匿名 401 JSON + 表存在；REST 前缀 `/api`（无 URL 版本号）；共享 `io.roseiot.shared.api` 错误体（`ApiErrorResponse` + `ApiExceptionHandler` + `ApiErrorBodyWriter`）。验证：`./mvnw -q verify` 通过。
+- **Slice 2**（2026-10-08）：`PlatformAdminLoginUseCase` / `PlatformAdminProfileUseCase`；`POST /api/auth/login`、`GET /api/platform/me`；refresh 会话入库 + JWT 签发；`PlatformAdminAuthMockMvcTests` / `PlatformAdminAuthTests`。验证：`./mvnw -q verify` 通过。
