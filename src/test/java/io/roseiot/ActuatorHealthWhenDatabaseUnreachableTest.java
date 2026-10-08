@@ -1,5 +1,6 @@
 package io.roseiot;
 
+import io.roseiot.test.PostgresTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -30,7 +31,7 @@ class ActuatorHealthWhenDatabaseUnreachableTest {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer<?> postgres = PostgresTestSupport.newContainer();
 
     @DynamicPropertySource
     static void misconfiguredDatasource(DynamicPropertyRegistry registry) {

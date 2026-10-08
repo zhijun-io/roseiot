@@ -1,6 +1,7 @@
 package io.roseiot.platform;
 
 import io.roseiot.platform.persistence.PlatformAdminMapper;
+import io.roseiot.test.PostgresTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,13 +18,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlatformAdminSchemaIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer<?> postgres = PostgresTestSupport.newContainer();
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        PostgresTestSupport.registerDatasource(registry, postgres);
     }
 
     @Autowired
