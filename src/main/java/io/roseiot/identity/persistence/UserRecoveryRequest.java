@@ -1,4 +1,4 @@
-package io.roseiot.platform.persistence;
+package io.roseiot.identity.persistence;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -7,21 +7,19 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import java.util.UUID;
 
-@TableName("platform_admin_refresh_session")
-public class PlatformAdminRefreshSession {
+@TableName("user_recovery_request")
+public class UserRecoveryRequest {
 
     @TableId(type = IdType.INPUT)
     private UUID id;
 
-    private UUID platformAdminId;
-
-    private UUID familyId;
+    private UUID userId;
 
     private String tokenHash;
 
     private Instant expiresAt;
 
-    private Instant revokedAt;
+    private Instant usedAt;
 
     private Instant createdAt;
 
@@ -33,20 +31,12 @@ public class PlatformAdminRefreshSession {
         this.id = id;
     }
 
-    public UUID getPlatformAdminId() {
-        return platformAdminId;
+    public UUID getUserId() {
+        return userId;
     }
 
-    public void setPlatformAdminId(UUID platformAdminId) {
-        this.platformAdminId = platformAdminId;
-    }
-
-    public UUID getFamilyId() {
-        return familyId;
-    }
-
-    public void setFamilyId(UUID familyId) {
-        this.familyId = familyId;
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 
     public String getTokenHash() {
@@ -65,12 +55,12 @@ public class PlatformAdminRefreshSession {
         this.expiresAt = expiresAt;
     }
 
-    public Instant getRevokedAt() {
-        return revokedAt;
+    public Instant getUsedAt() {
+        return usedAt;
     }
 
-    public void setRevokedAt(Instant revokedAt) {
-        this.revokedAt = revokedAt;
+    public void setUsedAt(Instant usedAt) {
+        this.usedAt = usedAt;
     }
 
     public Instant getCreatedAt() {

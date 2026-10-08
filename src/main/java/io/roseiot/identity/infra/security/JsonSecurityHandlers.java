@@ -1,4 +1,4 @@
-package io.roseiot.identity.config;
+package io.roseiot.identity.infra.security;
 
 import io.roseiot.shared.api.ApiErrorBodyWriter;
 import jakarta.servlet.http.HttpServletRequest;

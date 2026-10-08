@@ -1,4 +1,4 @@
-package io.roseiot.identity.config;
+package io.roseiot.identity.infra.mybatis;
 
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Configuration;

@@ -1,4 +1,4 @@
-package io.roseiot.identity.config;
+package io.roseiot.identity.domain;
 
 import java.util.Optional;
 import java.util.regex.Pattern;

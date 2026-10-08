@@ -1,4 +1,4 @@
-package io.roseiot.platform.persistence;
+package io.roseiot.identity.infra.mybatis;
 
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @MappedTypes(UUID.class)
 @MappedJdbcTypes(JdbcType.OTHER)
-public class PostgresUuidTypeHandler extends BaseTypeHandler<UUID> {
+public class UuidTypeHandler extends BaseTypeHandler<UUID> {
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, UUID parameter, JdbcType jdbcType)

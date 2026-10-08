@@ -1,4 +1,4 @@
-package io.roseiot.identity.config;
+package io.roseiot.identity.infra.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

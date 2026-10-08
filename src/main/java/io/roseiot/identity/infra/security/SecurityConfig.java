@@ -1,4 +1,4 @@
-package io.roseiot.identity.config;
+package io.roseiot.identity.infra.security;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +14,10 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JsonSecurityHandlers jsonSecurityHandlers)
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JsonSecurityHandlers jsonSecurityHandlers,
+            IdentityJwtAuthenticationConverter identityJwtAuthenticationConverter)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
@@ -34,7 +37,8 @@ public class SecurityConfig {
                         .authenticated()
                         .anyRequest()
                         .denyAll())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(
+                        jwt -> jwt.jwtAuthenticationConverter(identityJwtAuthenticationConverter)))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jsonSecurityHandlers)
                         .accessDeniedHandler(jsonSecurityHandlers));
         return http.build();

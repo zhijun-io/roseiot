@@ -1,7 +1,7 @@
 package io.roseiot;
 
-import io.roseiot.platform.bootstrap.AlreadyBootstrappedException;
-import io.roseiot.platform.bootstrap.BootstrapValidationException;
+import io.roseiot.identity.domain.AlreadyBootstrappedException;
+import io.roseiot.identity.domain.BootstrapValidationException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
