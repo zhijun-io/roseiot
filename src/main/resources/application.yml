@@ -36,16 +36,25 @@ server:
 roseiot:
   bootstrap:
     enabled: false
+  rate-limit:
+    enabled: ${ROSEIOT_RATE_LIMIT_ENABLED:true}
+    window-minutes: 15
+    rules:
+      - method: POST
+        path: /api/identity/auth/login
+        body-field: email
+        key-prefix: "identity:auth:login:"
+        max-attempts: 10
+      - method: POST
+        path: /api/identity/auth/recovery/request
+        body-field: email
+        key-prefix: "identity:auth:recovery:"
+        max-attempts: 5
   auth:
     jwt:
       hmac-secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
-    rate-limit:
-      enabled: ${ROSEIOT_AUTH_RATE_LIMIT_ENABLED:true}
-      window-minutes: 15
-      login-max-attempts: 10
-      recovery-max-attempts: 5
 
 mybatis-plus:
-  type-handlers-package: io.roseiot.platform.persistence
+  type-handlers-package: io.roseiot.identity.infra.mybatis
   configuration:
     map-underscore-to-camel-case: true

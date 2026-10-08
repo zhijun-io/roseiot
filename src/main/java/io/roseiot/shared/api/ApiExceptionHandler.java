@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import io.roseiot.shared.ratelimit.RateLimitExceededException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(basePackages = "io.roseiot")
@@ -18,6 +19,12 @@ public class ApiExceptionHandler {
 
     public ApiExceptionHandler(ApiErrorBodyWriter apiErrorBodyWriter) {
         this.apiErrorBodyWriter = apiErrorBodyWriter;
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ApiErrorResponse> handleRateLimit(RateLimitExceededException exception) {
+        return apiErrorBodyWriter.responseEntity(
+                HttpStatus.TOO_MANY_REQUESTS.value(), "rate_limited", "Too many requests");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
