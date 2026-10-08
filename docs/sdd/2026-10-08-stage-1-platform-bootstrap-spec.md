@@ -31,7 +31,7 @@
 1. 运维可在文档声明的环境中，对**空平台管理员表**执行引导，成功创建**恰好一名**平台管理员。
 2. 引导成功后再次执行引导必须失败，且不创建第二名管理员、不覆盖已有管理员。
 3. 迁移脚本与跟踪文件中不得包含真实密码、预置管理员邮箱或等价秘密。
-4. 平台管理员内部 ID 对外不透明，采用 **UUID v7**（`io.roseiot.platform.support.UuidV7`）；阶段 1 后续实体沿用同一生成方式，不使用可猜测的整数主键作为对外标识。
+4. 平台用户内部 ID 对外不透明，采用 **UUID v7**（`io.roseiot.shared.util.UuidV7`）；阶段 1 后续实体沿用同一生成方式，不使用可猜测的整数主键作为对外标识。
 5. 引导失败时（校验失败、库不可达、已引导）进程以非零退出码结束，并输出**不泄露秘密**的错误说明。
 
 ## Acceptance Criteria
@@ -76,3 +76,4 @@
 - 2026-10-08 | 用户批准 Spec | none — clarification | no — 进入 Plan
 - 2026-10-08 | Slice 1 验证 MyBatis Plus | none — 使用 boot4-starter 3.5.17 | no — Plan Build log
 - 2026-10-08 | 阶段 1 统一 UUID v7 | Req 4、AC-2 相关 ID 语义 | no — `UuidV7` 工具类
+- 2026-10-08 | 引导写入 `users` + `PlatformOperator`；环境变量 `BOOTSTRAP_USER_*` | 身份迁移 Spec | no — README 同步

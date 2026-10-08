@@ -3,7 +3,7 @@
 ## 项目上下文
 
 - Roseiot 是逐步建设的物联网平台后端，用于学习真实 IoT 场景、验证工程取舍，并形成可运行、可测试、可解释的项目证据。
-- 当前仓库处于规划和最小启动阶段，尚无可运行应用、构建清单或 CI。
+- 阶段 0/1 已具备 `./mvnw`、Flyway 与 Testcontainers 集成测试；CI 以仓库实际配置为准。
 - 当前只建设后端；前端若启动，统一放在 `ui/`。
 - 默认采用模块化单体，按可独立验证的业务闭环逐步交付。
 - Java 25、Spring Boot 4.1.1、Maven 和 PostgreSQL 目前只是候选基线，首次使用前必须验证可获得性、兼容性和实际收益。
@@ -71,7 +71,7 @@
 ## 构建与验证
 
 - 只使用构建清单、Wrapper、CI 或项目文档中真实存在的命令。
-- 当前没有构建系统或可运行应用；在首个可运行切片落地前，只执行适用的文档、文件和 Git 一致性检查。
+- 默认可验证命令：`./mvnw -q verify`（见 `README.md`）；未运行测试时不得声称已验证。
 - 不得编造 `mvn`、启动、测试、格式化或部署命令。
 - 引入构建系统后，同步在 `README.md` 中记录经过实际执行的主要启动和验证命令。
 - 优先运行覆盖本次风险的最小验证集；公共契约或共享模块变化再扩大验证范围。
@@ -83,15 +83,20 @@
 
 - 默认采用模块化单体，不提前拆分微服务。
 - **能力分包 + 技术分层**（模块化单体内的默认布局）：
-  - **能力（capability）**：`io.roseiot.platform.<能力名>`（如 `auth`、`bootstrap`），一个业务闭环一包；禁止在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`。
+  - **多能力根包**：Roseiot 在 **`io.roseiot.<能力名>`** 下按业务闭环分包（如 **`identity`**、**`device`**、**`tenant`**、**`product`** 等，以 Spec 为准 **并列** 于同一模块化单体，**不**再用 `io.roseiot.platform` 中间层）。**当前仓库仅 `identity` 有实现**；其它能力在 Spec 批准前 **不建空包**。
+  - **主应用类**：`io.roseiot.RoseiotApplication` 留在根包；CLI 引导入口 `BootstrapApplicationRunner` 可同根包；**禁止**在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`，也 **禁止** 根级 `io.roseiot.config`。
   - **能力内分层**（按需创建子包，无调用方不建空包）：
     - `web` — HTTP：`@RestController`、请求/响应 DTO、能力内 `@RestControllerAdvice`；
     - `application` — 应用服务：`@Service`（命名 `*Service`，**不用** `*UseCase`）、事务边界、编排 Mapper 与 `infra`；
-    - `domain` — 无 Spring 依赖优先：领域异常、值对象、纯规则工具（如令牌摘要、opaque 生成）；
-    - `infra` — 技术实现：JWT、会话撤销、限速、邮件/消息等可替换集成（接口 + 实现可同在 `infra` 子包）；
-    - `config` — 该能力的 `@Configuration` / `@ConfigurationProperties`。
-  - **跨能力共享**：`io.roseiot.platform.persistence`（多能力共用的表/Mapper）、`io.roseiot.platform.<Policy>`（如密码策略）、`io.roseiot.shared.*`（HTTP 错误体等）；能力独占表将来可迁入 `<能力>.infra.persistence`。
-  - **测试**：尽量与主代码同能力路径镜像（如 `platform.auth.web.*MockMvcTests`）。
+    - `domain` — 无 Spring 依赖优先：领域异常、值对象、纯规则工具；
+    - `infra` — 技术实现：JWT、MQTT 适配、限速等可替换集成；
+    - `config` — 该能力（或能力内子域）专属的 `@Configuration` / `@ConfigurationProperties`；
+    - `persistence` — 该能力拥有的表与 MyBatis Mapper（能力独占表默认在此；见下条扫描）。
+  - **`identity` 能力**（人类 IAM）：当前实现为 **`identity.application`**（`*Service`）、**`identity.web`**（Controller / `@RestControllerAdvice`）、**`identity.domain`**、**`identity.infra.*`**（如 `security`、`mybatis`、`recovery`）、**`identity.persistence`**；会话、RBAC、`users` 表归属 **identity**。
+  - **`shared`**：跨能力、无单一业务所有权 — **`shared.api`**、**`shared.util`**、**`shared.ratelimit`** 等；平台 Security 过滤器链在 **`identity.infra.security`**（`SecurityConfig`、`JsonSecurityHandlers`）。
+  - **MyBatis `@MapperScan`**：当前 `io.roseiot.identity.infra.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.identity.persistence`**；UUID 类型处理器在 **`identity.infra.mybatis`**（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
+  - **能力间调用**：允许 `device.application` 依赖 `identity.rbac` 等 ** inward API**；禁止循环依赖；跨能力 HTTP 契约以外部/Spec 为准。
+  - **测试**：路径镜像主代码（如 `identity.web.*Tests`、`identity.application.*Tests`）。
 - **不采用六边形架构**：不用 Port/Adapter 命名与「入站/出站端口」目录；分层是 **技术职责**，不是第二套架构词汇。
 - 只有真实用例证明数据所有权、稳定契约和独立测试边界后，才新增模块。
 - 优先完成最小业务闭环，不创建空模块、占位接口或没有当前调用方的通用框架。

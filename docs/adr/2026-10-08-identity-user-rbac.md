@@ -4,7 +4,7 @@
 - **日期**：2026-10-08
 - **决策者**：产品 / 架构（访谈与实现澄清）
 - **关联需求**：`IAM-001`～`IAM-010`、`PRD-001`、`PRD-002`；修订后的 `IAM-003`、`IAM-004`、`IAM-011`～`IAM-012`
-- **关联 Spec**：Spec #2（平台管理员认证，已实现 `platform_admin` 专表）为过渡实现；Spec #3 及以后以本 ADR 为目标模型为准，迁移另开 Spec
+- **关联 Spec**：Spec #2（平台管理员认证，已实现 `platform_admin` 专表）为过渡实现；迁移与 RBAC-0 落地见 [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)；租户用户登录留 Spec #3
 
 ## 背景
 
@@ -21,13 +21,13 @@ Roseiot 需要同时服务**平台运维**（租户生命周期）与**租户内
   - `NULL`：**平台作用域用户**（platform-scoped user），不参与任何租户的成员归属。
   - 非 `NULL`：**租户用户**，且首版**至多绑定这一个租户**（与 Q59 一致）。
 - **互斥**：同一 `User` 行不能既表示平台作用域又绑定租户；「平台管理员兼任租户成员」通过**不同 User 记录（不同邮箱）**实现，而不是同一行上的双 hat。
-- **设备**不是 `User`；设备凭证独立，不纳入本 ADR。
+- **设备**不是 `User`；设备凭证与设备业务归属 **`device` 能力包**（与 `identity` 并列），不纳入本 ADR。
 
 ### 2. 授权：RBAC-0（无 `Authority` 枚举）
 
 - **不使用** ThingsBoard 式 `SYS_ADMIN` / `TENANT_ADMIN` 等 **Authority** 作为授权来源。
 - 授权由以下概念组成（持久化命名在 Spec 中固定）：
-  - **Permission**：稳定字符串键（如 `platform.tenant.create`、`device.read`），与 PRD 模块能力对齐，增量定义。
+  - **Permission**：稳定字符串键（如 `identity.tenant.create`、`device.read`），与 PRD / 能力域对齐，增量定义。
   - **Role**：命名角色；带 **作用域种类** `PLATFORM` 或 `TENANT`。
   - **RoleAssignment**：`User` ↔ `Role`，且 assignment 的作用域必须与 `User.tenant_id` 一致：
     - 平台用户：仅可分配 `PLATFORM` scope 的角色；assignment 不携带租户 ID。
@@ -52,15 +52,15 @@ Roseiot 需要同时服务**平台运维**（租户生命周期）与**租户内
 
 ### 4. HTTP 与租户上下文
 
-- **平台管理 REST**：独立路径前缀（如现有 `/api/platform/**`）；仅接受 `ctx=platform` 的主体，且逐 endpoint 校验 platform permission。
+- **平台管理 REST**：独立路径前缀（当前实现 **`/api/identity/me/**`** 等；迁移 Spec 目标 **`ctx=platform`** + permission）；仅接受平台上下文的主体，且逐 endpoint 校验 platform permission。
 - **租户业务 REST**：从认证主体推导租户上下文（`User.tenant_id`），**不信任**请求体/Query/Header 中的租户 ID（`PRD-001`）。
-- 登录入口可共用 `/api/auth/*` 机制；是否拆分 platform/tenant login 路径由具体 Spec 决定，**内部分派到同一套会话服务**即可。
+- 登录入口可共用 **`/api/identity/auth/*`**（或未来 tenant 前缀）机制；是否拆分 platform/tenant login 路径由具体 Spec 决定，**内部分派到同一套会话服务**即可。
 - 租户停用、用户/成员停用等 **资格检查** 在 RBAC 之后执行（`IAM-009`）；后续可抽为显式 **ABAC Policy**，不推翻 RBAC。
 
 ### 5. 与 Spec #2 已实现代码的关系
 
-- 当前 `platform_admin` 表与 Spec #2 行为**保持有效**，直至批准「身份模型迁移」Spec。
-- 目标映射：`platform_admin` 行 → `User(tenant_id IS NULL)` + `RoleAssignment(PlatformOperator)`；具体迁移、双写或 cutover 不在本 ADR 范围。
+- 当前 `platform_admin` 表与 Spec #2 行为**保持有效**，直至 **身份迁移 Spec 批准并交付**。
+- 目标映射：`platform_admin` 行 → `User(tenant_id IS NULL)` + `RoleAssignment(PlatformOperator)`；迁移步骤与 AC 见身份迁移 Spec，不在本 ADR 展开。
 
 ## 备选方案（未采纳）
 
@@ -82,7 +82,7 @@ Roseiot 需要同时服务**平台运维**（租户生命周期）与**租户内
 ### 负面 / 成本
 
 - 每个租户资源 API 需声明 permission + 租户归属校验；测试矩阵大于硬编码 `if (admin)`。
-- RBAC 表与 seed 需在首个消费 Spec（建议 Spec #3）中落地；Spec #2 与目标模型短期并存。
+- RBAC 表与 seed 在 **身份迁移 Spec**（[`2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)）落地平台侧；租户 HTTP 消费留 Spec #3；Spec #2 与目标模型短期并存直至该 Spec 交付。
 - 文档与 Glossary 需与「User 含平台作用域」一致，避免「平台管理员不是 User」的旧表述。
 
 ## 演进（非 RBAC-0 交付范围）
@@ -93,7 +93,7 @@ Roseiot 需要同时服务**平台运维**（租户生命周期）与**租户内
 
 ## 验证建议（实现 Spec 时）
 
-- 平台用户无法调用租户设备 API；租户用户无法调用 `platform.tenant.create`。
+- 平台用户无法调用租户设备 API；租户用户无法调用 `identity.tenant.create`。
 - `PlatformOperator` 默认无 `device.read` / 凭证读取 permission。
 - 角色变更后 `azv` 递增且 refresh 族撤销；旧 access 在 TTL 内仍可能有效 — TTL 需在 Spec 中明确上界。
 - 跨租户资源 ID：403/404 语义符合 `PRD-002`。

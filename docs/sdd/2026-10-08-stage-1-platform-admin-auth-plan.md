@@ -4,16 +4,15 @@
 
 ## 代码包结构（与访谈 Q120 / Q124 一致）
 
+> **2026-10-08 起**：身份迁移 Plan 取消 `io.roseiot.platform.*` 中间层；**当前有效布局**见 [`2026-10-08-stage-1-identity-user-rbac-migration-plan.md`](2026-10-08-stage-1-identity-user-rbac-migration-plan.md)「代码包结构」。下表为 Spec #2 交付时的历史路径，Build log 仍按旧包名描述。
+
 | 包 | 职责 |
 | --- | --- |
-| `io.roseiot.config` | 应用壳：Security 过滤器链、JSON 401/403 等横切装配 |
+| `io.roseiot.config` | 应用壳（**已迁移为** `io.roseiot.identity.infra.security` 等） |
 | `io.roseiot.shared.api` | 跨能力 HTTP 错误契约（`ApiErrorResponse`、全局 `@RestControllerAdvice`、Servlet 错误写入） |
-| `io.roseiot.platform.auth.web` | 认证 HTTP：`RestController`、请求/响应 DTO、能力内异常映射 |
-| `io.roseiot.platform.auth.application` | 认证用例（`@Service`、事务边界） |
-| `io.roseiot.platform.auth.domain` | 认证领域异常与纯工具 |
-| `io.roseiot.platform.auth.infra` | JWT、会话撤销、限速、恢复通知等集成 |
-| `io.roseiot.platform.auth.config` | 认证相关 Spring 配置 |
-| `io.roseiot.platform.persistence` | 平台阶段表与 MyBatis Mapper（后续能力拆分前临时归 `platform`） |
+| `io.roseiot.platform.auth.web` | 认证 HTTP（**已迁移为** `io.roseiot.identity.web`） |
+| `io.roseiot.platform.auth.application` | 认证应用服务（**已迁移为** `io.roseiot.identity.application`） |
+| `io.roseiot.platform.persistence` | Mapper（**已迁移为** `io.roseiot.identity.persistence`） |
 
 `shared` 仅放无业务所有权、稳定复用的最小内容；业务成功体仍用各能力 DTO，不放入 shared。
 
@@ -27,16 +26,18 @@
 
 ### HTTP 路径（均相对于应用根，端口默认 8080）
 
+> **当前实现（identity 能力）** — 与 [`README.md`](../../README.md) 及 `SecurityConfig` 一致；历史 Spec #2 曾用 `/api/auth/*`、`/api/platform/me`。
+
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/auth/login` | 匿名 |
-| POST | `/api/auth/token` | 匿名（body 含 refreshToken） |
-| POST | `/api/auth/logout` | Bearer（撤销当前 refresh 会话） |
-| POST | `/api/auth/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
-| GET | `/api/platform/me` | Bearer |
-| PATCH | `/api/platform/me/password` | Bearer |
-| POST | `/api/auth/recovery/request` | 匿名 |
-| POST | `/api/auth/recovery/confirm` | 匿名 |
+| POST | `/api/identity/auth/login` | 匿名 |
+| POST | `/api/identity/auth/token` | 匿名（body 含 refreshToken） |
+| POST | `/api/identity/auth/logout` | Bearer（撤销当前 refresh 会话） |
+| POST | `/api/identity/auth/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
+| GET | `/api/identity/me` | Bearer |
+| PATCH | `/api/identity/me/password` | Bearer |
+| POST | `/api/identity/auth/recovery/request` | 匿名 |
+| POST | `/api/identity/auth/recovery/confirm` | 匿名 |
 
 Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 
@@ -63,7 +64,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 
 - 登录：同一邮箱（规范化后）**10 次 / 15 分钟** → **429**。
 - 恢复请求：同一邮箱 **5 次 / 15 分钟** → **429**。
-- 集成测试 `@TestPropertySource` 或 profile `test` 放宽/关闭限速 bean。
+- **当前实现**：`RateLimitFilter` + `roseiot.rate-limit.rules`；集成测试 `roseiot.rate-limit.enabled=false`。
 
 ### 密码修改（Req 5）
 
@@ -160,4 +161,4 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshServiceTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
 - **Slice 4**（2026-10-08）：`POST /api/auth/logout`、`/logout-all`；`PATCH /api/platform/me/password` 改密并撤销全部 refresh；MockMvc + 用例单元测试。验证：`./mvnw -q verify` 通过。
 - **Slice 5**（2026-10-08）：`POST /api/auth/recovery/request`（202 统一 body）、`/confirm`（204）；`RecoveryNotificationPort` + 默认 logging 适配器；测试 `InMemoryRecoveryNotificationAdapter`；confirm 改密、标记 `used_at`、撤销全部 refresh；`OpaqueTokens` 复用于 login/refresh/recovery；MockMvc AC-6/7/8。验证：`./mvnw -q verify` 通过。
-- **Slice 6**（2026-10-08）：README Spec #2 端点与 AC-2/4/6 curl；`.env.example` JWT/限速占位；登录与恢复内存限速（429 `rate_limited`，测试默认关闭）；`PlatformAdminAuthRateLimitMockMvcTests`。验证：`./mvnw -q verify` 通过。
+- **Slice 6**（2026-10-08）：README Spec #2 端点与 AC-2/4/6 curl；`.env.example` JWT/限速占位；登录与恢复限速（429 `rate_limited`；**当前** `shared.ratelimit.RateLimitFilter` + `roseiot.rate-limit.rules`，测试默认关闭）；历史 `PlatformAdminAuthRateLimitMockMvcTests` → **`IdentityAuthRateLimitMockMvcTests`**。验证：`./mvnw -q verify` 通过。

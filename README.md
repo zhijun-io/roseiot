@@ -5,9 +5,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 进行中：**Spec #1 平台引导（IAM-001）**
-与 **Spec #2 平台管理员认证** 已交付 HTTP 登录、会话、改密与账户恢复；租户与用户登录等后续 Spec 尚未交付。不承诺生产规模、
-性能数据或完整平台能力。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1：**Spec #1 引导**与 **Spec #2 认证** 已交付（HTTP **`/api/identity/**`**，持久化 **`users` + RBAC**；Flyway **V4～V6**）。平台 access JWT 含 **`ctx=platform`**、**`azv`**；`/api/identity/me/**` 需 **`identity.profile.*`** 等 permission。租户与用户登录等后续 Spec 未交付。
 
 ## 建设原则
 
@@ -80,7 +78,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 **不写集成测试当**：
 
 - 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
-- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/platform/me` 即可）。
+- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/identity/me` 即可）。
 
 ### 基类
 
@@ -93,9 +91,9 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 | 类型 | 示例类 |
 | --- | --- |
-| 单元 | `PlatformAdminSessionServiceTests`、`PlatformAdminAccountServiceTests` |
-| MockMvc | `PlatformAdminAuthMockMvcTests`、`ActuatorHealthMockMvcTests` |
-| RestTestClient（可选） | `PlatformAdminAuthTests` |
+| 单元 | `UserSessionServiceTests`、`UserAccountServiceTests` |
+| MockMvc | `IdentityAuthMockMvcTests`、`ActuatorHealthMockMvcTests` |
+| RestTestClient（可选） | `IdentityAuthTests` |
 | 冒烟 + Flyway | `PlatformFlywaySchemaTests`（含 `contextLoads`） |
 
 **原则**：能写 `*ServiceTests` 的不要写继承 `AbstractIt` 的类；集成测试只保留契约/接线证据。
@@ -134,7 +132,7 @@ curl -sS "http://localhost:8080/actuator/health/readiness"
 
 ## 平台引导（IAM-001）
 
-在 **`platform_admin` 表为空** 的数据库上，通过 **CLI** 创建**恰好一名**平台管理员。
+在 **`users` 中尚无 `tenant_id IS NULL` 的平台用户** 的数据库上，通过 **CLI** 创建**恰好一名**平台操作员（`users` + `PlatformOperator` 角色绑定）。
 凭证只来自环境变量，勿写入 Git。引导与长期运行的 Web 服务分开：使用 `--bootstrap` 启动后进程会退出，不会监听 HTTP。
 
 前置：PostgreSQL 已就绪（Compose 或 `.env` 中的 `SPRING_DATASOURCE_*`），且 `./mvnw -q verify` 通过。
@@ -142,8 +140,8 @@ curl -sS "http://localhost:8080/actuator/health/readiness"
 在 `.env` 中设置（参见 [`.env.example`](.env.example)）：
 
 ```bash
-BOOTSTRAP_ADMIN_EMAIL=admin@example.com
-BOOTSTRAP_ADMIN_PASSWORD=your-password-at-least-12-chars
+BOOTSTRAP_USER_EMAIL=admin@example.com
+BOOTSTRAP_USER_PASSWORD=your-password-at-least-12-chars
 ```
 
 密码至少 12 位且同时包含字母与数字。邮箱会 trim 并转为小写入库。
@@ -158,8 +156,8 @@ echo $?   # 应为 0
 **验证库中有一条记录**（示例：用 `psql` 或任意 SQL 客户端，勿在日志中打印密码）：
 
 ```sql
-SELECT email FROM platform_admin;
--- 期望一行，email 与规范化后的 BOOTSTRAP_ADMIN_EMAIL 一致
+SELECT email FROM users WHERE tenant_id IS NULL;
+-- 期望一行，email 与规范化后的 BOOTSTRAP_USER_EMAIL 一致
 ```
 
 **重复引导（期望非零退出、仍为 1 条记录）：**
@@ -169,7 +167,7 @@ SELECT email FROM platform_admin;
 echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 ```
 
-再次查询 `platform_admin` 行数应仍为 1。正常运行应用时不要带 `--bootstrap`：
+再次查询 `users`（`tenant_id IS NULL`）行数应仍为 1。正常运行应用时不要带 `--bootstrap`：
 
 ```bash
 ./mvnw spring-boot:run
@@ -183,38 +181,44 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/auth/login` | 匿名 |
-| POST | `/api/auth/token` | 匿名（body 含 refresh） |
-| POST | `/api/auth/logout` | Bearer |
-| POST | `/api/auth/logout-all` | Bearer |
-| POST | `/api/auth/recovery/request` | 匿名 |
-| POST | `/api/auth/recovery/confirm` | 匿名 |
-| GET | `/api/platform/me` | Bearer |
-| PATCH | `/api/platform/me/password` | Bearer |
+| POST | `/api/identity/auth/login` | 匿名 |
+| POST | `/api/identity/auth/token` | 匿名（body 含 refresh） |
+| POST | `/api/identity/auth/logout` | Bearer |
+| POST | `/api/identity/auth/logout-all` | Bearer |
+| POST | `/api/identity/auth/recovery/request` | 匿名 |
+| POST | `/api/identity/auth/recovery/confirm` | 匿名 |
+| GET | `/api/identity/me` | Bearer |
+| PATCH | `/api/identity/me/password` | Bearer |
 
-生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、恢复请求 **5** 次，超出返回 **429** + `rate_limited`。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_AUTH_RATE_LIMIT_ENABLED=false`。
+Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`ctx=platform`**（平台用户）与 **`azv`**（整数，对应 `users.authorization_version`）。改密或 recovery 成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
+
+**自 V3 升级**：Flyway **V4** 将会话/恢复表改为 `user_*` 并迁移 `platform_admin` → `users`；**V5** 写入 RBAC-0 目录；**V6** 将历史 `platform.*` 权限键重命名为 **`identity.*`**。升级后既有 refresh 会话语义变化，**请重新登录**（旧 refresh 不可用）。
+
+验证：`./mvnw -q verify`（含 Testcontainers 自空库 V1→最新与 V3→V4 迁移测试）。
+
+生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、恢复请求 **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
 
 ### 手动验证（AC-2：登录与 profile）
 
 ```bash
 BASE=http://localhost:8080
 
-LOGIN=$(curl -sS -X POST "$BASE/api/auth/login" \
+LOGIN=$(curl -sS -X POST "$BASE/api/identity/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"YOUR_BOOTSTRAP_PASSWORD"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
 REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
 
-curl -sS "$BASE/api/platform/me" -H "Authorization: Bearer $ACCESS" | jq .
+curl -sS "$BASE/api/identity/me" -H "Authorization: Bearer $ACCESS" | jq .
 ```
 
 ### 手动验证（AC-4：注销后会话失效）
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/logout" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/auth/logout" \
   -H "Authorization: Bearer $ACCESS"
 
-curl -sS -X POST "$BASE/api/auth/token" \
+curl -sS -X POST "$BASE/api/identity/auth/token" \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 # 期望 401，body 含 invalid_refresh_token
@@ -222,16 +226,16 @@ curl -sS -X POST "$BASE/api/auth/token" \
 
 ### 手动验证（AC-6：账户恢复）
 
-默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `PlatformAdminAuthMockMvcTests`。
+默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `IdentityAuthMockMvcTests`。
 
 ```bash
-curl -sS -X POST "$BASE/api/auth/recovery/request" \
+curl -sS -X POST "$BASE/api/identity/auth/recovery/request" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com"}'
 # 期望 202，body.message 与未注册邮箱请求相同
 
 # 取得 RECOVERY_TOKEN 后：
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/recovery/confirm" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/auth/recovery/confirm" \
   -H 'Content-Type: application/json' \
   -d "{\"token\":\"$RECOVERY_TOKEN\",\"newPassword\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用

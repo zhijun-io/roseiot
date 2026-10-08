@@ -3928,3 +3928,15 @@ AND 凭证当前有效
 ❓ **Q510 — ABAC / ThingsBoard PE 演进**：是否在 RBAC 之上预留 **ABAC**（租户停用、资格检查等）与 **PE 风格**（用户组、权限依赖）作为后续候选，而不在 RBAC-0 一次交付？
 
 ➡️ **用户确认。** 演进路线写入 ADR；引入前需独立 Spec 与范围控制。
+
+---
+
+❓ **Q511 — 身份迁移 Spec 批准**：是否批准 [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)，作为 Spec #2 与 Spec #3 之间的实现门禁（AC-1～AC-15）？
+
+➡️ **用户确认（2026-10-08）。** 下一步编写 Implementation Plan 后实施。
+
+---
+
+❓ **Q512 — identity HTTP 路径**：身份迁移实现是否将平台认证与「当前用户」REST 前缀定为 **`/api/identity/auth/**`** 与 **`/api/identity/me/**`**（取代 Q375 示例中的 `/api/auth/*`、`/api/platform/me`），仍保持业务 API 在 `/api` 下且无 URL 主版本号？
+
+➡️ **用户确认（2026-10-08）。** 以 README、migration-plan 与 `SecurityConfig` 为准；Q375 示例路径视为历史表述，语义不变。

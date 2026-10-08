@@ -9,7 +9,8 @@
 - **IAM-007（平台管理员子集）**：邮箱 + 密码认证；短期访问令牌与服务端可撤销的刷新会话；密码修改与相关会话撤销。
 - **IAM-008（本切片子集）**：登录与恢复路径的限速与**统一失败语义**（不暴露邮箱是否存在、成员/租户状态等区分信息）。
 - **REST**：业务 HTTP API 统一 **`/api`** 前缀，路径中**不含主版本号**（无 `/api/v1`）；本 Spec 仅暴露认证与会话相关端点（见 Plan 固定路径）。主版本后续由 **Spring Boot API 版本化** 绑定，而非 URL 段。
-- **主体**：仅 **平台管理员**（`platform_admin`）；租户用户与成员登录留 Spec #3。
+- **主体**：平台侧用户（当前持久化为 **`users`（`tenant_id IS NULL`）** + `PlatformOperator`；自身份迁移起不再使用 `platform_admin` 表）；租户用户与成员登录留 Spec #3。
+- **HTTP 路径（当前实现）**：认证 **`/api/identity/auth/**`**；当前用户 **`/api/identity/me/**`**（见 README、`io.roseiot.identity.infra.security.SecurityConfig`）。
 - **账户恢复**：单次使用、短期有效的恢复令牌；**Q208** 通知适配器（自动化测试用内存/本地捕获，不绑定商业 ESP）。
 - **持久化**：Flyway 扩展会话与恢复请求所需最小表；MyBatis Plus 读写。
 - **README**：记录认证端点、本地验证步骤与恢复流程（含测试适配器用法）。
@@ -25,7 +26,7 @@
 
 ## Current Context
 
-- **Spec #1 已完成**：`platform_admin` 表、bcrypt 摘要、`UuidV7` 主键、CLI `--bootstrap`；`SecurityConfig` 在 `roseiot.bootstrap.enabled=true` 时不加载。
+- **Spec #1 已完成**：CLI `--bootstrap`（`BOOTSTRAP_USER_EMAIL` / `BOOTSTRAP_USER_PASSWORD`）写入 `users` + 角色绑定；bcrypt 摘要、`UuidV7`（`io.roseiot.shared.util.UuidV7`）；`SecurityConfig` 在 `roseiot.bootstrap.enabled=true` 时不加载。
 - 技术栈：Java 25、Spring Boot 4.1.1、MyBatis Plus 3.5.17、PostgreSQL、Testcontainers。
 - 术语见 [`GLOSSARY.md`](../../GLOSSARY.md)；平台管理员与后续「用户/租户成员」边界见 PRD **IAM-003**、**IAM-004**。
 
@@ -72,7 +73,8 @@
 
 ## Related ADRs
 
-- [`docs/adr/2026-10-08-identity-user-rbac.md`](../../adr/2026-10-08-identity-user-rbac.md)：统一 User + RBAC-0 为后续 Spec 的目标身份与授权模型；**本 Spec 交付的 `platform_admin` 专表为实现过渡**，行为仍以本 Spec 验收为准，直至批准迁移 Spec。
+- [`docs/adr/2026-10-08-identity-user-rbac.md`](../../adr/2026-10-08-identity-user-rbac.md)：统一 User + RBAC-0 目标模型。
+- [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](2026-10-08-stage-1-identity-user-rbac-migration-spec.md)（**已批准**）：自 `platform_admin` 收敛至 User/RBAC；**本 Spec 交付的表与 JWT 为实现过渡**，以迁移 Spec AC 为收敛验收，对外 HTTP 行为以本 Spec 为回归基准。
 
 ## Open Questions
 
@@ -84,3 +86,4 @@
 - 2026-10-08 | 用户批准 Spec | none — clarification | no — 进入 Plan
 - 2026-10-08 | 取消 URL `/api/v1` 前缀，改由后续 Spring Boot API 版本化 | none — clarification | no — Plan/实现同步
 - 2026-10-08 | 固定 REST 前缀 `/api`（无 URL 版本号） | none — clarification | no — Plan/实现同步
+- 2026-10-08 | 身份迁移后 HTTP 前缀为 `/api/identity/**`；持久化收敛至 `users` | 见 identity-user-rbac-migration-spec | no — README/Plan 同步

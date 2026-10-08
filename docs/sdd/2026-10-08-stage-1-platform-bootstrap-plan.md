@@ -2,6 +2,8 @@
 
 **Spec:** [`docs/sdd/2026-10-08-stage-1-platform-bootstrap-spec.md`](2026-10-08-stage-1-platform-bootstrap-spec.md)
 
+> **当前实现（身份迁移后）**：`io.roseiot.identity.application.BootstrapUserService`；`RoseiotApplication` + `--bootstrap`；环境变量 **`BOOTSTRAP_USER_EMAIL`** / **`BOOTSTRAP_USER_PASSWORD`**；写入 **`users`（`tenant_id IS NULL`）** 与 **`user_role` → PlatformOperator**（Flyway V4/V5）。下文 Slice 描述历史 `platform_admin` 交付过程，Build log 保留旧类名。
+
 ## Risks / Dependencies
 
 - **MyBatis Plus × Spring Boot 4.1.1 / Java 25**：Slice 1 必须 `./mvnw verify` 证明依赖可解析；失败则暂停并回到 Spec Revision 选 Spring Data JDBC 等等价方案。
@@ -79,6 +81,6 @@
 ## Build log
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过。MyBatis Plus **3.5.17** `mybatis-plus-spring-boot4-starter`（Boot 3 starter 在 Boot 4.1.1 下不注册 SqlSessionFactory）。Flyway `V2__platform_admin`；`PlatformAdminSchemaIntegrationTest` 断言空表。
-- 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`PostgresUuidTypeHandler`；`BootstrapPlatformAdminService` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
+- 2026-10-08 Slice 2：`./mvnw -q verify` 通过。`UuidV7`、`UuidTypeHandler`；`BootstrapPlatformAdminService` + `--bootstrap` / `BOOTSTRAP_ADMIN_*`；集成测试覆盖用例与 CLI Runner 成功路径。
 - 2026-10-08 Slice 3：`./mvnw -q verify` 通过。重复引导抛 `AlreadyBootstrappedException`；`runBootstrapCommand` 非零退出且 stderr 不含密码；`PlatformBootstrapIntegrationTest` 覆盖用例拒绝与 seed 后再跑 CLI 路径。
 - 2026-10-08 Slice 4：`./mvnw -q verify` 通过。README「平台引导」与 AC-2/AC-3 手验步骤；`.env.example` 增加 `BOOTSTRAP_*`；引导失败 stderr 输出不含密码。
