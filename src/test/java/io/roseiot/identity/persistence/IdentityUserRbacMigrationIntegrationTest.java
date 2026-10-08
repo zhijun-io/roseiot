@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Flyway V4/V5：空库迁移后 users + RBAC 表就绪，且无 platform_admin（AC-1）。 */
+/** 空库应用当前基线后，User、会话和 RBAC 表均可用。 */
 class IdentityUserRbacMigrationIntegrationTest extends AbstractIt {
 
     @Autowired
@@ -36,7 +36,7 @@ class IdentityUserRbacMigrationIntegrationTest extends AbstractIt {
     }
 
     @Test
-    void rbacTablesExistAndLegacyPlatformAdminTableDropped() {
+    void identityTablesExist() {
         assertThat(tableExists("users")).isTrue();
         assertThat(tableExists("permission")).isTrue();
         assertThat(tableExists("role")).isTrue();
@@ -44,7 +44,6 @@ class IdentityUserRbacMigrationIntegrationTest extends AbstractIt {
         assertThat(tableExists("user_role")).isTrue();
         assertThat(tableExists("user_refresh_session")).isTrue();
         assertThat(tableExists("user_recovery_request")).isTrue();
-        assertThat(tableExists("platform_admin")).isFalse();
     }
 
     private boolean tableExists(String tableName) {

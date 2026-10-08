@@ -3901,15 +3901,15 @@ AND 凭证当前有效
 
 ❓ **Q375 修订 — `/api` 前缀、URL 不含版本号**：Roseiot 是否使用 `/api/...` 作为业务 REST 前缀，且不在路径中嵌入 `/v1` 等主版本段，改在后续通过 Spring Boot API 版本化绑定主版本？
 
-➡️ **用户确认。** 例如 `/api/auth/login`、`/api/platform/me`；Actuator 等仍不在 `/api` 下。主版本不在 URL 中体现，具体版本协商机制在首次启用版本化时选定并文档化（可 supersede 原 Q375「路径 `/api/v1`」建议在本项目中的适用性）。
+➡️ **用户确认。** 当前会话端点为 `/api/auth/**`，系统用户 profile 为 `/api/users/me/**`；Actuator 等仍不在 `/api` 下。主版本不在 URL 中体现，具体版本协商机制在首次启用版本化时选定并文档化。
 
 ---
 
 ## 身份与 RBAC 澄清（2026-10-08）
 
-❓ **Q507 — 统一 User 与 tenant_id**：是否采用单一 **User** 模型，以 **`tenant_id` 是否为空** 区分平台作用域用户与租户用户，且首版一个 User 至多绑定一个租户？
+❓ **Q507 — 统一 User 与 tenant_id**：是否采用单一 **User** 模型，以 **`tenant_id` 是否为空** 区分系统用户与租户用户，且首版一个 User 至多绑定一个租户？
 
-➡️ **用户确认。** 详见 ADR [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md)；Spec #2 的 `platform_admin` 为实现过渡，迁移另开 Spec。
+➡️ **用户确认。** 详见 ADR [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md)。
 
 ---
 
@@ -3919,9 +3919,9 @@ AND 凭证当前有效
 
 ---
 
-❓ **Q509 — 平台默认不读租户设备数据**：内置 **SystemAdmin** permission 集是否 **默认不包含** 租户设备遥测、设备凭证等读取能力，与 Q38 一致？
+❓ **Q509 — 系统默认不读租户设备数据**：内置 **SystemAdmin** permission 集是否 **默认不包含** 租户设备遥测、设备凭证等读取能力，与 Q38 一致？
 
-➡️ **用户确认。** 若未来需要平台侧只读或支持访问，须单独 permission、Spec 与审计，可参考 Q38「显式、受审计的临时授权」。
+➡️ **用户确认。** 若未来需要系统侧只读或支持访问，须单独 permission、Spec 与审计，可参考 Q38「显式、受审计的临时授权」。
 
 ---
 
@@ -3931,30 +3931,24 @@ AND 凭证当前有效
 
 ---
 
-❓ **Q511 — 身份迁移 Spec 批准**：是否批准 [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)，作为 Spec #2 与 Spec #3 之间的实现门禁（AC-1～AC-15）？
+❓ **Q511 — Identity 与 RBAC Spec 批准**：是否批准 [`docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md`](../sdd/2026-10-08-stage-1-identity-rbac-spec.md)，作为系统用户认证与 Spec #3 之间的实现门禁？
 
 ➡️ **用户确认（2026-10-08）。** 下一步编写 Implementation Plan 后实施。
 
 ---
 
-❓ **Q512 — identity HTTP 路径**：身份迁移实现是否将平台认证与「当前用户」REST 前缀定为 **`/api/identity/auth/**`** 与 **`/api/identity/me/**`**（取代 Q375 示例中的 `/api/auth/*`、`/api/platform/me`），仍保持业务 API 在 `/api` 下且无 URL 主版本号？
+❓ **Q512 — 系统用户 HTTP 路径**：是否将会话端点定为 **`/api/auth/**`**、系统用户 profile 定为 **`/api/users/me/**`**，并保持业务 API 在 `/api` 下且无 URL 主版本号？
 
-➡️ **用户确认（2026-10-08）。** 以 README、migration-plan 与 `SecurityConfig` 为准；Q375 示例路径视为历史表述，语义不变。
-
-➡️ **修订（2026-10-08）**：认证端点扁平化至 **`POST /api/identity/login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**，与 **`/api/identity/me/**`** 共用 **`/api/identity`** 前缀，不再使用中间 **`/auth`** 段。
+➡️ **用户确认（2026-10-08）。** 以 README、系统用户认证 Spec 与 `SecurityConfig` 为准。
 
 ---
 
-❓ **Q513 — Spec #3 平台租户 HTTP 前缀**：平台侧租户生命周期 REST 是否定为 **`/api/identity/tenants/**`**（permission `tenant.*`），而**不**再使用 Q375 示例中的 **`/api/platform/**`**；租户内业务仍为 **`/api/tenant/**`**（无 URL 内 tenantId）？
+❓ **Q513 — Spec #3 租户 HTTP 前缀**：系统侧租户生命周期 REST 是否定为 **`/api/tenants/**`**（permission `tenant.*`），租户内业务使用同一前缀且不在 URL 内传入当前租户 ID？
 
-➡️ **用户确认（2026-10-08，Spec #3 修订）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-members-spec.md) 为准；`/api/platform/me` 等历史路径仅作 Spec #2 迁移前表述。
-
-➡️ **修订（2026-10-08）**：对外 HTTP 前缀定为 **`/api/auth/**`**（会话）、**`/api/users/me/**`**（平台 profile）、**`/api/tenants/**`**（租户资源与租户上下文 members/invitations/me）；租户 API **遵守 RESTful**（复数资源、`PATCH` 停用/启用，不用 `POST .../disable`）。Supersedes Q512 中「认证与 me 同前缀 `/api/identity`」的中间态表述。
-
-➡️ **修订（2026-10-08，Spec #3）**：HTTP 与 Spec 资源名 **member → user**；租户上下文为 **`/api/tenants/users/**`**（含 **`users/me`**）、**`/api/tenants/user-invitations/**`**；接受 **`POST /api/auth/user-invitation-acceptances`**。Permission 键 V7+ 映射 **`tenant.user.invite|manage`**（自 **`tenant.user.*`** 重命名）。
+➡️ **用户确认（2026-10-08）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 为准。对外 HTTP 为 **`/api/auth/**`**（会话）、**`/api/users/me/**`**（系统用户 profile）、**`/api/tenants/**`**（租户资源）；租户上下文使用 **`/api/tenants/users/**`** 和 **`/api/tenants/user-invitations/**`**，邀请接受使用 **`POST /api/auth/user-invitation-acceptances`**。租户 API 使用复数资源名与 `PATCH` 更新。
 
 ---
 
 ❓ **Q514 — 系统用户与 JWT ctx 术语**：产品是否将 **平台作用域用户** 改称 **系统用户**、**平台管理员** 改称 **系统管理员**，且 access JWT 的 **`ctx`** 取值由 **`platform`** 改为 **`system`**（与 RBAC 角色作用域 **`SYSTEM`** 对齐）？
 
-➡️ **用户确认（2026-10-08）。** 以 [`GLOSSARY.md`](../GLOSSARY.md)、[`docs/product/prd.md`](prd.md) 与 [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md) 为准；历史访谈中的「平台管理员」等表述保留原样，新 Spec/README 使用新术语。
+➡️ **用户确认（2026-10-08）。** 以 [`GLOSSARY.md`](../GLOSSARY.md)、[`docs/product/prd.md`](prd.md) 与 [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md) 为准。

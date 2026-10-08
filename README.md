@@ -5,7 +5,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：**Spec #1** 引导、**Spec #2** 系统用户认证、**身份迁移**（`users` + RBAC-0，Flyway **V4～V7**）。HTTP：会话 **`/api/auth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3**（租户、租户用户 `ctx=tenant`）规格已编写、**尚未实现** — 见 [租户与成员 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：系统引导、系统用户认证和 Identity/RBAC 基线（Flyway **V1**）。HTTP：会话 **`/api/auth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3**（租户、租户用户 `ctx=tenant`）规格已编写、**尚未实现** — 见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
 
 ## 建设原则
 
@@ -112,10 +112,10 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 | Spec | 文档 | 状态 |
 | --- | --- | --- |
-| #1 平台引导 | [stage-1-platform-bootstrap-spec.md](docs/sdd/2026-10-08-stage-1-platform-bootstrap-spec.md) | 已交付 |
-| #2 平台认证 | [stage-1-platform-admin-auth-spec.md](docs/sdd/2026-10-08-stage-1-platform-admin-auth-spec.md) | 已交付 |
-| 身份迁移 | [identity-user-rbac-migration-spec.md](docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md) | 已交付 |
-| #3 租户与成员 | [tenant-and-members-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md) | **待批准 / 未实现** |
+| #1 系统引导 | [system-bootstrap-spec.md](docs/sdd/2026-10-08-stage-1-system-bootstrap-spec.md) | 已交付 |
+| #2 系统用户认证 | [system-user-auth-spec.md](docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md) | 已交付 |
+| Identity 与 RBAC | [identity-rbac-spec.md](docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md) | 已交付 |
+| #3 租户与用户 | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md) | **待批准 / 未实现** |
 
 ## 验证与运行
 
@@ -140,9 +140,9 @@ curl -sS "http://localhost:8080/actuator/health/liveness"
 curl -sS "http://localhost:8080/actuator/health/readiness"
 ```
 
-## 平台引导（IAM-001）
+## 系统引导（IAM-001）
 
-在 **`users` 中尚无 `tenant_id IS NULL` 的平台用户** 的数据库上，通过 **CLI** 创建**恰好一名**平台操作员（`users` + `SystemAdmin` 角色绑定）。
+在 **`users` 中尚无 `tenant_id IS NULL` 的系统用户** 的数据库上，通过 **CLI** 创建**恰好一名**系统管理员（`users` + `SystemAdmin` 角色绑定）。
 凭证只来自环境变量，勿写入 Git。引导与长期运行的 Web 服务分开：使用 `--bootstrap` 启动后进程会退出，不会监听 HTTP。
 
 前置：PostgreSQL 已就绪（Compose 或 `.env` 中的 `SPRING_DATASOURCE_*`），且 `./mvnw -q verify` 通过。
@@ -183,9 +183,9 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 ./mvnw spring-boot:run
 ```
 
-## 平台管理员认证（Spec #2）
+## 系统用户认证（Spec #2）
 
-前置：已完成 [平台引导（IAM-001）](#平台引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。在 `.env` 中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字符；参见 [`.env.example`](.env.example)），勿使用仓库默认值上线。
+前置：已完成 [系统引导（IAM-001）](#系统引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。在 `.env` 中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字符；参见 [`.env.example`](.env.example)），勿使用仓库默认值上线。
 
 业务 API 前缀为 **`/api`**（URL 中无 `/v1`）。错误体为稳定 JSON：`{"code":"...","message":"..."}`。
 
@@ -202,9 +202,9 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`ctx=system`**（系统用户）与 **`azv`**（整数，对应 `users.authorization_version`）。改密或 recovery 成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
 
-**自 V3 升级**：Flyway **V4** 将会话/恢复表改为 `user_*` 并迁移 `platform_admin` → `users`；**V5** 写入 RBAC-0 目录；**V6** 将历史 `platform.*` 权限键重命名为 **`identity.*`**；**V7** 将系统/租户用户术语、角色和 permission 键迁移为当前命名。升级后既有 refresh 会话语义变化，**请重新登录**（旧 refresh 不可用）。
+Flyway `V1__baseline.sql` 直接创建当前 schema 与 RBAC seed，仅支持空数据库；已有数据库须清空并重建。
 
-验证：`./mvnw -q verify`（含 Testcontainers 自空库 V1→最新与 V3→V4 迁移测试）。
+验证：`./mvnw -q verify`（含 Testcontainers 空库基线测试）。
 
 生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、恢复请求 **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
 
@@ -251,18 +251,18 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/recovery/confi
 # 期望 204；随后用新密码 login，旧 refresh 不可再用
 ```
 
-## 规划中：租户与成员（Spec #3，未实现）
+## 规划中：租户与用户（Spec #3，未实现）
 
 以下路径为 **已编写 Spec 的目标契约**，当前代码**不存在**对应 Controller；批准 Spec 并交付 Plan 后再实现。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/tenants` | 平台：创建租户 |
-| PATCH | `/api/tenants/{tenantId}` | 平台：更新租户（含停用/启用） |
+| POST | `/api/tenants` | 系统：创建租户 |
+| PATCH | `/api/tenants/{tenantId}` | 系统：更新租户（含停用/启用） |
 | GET | `/api/tenants/users/me` | 租户用户：当前 profile |
 | GET | `/api/tenants/users` | 租户 Admin：列用户 |
 | PATCH | `/api/tenants/users/{userId}` | 租户 Admin：角色/停用 |
 | POST | `/api/tenants/user-invitations` | 租户 Admin：邀请用户 |
 | POST | `/api/auth/user-invitation-acceptances` | 匿名：接受邀请 |
 
-会话 **`/api/auth/*`**；平台 profile **`/api/users/me`**。完整 REST 表见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。
+会话 **`/api/auth/*`**；系统用户 profile **`/api/users/me`**。完整 REST 表见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。

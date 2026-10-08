@@ -62,7 +62,7 @@ class IdentityAuthTests extends AbstractIt {
                 .exchange()
                 .expectStatus()
                 .isOk()
-                .expectBody(IdentityMeController.IdentityMeResponse.class)
+                .expectBody(UserMeController.IdentityMeResponse.class)
                 .value(
                         profile -> {
                             assertThat(profile.email()).isEqualTo("admin@example.com");
