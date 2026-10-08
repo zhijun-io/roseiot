@@ -1,4 +1,4 @@
-package io.roseiot.config;
+package io.roseiot.identity.config;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -20,17 +20,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login")
+                        .requestMatchers(HttpMethod.POST, "/api/identity/auth/login")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/token")
+                        .requestMatchers(HttpMethod.POST, "/api/identity/auth/token")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/recovery/request")
+                        .requestMatchers(HttpMethod.POST, "/api/identity/auth/recovery/request")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/recovery/confirm")
+                        .requestMatchers(HttpMethod.POST, "/api/identity/auth/recovery/confirm")
                         .permitAll()
-                        .requestMatchers("/api/platform/**")
+                        .requestMatchers("/api/identity/me/**")
                         .authenticated()
-                        .requestMatchers("/api/auth/**")
+                        .requestMatchers("/api/identity/auth/**")
                         .authenticated()
                         .anyRequest()
                         .denyAll())

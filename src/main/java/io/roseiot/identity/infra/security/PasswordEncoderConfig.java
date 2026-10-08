@@ -1,4 +1,4 @@
-package io.roseiot.platform.config;
+package io.roseiot.identity.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -6,10 +6,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
-public class PlatformPasswordConfig {
+public class PasswordEncoderConfig {
 
     @Bean
-    PasswordEncoder platformPasswordEncoder() {
+    PasswordEncoder identityPasswordEncoder() {
         return new BCryptPasswordEncoder();
     }
 }

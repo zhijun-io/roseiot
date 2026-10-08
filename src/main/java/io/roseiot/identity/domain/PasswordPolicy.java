@@ -1,14 +1,14 @@
-package io.roseiot.platform;
+package io.roseiot.identity.config;
 
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-public final class PlatformPasswordPolicy {
+public final class PasswordPolicy {
 
     private static final Pattern HAS_LETTER = Pattern.compile("[A-Za-z]");
     private static final Pattern HAS_DIGIT = Pattern.compile("\\d");
 
-    private PlatformPasswordPolicy() {}
+    private PasswordPolicy() {}
 
     public static Optional<String> validationError(String password) {
         if (password == null || password.length() < 12) {

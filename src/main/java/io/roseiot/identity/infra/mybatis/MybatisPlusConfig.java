@@ -1,9 +1,9 @@
-package io.roseiot.platform.config;
+package io.roseiot.identity.config;
 
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan("io.roseiot.platform.persistence")
+@MapperScan("io.roseiot.identity.persistence")
 public class MybatisPlusConfig {
 }
