@@ -4,7 +4,7 @@
 - **日期**：2026-10-08
 - **决策者**：产品 / 架构（访谈与实现澄清）
 - **关联需求**：`IAM-001`～`IAM-010`、`PRD-001`、`PRD-002`；修订后的 `IAM-003`、`IAM-004`、`IAM-011`～`IAM-012`
-- **关联 Spec**：Spec #2（平台管理员认证，已实现 `platform_admin` 专表）为过渡实现；迁移与 RBAC-0 落地见 [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)；租户用户登录留 Spec #3
+- **关联 Spec**：Spec #2 平台认证；迁移与 RBAC-0 见 [`identity-user-rbac-migration-spec.md`](../sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md)（已交付）；租户与成员见 [`tenant-and-members-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-members-spec.md)（**Spec #3，待批准 / 未实现**）
 
 ## 背景
 

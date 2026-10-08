@@ -27,7 +27,7 @@
 ## Current Context
 
 - **Spec #1 已完成**：CLI `--bootstrap`（`BOOTSTRAP_USER_EMAIL` / `BOOTSTRAP_USER_PASSWORD`）写入 `users` + 角色绑定；bcrypt 摘要、`UuidV7`（`io.roseiot.shared.util.UuidV7`）；`SecurityConfig` 在 `roseiot.bootstrap.enabled=true` 时不加载。
-- 技术栈：Java 25、Spring Boot 4.1.1、MyBatis Plus 3.5.17、PostgreSQL、Testcontainers。
+- 技术栈：Java 25、Spring Boot 4.1.1、MyBatis Plus 3.5.17、PostgreSQL 18、Testcontainers（见 README 技术基线）。
 - 术语见 [`GLOSSARY.md`](../../GLOSSARY.md)；平台管理员与后续「用户/租户成员」边界见 PRD **IAM-003**、**IAM-004**。
 
 ## Requirements
@@ -74,7 +74,8 @@
 ## Related ADRs
 
 - [`docs/adr/2026-10-08-identity-user-rbac.md`](../../adr/2026-10-08-identity-user-rbac.md)：统一 User + RBAC-0 目标模型。
-- [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](2026-10-08-stage-1-identity-user-rbac-migration-spec.md)（**已批准**）：自 `platform_admin` 收敛至 User/RBAC；**本 Spec 交付的表与 JWT 为实现过渡**，以迁移 Spec AC 为收敛验收，对外 HTTP 行为以本 Spec 为回归基准。
+- [`docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md`](2026-10-08-stage-1-identity-user-rbac-migration-spec.md)（**已交付**）：自 `platform_admin` 收敛至 User/RBAC；对外 HTTP 以 README 当前路径为准（认证扁平化至 `/api/identity/login` 等）。
+- [`docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md`](2026-10-08-stage-1-tenant-and-members-spec.md)（**Spec #3，待批准**）：租户生命周期与租户用户会话；不在本 Spec 范围。
 
 ## Open Questions
 

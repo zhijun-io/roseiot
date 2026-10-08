@@ -80,6 +80,7 @@
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过（Java 25.0.2，Spring Boot 4.1.1，Maven Wrapper 3.9.9）。Testcontainers 依赖留待 Slice 2 加入。
 - 2026-10-08 Slice 2：`./mvnw -q verify` 通过；`RoseiotProperties`、Flyway `V1__baseline`、`FlywayMigrationIntegrationTest`（Testcontainers PostgreSQL 16）。
+- 2026-10-08 | 依赖升级 | Maven Wrapper **3.10.0**；本地 Compose 与 Testcontainers 镜像 **PostgreSQL 18**（`postgres:18-alpine`）；README 技术基线已同步。
 - 2026-10-08 精简 Slice 2：改用标准 `spring.datasource.*` / `SPRING_DATASOURCE_*`，删除自定义 `@ConfigurationProperties` 与独立 Flyway 测试类；Slice 3 暂缓。
 - 2026-10-08 Slice 4：`./mvnw -q verify` 通过；README 终验命令与 liveness/readiness curl；已跟踪文件无常见密钥模式（rg 审查）；`.gitignore` 已含 `.env` 与 `application-local.*`。
 - 2026-10-08 Slice 3：`./mvnw -q verify` 通过；probes、Security 最小暴露、Actuator 集成测试（含 DB 不可达 readiness）。

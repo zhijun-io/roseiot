@@ -26,7 +26,7 @@
 
 ### HTTP 路径（均相对于应用根，端口默认 8080）
 
-> **当前实现（identity 能力）** — 与 [`README.md`](../../README.md) 及 `SecurityConfig` 一致；历史 Spec #2 曾用 `/api/auth/*`、`/api/platform/me`。
+> **当前实现（identity 能力）** — 与 [`README.md`](../../README.md) 及 `SecurityConfig` 一致：**`/api/identity/login|token|logout*|recovery/*|me/**`**。下文 Slice 交付证据仍保留历史路径 `/api/auth/*`、`/api/platform/me` 表述。
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |

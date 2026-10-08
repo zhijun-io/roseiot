@@ -5,7 +5,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1：**Spec #1 引导**与 **Spec #2 认证** 已交付（HTTP **`/api/identity/**`**，持久化 **`users` + RBAC**；Flyway **V4～V6**）。平台 access JWT 含 **`ctx=platform`**、**`azv`**；`/api/identity/me/**` 需 **`identity.profile.*`** 等 permission。租户与用户登录等后续 Spec 未交付。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：**Spec #1** 引导、**Spec #2** 平台认证、**身份迁移**（`users` + RBAC-0，Flyway **V4～V6**）。HTTP：**`/api/identity/login|token|logout*|recovery/*|me/**`**（认证与平台 profile 同前缀，无 `/auth` 段）。平台 access JWT 含 **`ctx=platform`**、**`azv`**；`/api/identity/me/**` 需 **`identity.profile.*`**。**Spec #3**（租户、成员、租户用户 `ctx=tenant`）规格已编写、**尚未实现** — 见 [租户与成员 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。
 
 ## 建设原则
 
@@ -21,7 +21,8 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 | --- | --- |
 | Java | 25 |
 | Spring Boot | 4.1.1 |
-| Maven | 3.9.9（Wrapper） |
+| Maven | 3.10.0（Wrapper） |
+| PostgreSQL | 18（`compose.yaml` 与 Testcontainers `postgres:18-alpine`） |
 | MyBatis Plus | 3.5.17（`mybatis-plus-spring-boot4-starter`，阶段 1 起） |
 
 与 PRD 候选基线一致；依赖来自 Maven Central 正式发布版本。
@@ -73,7 +74,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 - **HTTP 契约（可选真实端口）**：`*Tests` + `AbstractIt` 的 `restTestClient`（如 JWT 往返 happy path）。
 - **持久化/迁移**：Flyway 脚本、表/索引/约束与 Mapper 在真库上可运行 → 继承 `AbstractIt`（不必调用 HTTP）。
 - **模式开关**：bootstrap CLI、`roseiot.bootstrap.enabled` 等改变 Bean 集合 → 继承 `AbstractIt`（必要时子类再加 `@SpringBootTest(properties=…)`）。
-- **Actuator / 健康检查**：继承 `AbstractIt`；若需特殊 DataSource 替身，子类用 `@DynamicPropertySource` 等覆盖。
+- **Actuator / 健康检查**：有库场景继承 `AbstractIt`；**故意不可达数据源**（readiness DOWN / liveness UP）用独立 `@SpringBootTest`（**不** import `TestcontainersConfig`），见 `ActuatorHealthWhenDatabaseUnreachableTests`。
 
 **不写集成测试当**：
 
@@ -106,6 +107,15 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 - [项目路线](docs/roadmap.md)
 - [领域词汇](GLOSSARY.md)
 - [Agent 规则](AGENTS.md)
+
+### 阶段 1 规格（SDD）
+
+| Spec | 文档 | 状态 |
+| --- | --- | --- |
+| #1 平台引导 | [stage-1-platform-bootstrap-spec.md](docs/sdd/2026-10-08-stage-1-platform-bootstrap-spec.md) | 已交付 |
+| #2 平台认证 | [stage-1-platform-admin-auth-spec.md](docs/sdd/2026-10-08-stage-1-platform-admin-auth-spec.md) | 已交付 |
+| 身份迁移 | [identity-user-rbac-migration-spec.md](docs/sdd/2026-10-08-stage-1-identity-user-rbac-migration-spec.md) | 已交付 |
+| #3 租户与成员 | [tenant-and-members-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md) | **待批准 / 未实现** |
 
 ## 验证与运行
 
@@ -240,3 +250,15 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/recovery/c
   -d "{\"token\":\"$RECOVERY_TOKEN\",\"newPassword\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用
 ```
+
+## 规划中：租户与成员（Spec #3，未实现）
+
+以下路径为 **已编写 Spec 的目标契约**，当前代码**不存在**对应 Controller；批准 Spec 并交付 Plan 后再实现。
+
+| 域 | 示例路径 | 说明 |
+| --- | --- | --- |
+| 平台租户 | `POST /api/identity/tenants`、`POST .../tenants/{id}/disable` | `identity.tenant.*`；**非** `/api/platform/**` |
+| 租户内 | `GET /api/tenant/me`、`GET /api/tenant/members` | 无 URL 内 `tenantId`；JWT `ctx=tenant` + `tid` |
+| 邀请 | `POST /api/identity/invites/accept`（匿名） | 与 login 同属 `/api/identity` 前缀 |
+
+租户用户仍计划共用 **`POST /api/identity/login`** 等会话端点；详情见 Spec #3 与访谈 **Q513**。

@@ -147,7 +147,7 @@
 
 - Spec #1 Bootstrap — 引导写入目标改为 `users`  
 - Spec #2 平台管理员认证 — 本 Spec 的回归基准  
-- Spec #3（未写）— 租户用户登录与 `ctx=tenant` JWT；租户资源 API 预期 **`io.roseiot.tenant.*`**（与 `identity` 并列，本 Spec 不创建）  
+- [Spec #3 租户与成员](2026-10-08-stage-1-tenant-and-members-spec.md) — 租户用户 `ctx=tenant` JWT、平台 **`/api/identity/tenants/**`**、租户内 **`/api/tenant/**`**；**待批准 / 未实现**  
 - 路线图 **`device` / `product` 等** — 各自 **`io.roseiot.<能力>.*`**，本 Spec 不创建  
 
 ## Open Questions
@@ -163,3 +163,4 @@
 - 2026-10-08 | 取消 `platform` Java 父包，能力直挂 `io.roseiot.*` | none — clarification | yes — Plan Slice 1 含包搬迁
 - 2026-10-08 | 根包仅 `identity`+`shared`；横切 config → `shared.config` | none — clarification | yes — Plan 包结构表
 - 2026-10-08 | 明确多能力并列（identity/device/…）；本 Spec 仅 identity | none — clarification | no
+- 2026-10-08 | Related Specs：链接 Spec #3 文档 | none — clarification | no
