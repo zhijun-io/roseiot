@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class UuidV7Test {
+class UuidV7Tests {
 
     @Test
     void generatesVersion7Uuid() {
