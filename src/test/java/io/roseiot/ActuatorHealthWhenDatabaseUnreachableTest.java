@@ -21,7 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.flyway.enabled=false")
+        properties = {
+                "spring.flyway.enabled=false",
+                "spring.datasource.hikari.initialization-fail-timeout=-1"
+        })
 class ActuatorHealthWhenDatabaseUnreachableTest {
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();

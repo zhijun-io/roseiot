@@ -14,8 +14,6 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/roseiot}
     username: ${SPRING_DATASOURCE_USERNAME:roseiot}
     password: ${SPRING_DATASOURCE_PASSWORD:}
-    hikari:
-      initialization-fail-timeout: -1
   flyway:
     enabled: true
 
