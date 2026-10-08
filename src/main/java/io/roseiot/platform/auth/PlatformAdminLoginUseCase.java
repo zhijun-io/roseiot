@@ -25,21 +25,25 @@ public class PlatformAdminLoginUseCase {
     private final PlatformAdminRefreshSessionMapper refreshSessionMapper;
     private final PasswordEncoder passwordEncoder;
     private final PlatformAuthTokenIssuer tokenIssuer;
+    private final PlatformAdminAuthRateLimiter authRateLimiter;
 
     public PlatformAdminLoginUseCase(
             PlatformAdminMapper platformAdminMapper,
             PlatformAdminRefreshSessionMapper refreshSessionMapper,
             @Qualifier("platformPasswordEncoder") PasswordEncoder passwordEncoder,
-            PlatformAuthTokenIssuer tokenIssuer) {
+            PlatformAuthTokenIssuer tokenIssuer,
+            PlatformAdminAuthRateLimiter authRateLimiter) {
         this.platformAdminMapper = platformAdminMapper;
         this.refreshSessionMapper = refreshSessionMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenIssuer = tokenIssuer;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @Transactional
     public LoginTokens login(String rawEmail, String rawPassword) {
         String email = normalizeEmail(rawEmail);
+        authRateLimiter.onLoginAttempt(email);
         PlatformAdmin admin = platformAdminMapper.selectOne(
                 new LambdaQueryWrapper<PlatformAdmin>().eq(PlatformAdmin::getEmail, email));
         if (admin == null || rawPassword == null || !passwordEncoder.matches(rawPassword, admin.getPasswordHash())) {

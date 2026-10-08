@@ -38,6 +38,9 @@ class PlatformAdminLoginUseCaseTests {
     @Mock
     PlatformAuthTokenIssuer tokenIssuer;
 
+    @Mock
+    PlatformAdminAuthRateLimiter authRateLimiter;
+
     @InjectMocks
     PlatformAdminLoginUseCase loginUseCase;
 

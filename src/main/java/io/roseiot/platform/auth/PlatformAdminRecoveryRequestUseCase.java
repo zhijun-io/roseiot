@@ -23,19 +23,23 @@ public class PlatformAdminRecoveryRequestUseCase {
     private final PlatformAdminMapper platformAdminMapper;
     private final PlatformAdminRecoveryRequestMapper recoveryRequestMapper;
     private final RecoveryNotificationPort recoveryNotificationPort;
+    private final PlatformAdminAuthRateLimiter authRateLimiter;
 
     public PlatformAdminRecoveryRequestUseCase(
             PlatformAdminMapper platformAdminMapper,
             PlatformAdminRecoveryRequestMapper recoveryRequestMapper,
-            RecoveryNotificationPort recoveryNotificationPort) {
+            RecoveryNotificationPort recoveryNotificationPort,
+            PlatformAdminAuthRateLimiter authRateLimiter) {
         this.platformAdminMapper = platformAdminMapper;
         this.recoveryRequestMapper = recoveryRequestMapper;
         this.recoveryNotificationPort = recoveryNotificationPort;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @Transactional
     public String requestRecovery(String rawEmail) {
         String email = PlatformAdminLoginUseCase.normalizeEmail(rawEmail);
+        authRateLimiter.onRecoveryRequest(email);
         PlatformAdmin admin = platformAdminMapper.selectOne(
                 new LambdaQueryWrapper<PlatformAdmin>().eq(PlatformAdmin::getEmail, email));
         if (admin != null) {

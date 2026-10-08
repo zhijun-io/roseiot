@@ -1,5 +1,6 @@
 package io.roseiot.platform.auth.api;
 
+import io.roseiot.platform.auth.AuthRateLimitExceededException;
 import io.roseiot.platform.auth.InvalidCredentialsException;
 import io.roseiot.platform.auth.InvalidRecoveryTokenException;
 import io.roseiot.platform.auth.InvalidRefreshTokenException;
@@ -20,6 +21,12 @@ public class PlatformAuthApiExceptionHandler {
 
     public PlatformAuthApiExceptionHandler(ApiErrorBodyWriter apiErrorBodyWriter) {
         this.apiErrorBodyWriter = apiErrorBodyWriter;
+    }
+
+    @ExceptionHandler(AuthRateLimitExceededException.class)
+    ResponseEntity<ApiErrorResponse> handleRateLimit(AuthRateLimitExceededException exception) {
+        return apiErrorBodyWriter.responseEntity(
+                HttpStatus.TOO_MANY_REQUESTS.value(), "rate_limited", "Too many requests");
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

@@ -127,7 +127,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - Depends on: Slice 5
 - Test or proof：README 步骤与 AC-2/4/6 对齐；`rg` 审查跟踪文件无真实 secret。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## AC 覆盖矩阵
 
@@ -157,3 +157,4 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshUseCaseTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
 - **Slice 4**（2026-10-08）：`POST /api/auth/logout`、`/logout-all`；`PATCH /api/platform/me/password` 改密并撤销全部 refresh；MockMvc + 用例单元测试。验证：`./mvnw -q verify` 通过。
 - **Slice 5**（2026-10-08）：`POST /api/auth/recovery/request`（202 统一 body）、`/confirm`（204）；`RecoveryNotificationPort` + 默认 logging 适配器；测试 `InMemoryRecoveryNotificationAdapter`；confirm 改密、标记 `used_at`、撤销全部 refresh；`OpaqueTokens` 复用于 login/refresh/recovery；MockMvc AC-6/7/8。验证：`./mvnw -q verify` 通过。
+- **Slice 6**（2026-10-08）：README Spec #2 端点与 AC-2/4/6 curl；`.env.example` JWT/限速占位；登录与恢复内存限速（429 `rate_limited`，测试默认关闭）；`PlatformAdminAuthRateLimitMockMvcTests`。验证：`./mvnw -q verify` 通过。

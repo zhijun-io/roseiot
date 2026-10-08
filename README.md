@@ -6,7 +6,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 ## 当前状态
 
 阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 进行中：**Spec #1 平台引导（IAM-001）**
-已实现 CLI 一次性创建首个平台管理员；租户/登录等后续 Spec 尚未交付。不承诺生产规模、
+与 **Spec #2 平台管理员认证** 已交付 HTTP 登录、会话、改密与账户恢复；租户与用户登录等后续 Spec 尚未交付。不承诺生产规模、
 性能数据或完整平台能力。
 
 ## 建设原则
@@ -173,4 +173,66 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 ```bash
 ./mvnw spring-boot:run
+```
+
+## 平台管理员认证（Spec #2）
+
+前置：已完成 [平台引导（IAM-001）](#平台引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。在 `.env` 中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字符；参见 [`.env.example`](.env.example)），勿使用仓库默认值上线。
+
+业务 API 前缀为 **`/api`**（URL 中无 `/v1`）。错误体为稳定 JSON：`{"code":"...","message":"..."}`。
+
+| 方法 | 路径 | 认证 |
+| --- | --- | --- |
+| POST | `/api/auth/login` | 匿名 |
+| POST | `/api/auth/token` | 匿名（body 含 refresh） |
+| POST | `/api/auth/logout` | Bearer |
+| POST | `/api/auth/logout-all` | Bearer |
+| POST | `/api/auth/recovery/request` | 匿名 |
+| POST | `/api/auth/recovery/confirm` | 匿名 |
+| GET | `/api/platform/me` | Bearer |
+| PATCH | `/api/platform/me/password` | Bearer |
+
+生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、恢复请求 **5** 次，超出返回 **429** + `rate_limited`。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_AUTH_RATE_LIMIT_ENABLED=false`。
+
+### 手动验证（AC-2：登录与 profile）
+
+```bash
+BASE=http://localhost:8080
+
+LOGIN=$(curl -sS -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"YOUR_BOOTSTRAP_PASSWORD"}')
+ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
+REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
+
+curl -sS "$BASE/api/platform/me" -H "Authorization: Bearer $ACCESS" | jq .
+```
+
+### 手动验证（AC-4：注销后会话失效）
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/logout" \
+  -H "Authorization: Bearer $ACCESS"
+
+curl -sS -X POST "$BASE/api/auth/token" \
+  -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}"
+# 期望 401，body 含 invalid_refresh_token
+```
+
+### 手动验证（AC-6：账户恢复）
+
+默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试 double 或后续邮件适配器取得令牌。自动化路径见 `InMemoryRecoveryNotificationAdapter` 与 `PlatformAdminAuthMockMvcTests`。
+
+```bash
+curl -sS -X POST "$BASE/api/auth/recovery/request" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com"}'
+# 期望 202，body.message 与未注册邮箱请求相同
+
+# 取得 RECOVERY_TOKEN 后：
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/recovery/confirm" \
+  -H 'Content-Type: application/json' \
+  -d "{\"token\":\"$RECOVERY_TOKEN\",\"newPassword\":\"newSecurePass9012\"}"
+# 期望 204；随后用新密码 login，旧 refresh 不可再用
 ```

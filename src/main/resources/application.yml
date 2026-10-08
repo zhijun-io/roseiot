@@ -39,6 +39,11 @@ roseiot:
   auth:
     jwt:
       hmac-secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
+    rate-limit:
+      enabled: ${ROSEIOT_AUTH_RATE_LIMIT_ENABLED:true}
+      window-minutes: 15
+      login-max-attempts: 10
+      recovery-max-attempts: 5
 
 mybatis-plus:
   type-handlers-package: io.roseiot.platform.persistence
