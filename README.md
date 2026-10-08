@@ -23,6 +23,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 | Java | 25 |
 | Spring Boot | 4.1.1 |
 | Maven | 3.9.9（Wrapper） |
+| MyBatis Plus | 3.5.17（`mybatis-plus-spring-boot4-starter`，阶段 1 起） |
 
 与 PRD 候选基线一致；依赖来自 Maven Central 正式发布版本。
 
