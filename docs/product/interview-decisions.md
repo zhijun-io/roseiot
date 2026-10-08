@@ -3902,3 +3902,29 @@ AND 凭证当前有效
 ❓ **Q375 修订 — `/api` 前缀、URL 不含版本号**：Roseiot 是否使用 `/api/...` 作为业务 REST 前缀，且不在路径中嵌入 `/v1` 等主版本段，改在后续通过 Spring Boot API 版本化绑定主版本？
 
 ➡️ **用户确认。** 例如 `/api/auth/login`、`/api/platform/me`；Actuator 等仍不在 `/api` 下。主版本不在 URL 中体现，具体版本协商机制在首次启用版本化时选定并文档化（可 supersede 原 Q375「路径 `/api/v1`」建议在本项目中的适用性）。
+
+---
+
+## 身份与 RBAC 澄清（2026-10-08）
+
+❓ **Q507 — 统一 User 与 tenant_id**：是否采用单一 **User** 模型，以 **`tenant_id` 是否为空** 区分平台作用域用户与租户用户，且首版一个 User 至多绑定一个租户？
+
+➡️ **用户确认。** 详见 ADR [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md)；Spec #2 的 `platform_admin` 为实现过渡，迁移另开 Spec。
+
+---
+
+❓ **Q508 — 不用 Authority、采用 RBAC-0**：是否 **不** 使用 ThingsBoard Community 式 **Authority** 枚举作为业务授权，而采用 **Permission + Role + RoleAssignment**，首版仅内置 `PlatformOperator` / `TenantAdmin` / `TenantMember` 与系统 seed，不提供租户自定义角色 UI？
+
+➡️ **用户确认。** PRD 更新 `IAM-004`、`IAM-011`、`IAM-012`；非目标改为不建设「租户自定义角色与权限编辑器」，而非否定 RBAC 基础设施。
+
+---
+
+❓ **Q509 — 平台默认不读租户设备数据**：内置 **PlatformOperator** permission 集是否 **默认不包含** 租户设备遥测、设备凭证等读取能力，与 Q38 一致？
+
+➡️ **用户确认。** 若未来需要平台侧只读或支持访问，须单独 permission、Spec 与审计，可参考 Q38「显式、受审计的临时授权」。
+
+---
+
+❓ **Q510 — ABAC / ThingsBoard PE 演进**：是否在 RBAC 之上预留 **ABAC**（租户停用、资格检查等）与 **PE 风格**（用户组、权限依赖）作为后续候选，而不在 RBAC-0 一次交付？
+
+➡️ **用户确认。** 演进路线写入 ADR；引入前需独立 Spec 与范围控制。

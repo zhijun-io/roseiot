@@ -72,7 +72,7 @@
 
 ## Related ADRs
 
-- 无。若访问令牌格式（如 JWT vs opaque）在 Plan 阶段产生长期分歧，可在实现 PR 提议 `docs/adr/`。
+- [`docs/adr/2026-10-08-identity-user-rbac.md`](../../adr/2026-10-08-identity-user-rbac.md)：统一 User + RBAC-0 为后续 Spec 的目标身份与授权模型；**本 Spec 交付的 `platform_admin` 专表为实现过渡**，行为仍以本 Spec 验收为准，直至批准迁移 Spec。
 
 ## Open Questions
 
