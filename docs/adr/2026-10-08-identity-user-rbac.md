@@ -54,7 +54,7 @@ Roseiot 需要同时服务**平台运维**（租户生命周期）与**租户内
 
 - **平台管理 REST**：独立路径前缀（当前实现 **`/api/identity/me/**`** 等；迁移 Spec 目标 **`ctx=platform`** + permission）；仅接受平台上下文的主体，且逐 endpoint 校验 platform permission。
 - **租户业务 REST**：从认证主体推导租户上下文（`User.tenant_id`），**不信任**请求体/Query/Header 中的租户 ID（`PRD-001`）。
-- 登录入口可共用 **`/api/identity/auth/*`**（或未来 tenant 前缀）机制；是否拆分 platform/tenant login 路径由具体 Spec 决定，**内部分派到同一套会话服务**即可。
+- 登录入口可共用 **`/api/identity/login`** 等（与 **`/me`** 同前缀，无中间 **`auth`** 段）（或未来 tenant 前缀）机制；是否拆分 platform/tenant login 路径由具体 Spec 决定，**内部分派到同一套会话服务**即可。
 - 租户停用、用户/成员停用等 **资格检查** 在 RBAC 之后执行（`IAM-009`）；后续可抽为显式 **ABAC Policy**，不推翻 RBAC。
 
 ### 5. 与 Spec #2 已实现代码的关系

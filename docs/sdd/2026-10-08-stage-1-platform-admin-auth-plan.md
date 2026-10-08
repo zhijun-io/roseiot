@@ -30,14 +30,14 @@
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/identity/auth/login` | 匿名 |
-| POST | `/api/identity/auth/token` | 匿名（body 含 refreshToken） |
-| POST | `/api/identity/auth/logout` | Bearer（撤销当前 refresh 会话） |
-| POST | `/api/identity/auth/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
+| POST | `/api/identity/login` | 匿名 |
+| POST | `/api/identity/token` | 匿名（body 含 refreshToken） |
+| POST | `/api/identity/logout` | Bearer（撤销当前 refresh 会话） |
+| POST | `/api/identity/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
 | GET | `/api/identity/me` | Bearer |
 | PATCH | `/api/identity/me/password` | Bearer |
-| POST | `/api/identity/auth/recovery/request` | 匿名 |
-| POST | `/api/identity/auth/recovery/confirm` | 匿名 |
+| POST | `/api/identity/recovery/request` | 匿名 |
+| POST | `/api/identity/recovery/confirm` | 匿名 |
 
 Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 

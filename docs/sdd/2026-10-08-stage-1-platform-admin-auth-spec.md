@@ -10,7 +10,7 @@
 - **IAM-008（本切片子集）**：登录与恢复路径的限速与**统一失败语义**（不暴露邮箱是否存在、成员/租户状态等区分信息）。
 - **REST**：业务 HTTP API 统一 **`/api`** 前缀，路径中**不含主版本号**（无 `/api/v1`）；本 Spec 仅暴露认证与会话相关端点（见 Plan 固定路径）。主版本后续由 **Spring Boot API 版本化** 绑定，而非 URL 段。
 - **主体**：平台侧用户（当前持久化为 **`users`（`tenant_id IS NULL`）** + `PlatformOperator`；自身份迁移起不再使用 `platform_admin` 表）；租户用户与成员登录留 Spec #3。
-- **HTTP 路径（当前实现）**：认证 **`/api/identity/auth/**`**；当前用户 **`/api/identity/me/**`**（见 README、`io.roseiot.identity.infra.security.SecurityConfig`）。
+- **HTTP 路径（当前实现）**：认证 **`/api/identity/login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**（与 **`/me/**`** 同前缀 **`/api/identity`**）；当前用户 **`/api/identity/me/**`**（见 README、`io.roseiot.identity.infra.security.SecurityConfig`）。
 - **账户恢复**：单次使用、短期有效的恢复令牌；**Q208** 通知适配器（自动化测试用内存/本地捕获，不绑定商业 ESP）。
 - **持久化**：Flyway 扩展会话与恢复请求所需最小表；MyBatis Plus 读写。
 - **README**：记录认证端点、本地验证步骤与恢复流程（含测试适配器用法）。

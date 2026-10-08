@@ -102,7 +102,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
         return mvc.post()
-                .uri("/api/identity/auth/token")
+                .uri("/api/identity/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -143,7 +143,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/identity/auth/login")
+                .uri("/api/identity/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """

@@ -3940,3 +3940,5 @@ AND 凭证当前有效
 ❓ **Q512 — identity HTTP 路径**：身份迁移实现是否将平台认证与「当前用户」REST 前缀定为 **`/api/identity/auth/**`** 与 **`/api/identity/me/**`**（取代 Q375 示例中的 `/api/auth/*`、`/api/platform/me`），仍保持业务 API 在 `/api` 下且无 URL 主版本号？
 
 ➡️ **用户确认（2026-10-08）。** 以 README、migration-plan 与 `SecurityConfig` 为准；Q375 示例路径视为历史表述，语义不变。
+
+➡️ **修订（2026-10-08）**：认证端点扁平化至 **`POST /api/identity/login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**，与 **`/api/identity/me/**`** 共用 **`/api/identity`** 前缀，不再使用中间 **`/auth`** 段。

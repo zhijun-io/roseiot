@@ -18,14 +18,14 @@ import org.springframework.http.MediaType;
             "roseiot.rate-limit.enabled=true",
             "roseiot.rate-limit.window-minutes=15",
             "roseiot.rate-limit.rules[0].method=POST",
-            "roseiot.rate-limit.rules[0].path=/api/identity/auth/login",
+            "roseiot.rate-limit.rules[0].path=/api/identity/login",
             "roseiot.rate-limit.rules[0].body-field=email",
-            "roseiot.rate-limit.rules[0].key-prefix=identity:auth:login:",
+            "roseiot.rate-limit.rules[0].key-prefix=identity:login:",
             "roseiot.rate-limit.rules[0].max-attempts=2",
             "roseiot.rate-limit.rules[1].method=POST",
-            "roseiot.rate-limit.rules[1].path=/api/identity/auth/recovery/request",
+            "roseiot.rate-limit.rules[1].path=/api/identity/recovery/request",
             "roseiot.rate-limit.rules[1].body-field=email",
-            "roseiot.rate-limit.rules[1].key-prefix=identity:auth:recovery:",
+            "roseiot.rate-limit.rules[1].key-prefix=identity:recovery:",
             "roseiot.rate-limit.rules[1].max-attempts=2"
         })
 class IdentityAuthRateLimitMockMvcTests extends AbstractIt {
@@ -84,7 +84,7 @@ class IdentityAuthRateLimitMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/identity/auth/login")
+                .uri("/api/identity/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -96,7 +96,7 @@ class IdentityAuthRateLimitMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecovery(String email) {
         return mvc.post()
-                .uri("/api/identity/auth/recovery/request")
+                .uri("/api/identity/recovery/request")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """

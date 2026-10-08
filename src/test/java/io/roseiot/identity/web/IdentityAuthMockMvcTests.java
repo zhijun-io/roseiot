@@ -207,7 +207,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryRequest(String email) {
         return mvc.post()
-                .uri("/api/identity/auth/recovery/request")
+                .uri("/api/identity/recovery/request")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email":"%s"}
@@ -219,7 +219,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryConfirm(
             String token, String newPassword) {
         return mvc.post()
-                .uri("/api/identity/auth/recovery/confirm")
+                .uri("/api/identity/recovery/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -231,7 +231,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/identity/auth/login")
+                .uri("/api/identity/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson(email, password))
                 .exchange();
@@ -239,7 +239,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
         return mvc.post()
-                .uri("/api/identity/auth/token")
+                .uri("/api/identity/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(refreshJson(refreshToken))
                 .exchange();
@@ -247,7 +247,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogout(String accessToken) {
         return mvc.post()
-                .uri("/api/identity/auth/logout")
+                .uri("/api/identity/logout")
                 .header("Authorization", "Bearer " + accessToken)
                 .exchange();
     }

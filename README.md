@@ -181,12 +181,12 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/identity/auth/login` | 匿名 |
-| POST | `/api/identity/auth/token` | 匿名（body 含 refresh） |
-| POST | `/api/identity/auth/logout` | Bearer |
-| POST | `/api/identity/auth/logout-all` | Bearer |
-| POST | `/api/identity/auth/recovery/request` | 匿名 |
-| POST | `/api/identity/auth/recovery/confirm` | 匿名 |
+| POST | `/api/identity/login` | 匿名 |
+| POST | `/api/identity/token` | 匿名（body 含 refresh） |
+| POST | `/api/identity/logout` | Bearer |
+| POST | `/api/identity/logout-all` | Bearer |
+| POST | `/api/identity/recovery/request` | 匿名 |
+| POST | `/api/identity/recovery/confirm` | 匿名 |
 | GET | `/api/identity/me` | Bearer |
 | PATCH | `/api/identity/me/password` | Bearer |
 
@@ -203,7 +203,7 @@ Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含
 ```bash
 BASE=http://localhost:8080
 
-LOGIN=$(curl -sS -X POST "$BASE/api/identity/auth/login" \
+LOGIN=$(curl -sS -X POST "$BASE/api/identity/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"YOUR_BOOTSTRAP_PASSWORD"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
@@ -215,10 +215,10 @@ curl -sS "$BASE/api/identity/me" -H "Authorization: Bearer $ACCESS" | jq .
 ### 手动验证（AC-4：注销后会话失效）
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/auth/logout" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/logout" \
   -H "Authorization: Bearer $ACCESS"
 
-curl -sS -X POST "$BASE/api/identity/auth/token" \
+curl -sS -X POST "$BASE/api/identity/token" \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 # 期望 401，body 含 invalid_refresh_token
@@ -229,13 +229,13 @@ curl -sS -X POST "$BASE/api/identity/auth/token" \
 默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `IdentityAuthMockMvcTests`。
 
 ```bash
-curl -sS -X POST "$BASE/api/identity/auth/recovery/request" \
+curl -sS -X POST "$BASE/api/identity/recovery/request" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com"}'
 # 期望 202，body.message 与未注册邮箱请求相同
 
 # 取得 RECOVERY_TOKEN 后：
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/auth/recovery/confirm" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/recovery/confirm" \
   -H 'Content-Type: application/json' \
   -d "{\"token\":\"$RECOVERY_TOKEN\",\"newPassword\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用

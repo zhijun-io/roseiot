@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-@RequestMapping("/api/identity/auth")
+@RequestMapping("/api/identity")
 public class AuthController {
 
     private final UserSessionService sessionService;

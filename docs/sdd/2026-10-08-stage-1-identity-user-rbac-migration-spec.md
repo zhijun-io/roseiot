@@ -4,7 +4,7 @@
 > 更新日期：2026-10-08  
 > 批准日期：2026-10-08  
 > 位置：Spec #2（平台管理员认证）与 Spec #3（租户与用户业务）之间  
-> **实现说明**：对外 HTTP 为 **`/api/identity/auth/**`**、**`/api/identity/me/**`**；包布局见 migration-plan（`identity.application` / `identity.web` / `identity.infra.security` 等）。JWT **`ctx` / `azv`** 与 RBAC 守门为 Slice 3 目标；当前 access JWT 仍为 **`sub` + `sid`**（与 Spec #2 一致）。
+> **实现说明**：对外 HTTP 认证与 **`/me/**`** 共用前缀 **`/api/identity`**（无中间 **`auth`** 段）；包布局见 migration-plan（`identity.application` / `identity.web` / `identity.infra.security` 等）。JWT **`ctx` / `azv`** 与 RBAC 守门为 Slice 3 目标；当前 access JWT 仍为 **`sub` + `sid`**（与 Spec #2 一致）。
 
 ## Goal
 
@@ -60,7 +60,7 @@
 
 - **AC-4**：与 Spec #2 **AC-2** 等价：登录、`GET /api/identity/me` 成功；无 token / 无效 token 拒绝。
 - **AC-5**：与 Spec #2 **AC-3** 等价：refresh 轮换与重放撤销语义不变。
-- **AC-6**：与 Spec #2 **AC-4** 等价：`POST /api/identity/auth/logout` 与 `POST /api/identity/auth/logout-all` 后，相应 refresh 不能再换取 access。
+- **AC-6**：与 Spec #2 **AC-4** 等价：`POST /api/identity/logout` 与 `POST /api/identity/logout-all` 后，相应 refresh 不能再换取 access。
 - **AC-7**：与 Spec #2 **AC-5** 等价：登录失败统一语义。
 - **AC-8**：与 Spec #2 **AC-6、AC-7** 等价：recovery 流程与统一响应。
 - **AC-9**：与 Spec #2 **AC-8** 等价：Testcontainers + 测试 recovery notifier double。

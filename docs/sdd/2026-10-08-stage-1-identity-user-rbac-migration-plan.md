@@ -56,7 +56,7 @@ io.roseiot
 | `io.roseiot.platform.PlatformPasswordPolicy` | `io.roseiot.identity.domain.PasswordPolicy` |
 | `io.roseiot.platform.support.UuidV7` | `io.roseiot.shared.util.UuidV7` |
 
-**HTTP 路径**（identity 能力）：认证 `/api/identity/auth/**`；当前用户 `/api/identity/me/**`。
+**HTTP 路径**（identity 能力）：认证与当前用户共用前缀 **`/api/identity`**（如 **`POST /login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**、**`/me/**`**；见 README）。
 
 ## Risks / Dependencies
 
@@ -71,7 +71,7 @@ io.roseiot
 
 ### HTTP 路径
 
-与 [`2026-10-08-stage-1-platform-admin-auth-plan.md`](2026-10-08-stage-1-platform-admin-auth-plan.md) **语义相同**，路径前缀为 **`/api/identity/auth/**`**、**`/api/identity/me/**`**（见 README）。
+与 [`2026-10-08-stage-1-platform-admin-auth-plan.md`](2026-10-08-stage-1-platform-admin-auth-plan.md) **语义相同**，路径前缀为 **`/api/identity`**（认证与 **`/me/**`** 同前缀，见 README）。
 
 ### 访问令牌 JWT（相对 Spec #2 的变更）
 
@@ -92,7 +92,7 @@ Resource Server 在认证转换器中校验：**JWT `azv` == 库中 `authorizati
 | `GET /api/identity/me` | `identity.profile.read` |
 | `PATCH /api/identity/me/password` | `identity.profile.password.write` |
 
-`/api/identity/auth/*` 匿名或会话逻辑 **不** 做 RBAC permission 检查（仍用凭证校验 + 限速）。
+`/api/identity/login`、`/token`、`/recovery/*` 等匿名或会话逻辑 **不** 做 RBAC permission 检查（仍用凭证校验 + 限速）。
 
 ### 用户停用
 
