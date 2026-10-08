@@ -109,7 +109,7 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - Depends on: Slice 3
 - Test or proof：login → logout → refresh 401；改密后旧 refresh 无效。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## Slice 5：账户恢复（AC-6、AC-7、AC-8）
 
@@ -155,3 +155,4 @@ Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 - **Slice 1**（2026-10-08）：`V3__platform_admin_auth.sql`；`SecurityConfig` + `JsonSecurityHandlers`；OAuth2 Resource Server + `PlatformAuthJwtConfig`（`roseiot.auth.jwt.hmac-secret` / `ROSEIOT_AUTH_JWT_SECRET`）；`PlatformMeController` 占位 `GET /api/platform/me`；集成测试匿名 401 JSON + 表存在；REST 前缀 `/api`（无 URL 版本号）；共享 `io.roseiot.shared.api` 错误体（`ApiErrorResponse` + `ApiExceptionHandler` + `ApiErrorBodyWriter`）。验证：`./mvnw -q verify` 通过。
 - **Slice 2**（2026-10-08）：`PlatformAdminLoginUseCase` / `PlatformAdminProfileUseCase`；`POST /api/auth/login`、`GET /api/platform/me`；refresh 会话入库 + JWT 签发；`PlatformAdminAuthMockMvcTests` / `PlatformAdminAuthTests`。验证：`./mvnw -q verify` 通过。
 - **Slice 3**（2026-10-08）：`POST /api/auth/token` 轮换 refresh；重放已撤销 refresh 时撤销整 family（`noRollbackFor` 保证撤销提交）；`PlatformAdminRefreshUseCaseTests` + MockMvc 集成测试。验证：`./mvnw -q verify` 通过。
+- **Slice 4**（2026-10-08）：`POST /api/auth/logout`、`/logout-all`；`PATCH /api/platform/me/password` 改密并撤销全部 refresh；MockMvc + 用例单元测试。验证：`./mvnw -q verify` 通过。
