@@ -16,7 +16,6 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:}
   flyway:
     enabled: true
-
 management:
   endpoints:
     web:
@@ -37,6 +36,9 @@ server:
 roseiot:
   bootstrap:
     enabled: false
+  auth:
+    jwt:
+      hmac-secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
 
 mybatis-plus:
   type-handlers-package: io.roseiot.platform.persistence

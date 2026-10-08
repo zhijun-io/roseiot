@@ -56,7 +56,7 @@ class ActuatorHealthIntegrationTest {
     void nonHealthEndpointsAreNotPublic() throws IOException, InterruptedException {
         HttpResponse<String> response = get("/");
 
-        assertThat(response.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(response.statusCode()).isIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
     }
 
     private HttpResponse<String> get(String path) throws IOException, InterruptedException {
