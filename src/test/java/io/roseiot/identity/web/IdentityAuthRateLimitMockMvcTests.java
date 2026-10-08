@@ -1,44 +1,57 @@
-package io.roseiot.platform.auth.web;
+package io.roseiot.identity.web;
 
 import io.roseiot.AbstractIt;
-import io.roseiot.platform.bootstrap.BootstrapPlatformAdminService;
-import io.roseiot.platform.persistence.PlatformAdminMapper;
-import io.roseiot.platform.persistence.PlatformAdminRecoveryRequestMapper;
-import io.roseiot.platform.persistence.PlatformAdminRefreshSessionMapper;
+import io.roseiot.identity.application.BootstrapUserService;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRecoveryRequestMapper;
+import io.roseiot.identity.persistence.UserRefreshSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
 @SpringBootTest(
         properties = {
-            "roseiot.auth.rate-limit.enabled=true",
-            "roseiot.auth.rate-limit.login-max-attempts=2",
-            "roseiot.auth.rate-limit.recovery-max-attempts=2",
-            "roseiot.auth.rate-limit.window-minutes=15"
+            "roseiot.rate-limit.enabled=true",
+            "roseiot.rate-limit.window-minutes=15",
+            "roseiot.rate-limit.rules[0].method=POST",
+            "roseiot.rate-limit.rules[0].path=/api/identity/auth/login",
+            "roseiot.rate-limit.rules[0].body-field=email",
+            "roseiot.rate-limit.rules[0].key-prefix=identity:auth:login:",
+            "roseiot.rate-limit.rules[0].max-attempts=2",
+            "roseiot.rate-limit.rules[1].method=POST",
+            "roseiot.rate-limit.rules[1].path=/api/identity/auth/recovery/request",
+            "roseiot.rate-limit.rules[1].body-field=email",
+            "roseiot.rate-limit.rules[1].key-prefix=identity:auth:recovery:",
+            "roseiot.rate-limit.rules[1].max-attempts=2"
         })
-class PlatformAdminAuthRateLimitMockMvcTests extends AbstractIt {
+class IdentityAuthRateLimitMockMvcTests extends AbstractIt {
 
     @Autowired
-    BootstrapPlatformAdminService bootstrapPlatformAdminService;
+    BootstrapUserService bootstrapUserService;
 
     @Autowired
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
 
     @Autowired
-    PlatformAdminRefreshSessionMapper refreshSessionMapper;
+    UserRefreshSessionMapper refreshSessionMapper;
 
     @Autowired
-    PlatformAdminRecoveryRequestMapper recoveryRequestMapper;
+    UserRecoveryRequestMapper recoveryRequestMapper;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void seedPlatformAdmin() {
+    void seedPlatformUser() {
         recoveryRequestMapper.delete(null);
         refreshSessionMapper.delete(null);
-        platformAdminMapper.delete(null);
-        bootstrapPlatformAdminService.bootstrap("admin@example.com", "password1234");
+        jdbcTemplate.update("DELETE FROM user_role");
+        userMapper.delete(null);
+        bootstrapUserService.bootstrap("admin@example.com", "password1234");
     }
 
     @Test
@@ -71,7 +84,7 @@ class PlatformAdminAuthRateLimitMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/auth/login")
+                .uri("/api/identity/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -83,7 +96,7 @@ class PlatformAdminAuthRateLimitMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecovery(String email) {
         return mvc.post()
-                .uri("/api/auth/recovery/request")
+                .uri("/api/identity/auth/recovery/request")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """

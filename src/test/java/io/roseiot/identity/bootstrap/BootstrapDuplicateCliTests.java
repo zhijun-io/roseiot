@@ -1,11 +1,13 @@
-package io.roseiot.platform.bootstrap;
+package io.roseiot.identity.bootstrap;
 
-import io.roseiot.RoseiotApplication;
-import io.roseiot.platform.persistence.PlatformAdminMapper;
 import io.roseiot.AbstractIt;
+import io.roseiot.RoseiotApplication;
+import io.roseiot.identity.application.BootstrapUserService;
+import io.roseiot.identity.persistence.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.io.ByteArrayOutputStream;
@@ -15,8 +17,8 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 引导 CLI 路径（需真实 Postgres + 独立 Spring 进程），用例规则见 {@link BootstrapPlatformAdminServiceTests}。 */
-class PlatformBootstrapTests extends AbstractIt {
+/** 引导 CLI 路径（需真实 Postgres + 独立 Spring 进程），用例规则见 {@link BootstrapUserServiceTests}。 */
+class BootstrapDuplicateCliTests extends AbstractIt {
 
     private static final String PASSWORD = "password1234";
 
@@ -24,20 +26,24 @@ class PlatformBootstrapTests extends AbstractIt {
     PostgreSQLContainer<?> postgresContainer;
 
     @Autowired
-    BootstrapPlatformAdminService bootstrapPlatformAdminService;
+    BootstrapUserService bootstrapUserService;
 
     @Autowired
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void clearPlatformAdmins() {
-        platformAdminMapper.delete(null);
+    void clearPlatformUsers() {
+        jdbcTemplate.update("DELETE FROM user_role");
+        userMapper.delete(null);
     }
 
     @Test
-    void duplicateBootstrapCliPathExitsNonZeroAndKeepsSingleAdmin() {
+    void duplicateBootstrapCliPathExitsNonZeroAndKeepsSingleUser() {
         String secondPassword = "anotherPass1";
-        bootstrapPlatformAdminService.bootstrap("first@example.com", PASSWORD);
+        bootstrapUserService.bootstrap("first@example.com", PASSWORD);
 
         PrintStream originalErr = System.err;
         ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
@@ -48,8 +54,8 @@ class PlatformBootstrapTests extends AbstractIt {
                             "--spring.datasource.url=" + postgresContainer.getJdbcUrl(),
                             "--spring.datasource.username=" + postgresContainer.getUsername(),
                             "--spring.datasource.password=" + postgresContainer.getPassword(),
-                            "--BOOTSTRAP_ADMIN_EMAIL=second@example.com",
-                            "--BOOTSTRAP_ADMIN_PASSWORD=" + secondPassword)
+                            "--BOOTSTRAP_USER_EMAIL=second@example.com",
+                            "--BOOTSTRAP_USER_PASSWORD=" + secondPassword)
                     .toArray(String[]::new));
         } finally {
             System.setErr(originalErr);
@@ -58,7 +64,7 @@ class PlatformBootstrapTests extends AbstractIt {
         String stderr = capturedErr.toString(StandardCharsets.UTF_8);
         assertThat(exitCode).isNotZero();
         assertThat(stderr).contains("already bootstrapped").doesNotContain(secondPassword);
-        assertThat(platformAdminMapper.selectCount(null)).isEqualTo(1);
-        assertThat(platformAdminMapper.selectList(null).getFirst().getEmail()).isEqualTo("first@example.com");
+        assertThat(userMapper.selectCount(null)).isEqualTo(1);
+        assertThat(userMapper.selectList(null).getFirst().getEmail()).isEqualTo("first@example.com");
     }
 }

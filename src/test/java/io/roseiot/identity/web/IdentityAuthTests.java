@@ -1,35 +1,40 @@
-package io.roseiot.platform.auth.web;
+package io.roseiot.identity.web;
 
 import io.roseiot.AbstractIt;
-import io.roseiot.platform.bootstrap.BootstrapPlatformAdminService;
-import io.roseiot.platform.persistence.PlatformAdminMapper;
-import io.roseiot.platform.persistence.PlatformAdminRefreshSessionMapper;
+import io.roseiot.identity.application.BootstrapUserService;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRefreshSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class PlatformAdminAuthTests extends AbstractIt {
+class IdentityAuthTests extends AbstractIt {
 
     private static final String RAW_EMAIL = "Admin@Example.com";
     private static final String PASSWORD = "password1234";
 
     @Autowired
-    BootstrapPlatformAdminService bootstrapPlatformAdminService;
+    BootstrapUserService bootstrapUserService;
 
     @Autowired
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
 
     @Autowired
-    PlatformAdminRefreshSessionMapper refreshSessionMapper;
+    UserRefreshSessionMapper refreshSessionMapper;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void seedPlatformAdmin() {
+    void seedPlatformUser() {
         refreshSessionMapper.delete(null);
-        platformAdminMapper.delete(null);
-        bootstrapPlatformAdminService.bootstrap(RAW_EMAIL, PASSWORD);
+        jdbcTemplate.update("DELETE FROM user_role");
+        userMapper.delete(null);
+        bootstrapUserService.bootstrap(RAW_EMAIL, PASSWORD);
     }
 
     @Test
@@ -37,7 +42,7 @@ class PlatformAdminAuthTests extends AbstractIt {
         AuthController.LoginResponse login =
                 restTestClient
                         .post()
-                        .uri("/api/auth/login")
+                        .uri("/api/identity/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(loginJson("admin@example.com", PASSWORD))
                         .exchange()
@@ -52,12 +57,12 @@ class PlatformAdminAuthTests extends AbstractIt {
 
         restTestClient
                 .get()
-                .uri("/api/platform/me")
+                .uri("/api/identity/me")
                 .header("Authorization", "Bearer " + login.accessToken())
                 .exchange()
                 .expectStatus()
                 .isOk()
-                .expectBody(PlatformMeController.PlatformMeResponse.class)
+                .expectBody(IdentityMeController.IdentityMeResponse.class)
                 .value(
                         profile -> {
                             assertThat(profile.email()).isEqualTo("admin@example.com");

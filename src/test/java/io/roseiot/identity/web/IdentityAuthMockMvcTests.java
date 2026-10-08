@@ -1,18 +1,19 @@
-package io.roseiot.platform.auth.web;
+package io.roseiot.identity.web;
 
 import io.roseiot.AbstractIt;
-import io.roseiot.platform.bootstrap.BootstrapPlatformAdminService;
-import io.roseiot.platform.auth.infra.recovery.InMemoryRecoveryNotifier;
-import io.roseiot.platform.persistence.PlatformAdminMapper;
-import io.roseiot.platform.persistence.PlatformAdminRecoveryRequestMapper;
-import io.roseiot.platform.persistence.PlatformAdminRefreshSessionMapper;
+import io.roseiot.identity.application.BootstrapUserService;
+import io.roseiot.identity.infra.recovery.InMemoryRecoveryNotifier;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRecoveryRequestMapper;
+import io.roseiot.identity.persistence.UserRefreshSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
-class PlatformAdminAuthMockMvcTests extends AbstractIt {
+class IdentityAuthMockMvcTests extends AbstractIt {
 
     private static final String RAW_EMAIL = "Admin@Example.com";
     private static final String PASSWORD = "password1234";
@@ -20,33 +21,37 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     private static final String RECOVERED_PASSWORD = "recoveredPass9012";
 
     @Autowired
-    BootstrapPlatformAdminService bootstrapPlatformAdminService;
+    BootstrapUserService bootstrapUserService;
 
     @Autowired
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
 
     @Autowired
-    PlatformAdminRefreshSessionMapper refreshSessionMapper;
+    UserRefreshSessionMapper refreshSessionMapper;
 
     @Autowired
-    PlatformAdminRecoveryRequestMapper recoveryRequestMapper;
+    UserRecoveryRequestMapper recoveryRequestMapper;
 
     @Autowired
     InMemoryRecoveryNotifier recoveryNotifier;
 
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
     @BeforeEach
-    void seedPlatformAdmin() {
+    void seedPlatformUser() {
         recoveryRequestMapper.delete(null);
         refreshSessionMapper.delete(null);
-        platformAdminMapper.delete(null);
+        jdbcTemplate.update("DELETE FROM user_role");
+        userMapper.delete(null);
         recoveryNotifier.clear();
-        bootstrapPlatformAdminService.bootstrap(RAW_EMAIL, PASSWORD);
+        bootstrapUserService.bootstrap(RAW_EMAIL, PASSWORD);
     }
 
     @Test
     void platformMeRequiresAuthenticationWithStableJsonError() {
         mvc.get()
-                .uri("/api/platform/me")
+                .uri("/api/identity/me")
                 .exchange()
                 .assertThat()
                 .hasStatus(HttpStatus.UNAUTHORIZED)
@@ -202,7 +207,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryRequest(String email) {
         return mvc.post()
-                .uri("/api/auth/recovery/request")
+                .uri("/api/identity/auth/recovery/request")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email":"%s"}
@@ -214,7 +219,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryConfirm(
             String token, String newPassword) {
         return mvc.post()
-                .uri("/api/auth/recovery/confirm")
+                .uri("/api/identity/auth/recovery/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -226,7 +231,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/auth/login")
+                .uri("/api/identity/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson(email, password))
                 .exchange();
@@ -234,7 +239,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
         return mvc.post()
-                .uri("/api/auth/token")
+                .uri("/api/identity/auth/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(refreshJson(refreshToken))
                 .exchange();
@@ -242,7 +247,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogout(String accessToken) {
         return mvc.post()
-                .uri("/api/auth/logout")
+                .uri("/api/identity/auth/logout")
                 .header("Authorization", "Bearer " + accessToken)
                 .exchange();
     }
@@ -250,7 +255,7 @@ class PlatformAdminAuthMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult patchPassword(
             String accessToken, String currentPassword, String newPassword) {
         return mvc.patch()
-                .uri("/api/platform/me/password")
+                .uri("/api/identity/me/password")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(

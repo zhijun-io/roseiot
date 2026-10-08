@@ -1,4 +1,4 @@
-package io.roseiot.platform.support;
+package io.roseiot.shared.util;
 
 import org.junit.jupiter.api.Test;
 

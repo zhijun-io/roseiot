@@ -1,8 +1,8 @@
-package io.roseiot.platform.auth.application;
+package io.roseiot.identity.application;
 
-import io.roseiot.platform.auth.domain.InvalidCredentialsException;
-import io.roseiot.platform.persistence.PlatformAdmin;
-import io.roseiot.platform.persistence.PlatformAdminMapper;
+import io.roseiot.identity.domain.InvalidCredentialsException;
+import io.roseiot.identity.persistence.User;
+import io.roseiot.identity.persistence.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,27 +20,27 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class PlatformAdminAccountServiceTests {
+class UserAccountServiceTests {
 
     @Mock
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
 
     @Mock
-    PlatformAdminRefreshSessions refreshSessions;
+    UserRefreshSessions refreshSessions;
 
     @Mock
     PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    PlatformAdminAccountService accountService;
+    UserAccountService accountService;
 
     @Test
     void getProfile() {
         UUID id = UUID.randomUUID();
-        PlatformAdmin admin = new PlatformAdmin();
+        User admin = new User();
         admin.setId(id);
         admin.setEmail("admin@example.com");
-        when(platformAdminMapper.selectById(id)).thenReturn(admin);
+        when(userMapper.selectById(id)).thenReturn(admin);
 
         var profile = accountService.getProfile(id);
 
@@ -49,9 +49,9 @@ class PlatformAdminAccountServiceTests {
     }
 
     @Test
-    void getProfileRejectsMissingAdmin() {
+    void getProfileRejectsMissingUser() {
         UUID id = UUID.randomUUID();
-        when(platformAdminMapper.selectById(id)).thenReturn(null);
+        when(userMapper.selectById(id)).thenReturn(null);
 
         assertThatThrownBy(() -> accountService.getProfile(id)).isInstanceOf(InvalidCredentialsException.class);
     }
@@ -59,11 +59,11 @@ class PlatformAdminAccountServiceTests {
     @Test
     void wrongCurrentPasswordRejected() {
         UUID adminId = UUID.randomUUID();
-        PlatformAdmin admin = new PlatformAdmin();
+        User admin = new User();
         admin.setId(adminId);
         admin.setPasswordHash("hash");
 
-        when(platformAdminMapper.selectById(adminId)).thenReturn(admin);
+        when(userMapper.selectById(adminId)).thenReturn(admin);
         when(passwordEncoder.matches("wrong", "hash")).thenReturn(false);
 
         assertThatThrownBy(() -> accountService.changePassword(adminId, "wrong", "newPassword5678"))
@@ -73,17 +73,19 @@ class PlatformAdminAccountServiceTests {
     @Test
     void changePasswordUpdatesHashAndRevokesSessions() {
         UUID adminId = UUID.randomUUID();
-        PlatformAdmin admin = new PlatformAdmin();
+        User admin = new User();
         admin.setId(adminId);
         admin.setPasswordHash("hash");
+        admin.setAuthorizationVersion(1);
 
-        when(platformAdminMapper.selectById(adminId)).thenReturn(admin);
+        when(userMapper.selectById(adminId)).thenReturn(admin);
         when(passwordEncoder.matches("password1234", "hash")).thenReturn(true);
         when(passwordEncoder.encode("newPassword5678")).thenReturn("new-hash");
 
         accountService.changePassword(adminId, "password1234", "newPassword5678");
 
-        verify(platformAdminMapper).updateById(admin);
-        verify(refreshSessions).revokeAllForAdmin(eq(adminId), any());
+        assertThat(admin.getAuthorizationVersion()).isEqualTo(2);
+        verify(userMapper).updateById(admin);
+        verify(refreshSessions).revokeAllForUser(eq(adminId), any());
     }
 }

@@ -1,4 +1,4 @@
-package io.roseiot.platform.auth.infra.recovery;
+package io.roseiot.identity.infra.recovery;
 
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;

@@ -1,7 +1,7 @@
-package io.roseiot.platform.bootstrap;
+package io.roseiot.identity.bootstrap;
 
-import io.roseiot.platform.persistence.PlatformAdminMapper;
 import io.roseiot.AbstractIt;
+import io.roseiot.identity.persistence.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,20 +11,20 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "roseiot.bootstrap.enabled=true")
-class PlatformBootstrapCliTests extends AbstractIt {
+class BootstrapCliTests extends AbstractIt {
 
     @DynamicPropertySource
     static void registerBootstrap(DynamicPropertyRegistry registry) {
-        registry.add("BOOTSTRAP_ADMIN_EMAIL", () -> "cli@example.com");
-        registry.add("BOOTSTRAP_ADMIN_PASSWORD", () -> "password1234");
+        registry.add("BOOTSTRAP_USER_EMAIL", () -> "cli@example.com");
+        registry.add("BOOTSTRAP_USER_PASSWORD", () -> "password1234");
     }
 
     @Autowired
-    PlatformAdminMapper platformAdminMapper;
+    UserMapper userMapper;
 
     @Test
-    void cliRunnerCreatesPlatformAdminOnStartup() {
-        assertThat(platformAdminMapper.selectCount(null)).isEqualTo(1);
-        assertThat(platformAdminMapper.selectList(null).getFirst().getEmail()).isEqualTo("cli@example.com");
+    void cliRunnerCreatesPlatformUserOnStartup() {
+        assertThat(userMapper.selectCount(null)).isEqualTo(1);
+        assertThat(userMapper.selectList(null).getFirst().getEmail()).isEqualTo("cli@example.com");
     }
 }
