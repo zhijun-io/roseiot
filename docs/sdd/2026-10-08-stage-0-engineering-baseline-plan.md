@@ -49,7 +49,7 @@
   - README 补充 JDK、verify、启动与聚合健康检查说明（`/actuator/health`）。
   - 确认 `.gitignore` 覆盖 `.env`、`application-local.*`。
 - Verification：`./mvnw -q verify`
-- Done: false
+- Done: true
 
 ## AC 覆盖矩阵
 
@@ -71,4 +71,5 @@
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过（Java 25.0.2，Spring Boot 4.1.1，Maven Wrapper 3.9.9）。Testcontainers 依赖留待 Slice 2 加入。
 - 2026-10-08 Slice 2：`./mvnw -q verify` 通过；`RoseiotProperties`、Flyway `V1__baseline`、`FlywayMigrationIntegrationTest`（Testcontainers PostgreSQL 16）。
-- 2026-10-08 精简 Slice 2：改用标准 `spring.datasource.*` / `SPRING_DATASOURCE_*`，删除自定义 `@ConfigurationProperties` 与独立 Flyway 测试类；Slice 3/4 暂缓。
+- 2026-10-08 精简 Slice 2：改用标准 `spring.datasource.*` / `SPRING_DATASOURCE_*`，删除自定义 `@ConfigurationProperties` 与独立 Flyway 测试类；Slice 3 暂缓。
+- 2026-10-08 Slice 4：`./mvnw -q verify` 通过；README 终验命令与 `/actuator/health`；已跟踪文件无常见密钥模式（rg 审查）；`.gitignore` 已含 `.env` 与 `application-local.*`。

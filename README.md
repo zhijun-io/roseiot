@@ -41,10 +41,18 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 验证与运行
 
-集成测试需要 **Docker**（Testcontainers）。本地运行需要 **PostgreSQL** 与 `.env`。
+前置：**JDK 25**（与 `pom.xml` 一致）、**Docker**（Testcontainers 集成测试）、本地 **PostgreSQL**（`spring-boot:run`）。
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # 填写 SPRING_DATASOURCE_PASSWORD 等
 ./mvnw -q verify
 ./mvnw spring-boot:run
 ```
+
+应用启动后，聚合健康检查（含数据库状态）：
+
+```bash
+curl -sS "http://localhost:8080/actuator/health"
+```
+
+未单独配置 liveness/readiness 子路径；阶段 0 不做存活/就绪专项（见 Plan Slice 3 暂缓）。
