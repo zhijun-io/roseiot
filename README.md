@@ -49,10 +49,9 @@ cp .env.example .env   # 填写 SPRING_DATASOURCE_PASSWORD 等
 ./mvnw spring-boot:run
 ```
 
-应用启动后，聚合健康检查（含数据库状态）：
+健康检查（未认证，不返回连接串或凭证详情）：
 
 ```bash
-curl -sS "http://localhost:8080/actuator/health"
+curl -sS "http://localhost:8080/actuator/health/liveness"
+curl -sS "http://localhost:8080/actuator/health/readiness"
 ```
-
-未单独配置 liveness/readiness 子路径；阶段 0 不做存活/就绪专项（见 Plan Slice 3 暂缓）。

@@ -35,14 +35,23 @@
 - Verification：`./mvnw -q verify`
 - Done: true
 
-## Slice 3：存活/就绪健康检查 — 暂缓
+## Slice 3：存活/就绪健康检查与安全最小暴露
 
-用户决定不在阶段 0 做 liveness/readiness 专项；Spec AC-2、AC-3 延后。
+- Goal：匿名可访问 liveness；readiness 反映 PostgreSQL；响应不泄露 URL/凭证；Security 仅放行健康路径。
+- Acceptance: AC-2, AC-3
+- Depends on: Slice 2
+- Test or proof：`ActuatorHealthIntegrationTest`（Testcontainers + JDK HttpClient）；`ActuatorHealthWhenDatabaseUnreachableTest`。
+- Implementation outline：
+  - Actuator probes + `show-details: never`。
+  - `SecurityFilterChain`：`/actuator/health/**` `permitAll`，其余 `denyAll`。
+  - README liveness/readiness curl。
+- Verification：`./mvnw -q verify`
+- Done: true
 
 ## Slice 4：README 与仓库密钥卫生
 
 - Goal：新人可按 README 完成 verify 与启动；跟踪文件无真实密钥。
-- Acceptance: AC-1（终验）, AC-5（终验）；AC-6 不含 liveness/readiness curl（随 Slice 3 延后）
+- Acceptance: AC-1（终验）, AC-5（终验）, AC-6（含 liveness/readiness curl）
 - Depends on: Slice 2
 - Test or proof：按 README 执行 `./mvnw verify`；`rg` 或审查确认无密钥入库。
 - Implementation outline：
@@ -73,3 +82,4 @@
 - 2026-10-08 Slice 2：`./mvnw -q verify` 通过；`RoseiotProperties`、Flyway `V1__baseline`、`FlywayMigrationIntegrationTest`（Testcontainers PostgreSQL 16）。
 - 2026-10-08 精简 Slice 2：改用标准 `spring.datasource.*` / `SPRING_DATASOURCE_*`，删除自定义 `@ConfigurationProperties` 与独立 Flyway 测试类；Slice 3 暂缓。
 - 2026-10-08 Slice 4：`./mvnw -q verify` 通过；README 终验命令与 `/actuator/health`；已跟踪文件无常见密钥模式（rg 审查）；`.gitignore` 已含 `.env` 与 `application-local.*`。
+- 2026-10-08 Slice 3：`./mvnw -q verify` 通过；probes、Security 最小暴露、Actuator 集成测试（含 DB 不可达 readiness）。
