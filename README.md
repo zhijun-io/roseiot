@@ -5,7 +5,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：**Spec #1** 引导、**Spec #2** 平台认证、**身份迁移**（`users` + RBAC-0，Flyway **V4～V6**）。HTTP：**`/api/identity/login|token|logout*|recovery/*|me/**`**（认证与平台 profile 同前缀，无 `/auth` 段）。平台 access JWT 含 **`ctx=platform`**、**`azv`**；`/api/identity/me/**` 需 **`identity.profile.*`**。**Spec #3**（租户、成员、租户用户 `ctx=tenant`）规格已编写、**尚未实现** — 见 [租户与成员 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：**Spec #1** 引导、**Spec #2** 系统用户认证、**身份迁移**（`users` + RBAC-0，Flyway **V4～V7**）。HTTP：会话 **`/api/auth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3**（租户、租户用户 `ctx=tenant`）规格已编写、**尚未实现** — 见 [租户与成员 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。
 
 ## 建设原则
 
@@ -79,7 +79,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 **不写集成测试当**：
 
 - 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
-- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/identity/me` 即可）。
+- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/users/me` 即可）。
 
 ### 基类
 
@@ -142,7 +142,7 @@ curl -sS "http://localhost:8080/actuator/health/readiness"
 
 ## 平台引导（IAM-001）
 
-在 **`users` 中尚无 `tenant_id IS NULL` 的平台用户** 的数据库上，通过 **CLI** 创建**恰好一名**平台操作员（`users` + `PlatformOperator` 角色绑定）。
+在 **`users` 中尚无 `tenant_id IS NULL` 的平台用户** 的数据库上，通过 **CLI** 创建**恰好一名**平台操作员（`users` + `SystemAdmin` 角色绑定）。
 凭证只来自环境变量，勿写入 Git。引导与长期运行的 Web 服务分开：使用 `--bootstrap` 启动后进程会退出，不会监听 HTTP。
 
 前置：PostgreSQL 已就绪（Compose 或 `.env` 中的 `SPRING_DATASOURCE_*`），且 `./mvnw -q verify` 通过。
@@ -191,18 +191,18 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/identity/login` | 匿名 |
-| POST | `/api/identity/token` | 匿名（body 含 refresh） |
-| POST | `/api/identity/logout` | Bearer |
-| POST | `/api/identity/logout-all` | Bearer |
-| POST | `/api/identity/recovery/request` | 匿名 |
-| POST | `/api/identity/recovery/confirm` | 匿名 |
-| GET | `/api/identity/me` | Bearer |
-| PATCH | `/api/identity/me/password` | Bearer |
+| POST | `/api/auth/login` | 匿名 |
+| POST | `/api/auth/token` | 匿名（body 含 refresh） |
+| POST | `/api/auth/logout` | Bearer |
+| POST | `/api/auth/logout-all` | Bearer |
+| POST | `/api/auth/recovery/request` | 匿名 |
+| POST | `/api/auth/recovery/confirm` | 匿名 |
+| GET | `/api/users/me` | Bearer |
+| PATCH | `/api/users/me/password` | Bearer |
 
-Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`ctx=platform`**（平台用户）与 **`azv`**（整数，对应 `users.authorization_version`）。改密或 recovery 成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
+Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`ctx=system`**（系统用户）与 **`azv`**（整数，对应 `users.authorization_version`）。改密或 recovery 成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
 
-**自 V3 升级**：Flyway **V4** 将会话/恢复表改为 `user_*` 并迁移 `platform_admin` → `users`；**V5** 写入 RBAC-0 目录；**V6** 将历史 `platform.*` 权限键重命名为 **`identity.*`**。升级后既有 refresh 会话语义变化，**请重新登录**（旧 refresh 不可用）。
+**自 V3 升级**：Flyway **V4** 将会话/恢复表改为 `user_*` 并迁移 `platform_admin` → `users`；**V5** 写入 RBAC-0 目录；**V6** 将历史 `platform.*` 权限键重命名为 **`identity.*`**；**V7** 将系统/租户用户术语、角色和 permission 键迁移为当前命名。升级后既有 refresh 会话语义变化，**请重新登录**（旧 refresh 不可用）。
 
 验证：`./mvnw -q verify`（含 Testcontainers 自空库 V1→最新与 V3→V4 迁移测试）。
 
@@ -213,22 +213,22 @@ Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含
 ```bash
 BASE=http://localhost:8080
 
-LOGIN=$(curl -sS -X POST "$BASE/api/identity/login" \
+LOGIN=$(curl -sS -X POST "$BASE/api/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"YOUR_BOOTSTRAP_PASSWORD"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
 REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
 
-curl -sS "$BASE/api/identity/me" -H "Authorization: Bearer $ACCESS" | jq .
+curl -sS "$BASE/api/users/me" -H "Authorization: Bearer $ACCESS" | jq .
 ```
 
 ### 手动验证（AC-4：注销后会话失效）
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/logout" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/logout" \
   -H "Authorization: Bearer $ACCESS"
 
-curl -sS -X POST "$BASE/api/identity/token" \
+curl -sS -X POST "$BASE/api/auth/token" \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 # 期望 401，body 含 invalid_refresh_token
@@ -239,13 +239,13 @@ curl -sS -X POST "$BASE/api/identity/token" \
 默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `IdentityAuthMockMvcTests`。
 
 ```bash
-curl -sS -X POST "$BASE/api/identity/recovery/request" \
+curl -sS -X POST "$BASE/api/auth/recovery/request" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com"}'
 # 期望 202，body.message 与未注册邮箱请求相同
 
 # 取得 RECOVERY_TOKEN 后：
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/recovery/confirm" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/auth/recovery/confirm" \
   -H 'Content-Type: application/json' \
   -d "{\"token\":\"$RECOVERY_TOKEN\",\"newPassword\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用
@@ -255,10 +255,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/identity/recovery/c
 
 以下路径为 **已编写 Spec 的目标契约**，当前代码**不存在**对应 Controller；批准 Spec 并交付 Plan 后再实现。
 
-| 域 | 示例路径 | 说明 |
+| 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| 平台租户 | `POST /api/identity/tenants`、`POST .../tenants/{id}/disable` | `identity.tenant.*`；**非** `/api/platform/**` |
-| 租户内 | `GET /api/tenant/me`、`GET /api/tenant/members` | 无 URL 内 `tenantId`；JWT `ctx=tenant` + `tid` |
-| 邀请 | `POST /api/identity/invites/accept`（匿名） | 与 login 同属 `/api/identity` 前缀 |
+| POST | `/api/tenants` | 平台：创建租户 |
+| PATCH | `/api/tenants/{tenantId}` | 平台：更新租户（含停用/启用） |
+| GET | `/api/tenants/users/me` | 租户用户：当前 profile |
+| GET | `/api/tenants/users` | 租户 Admin：列用户 |
+| PATCH | `/api/tenants/users/{userId}` | 租户 Admin：角色/停用 |
+| POST | `/api/tenants/user-invitations` | 租户 Admin：邀请用户 |
+| POST | `/api/auth/user-invitation-acceptances` | 匿名：接受邀请 |
 
-租户用户仍计划共用 **`POST /api/identity/login`** 等会话端点；详情见 Spec #3 与访谈 **Q513**。
+会话 **`/api/auth/*`**；平台 profile **`/api/users/me`**。完整 REST 表见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-members-spec.md)。

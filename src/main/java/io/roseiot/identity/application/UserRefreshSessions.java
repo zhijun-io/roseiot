@@ -105,7 +105,7 @@ public class UserRefreshSessions {
             throw new IllegalStateException("Cannot issue access token for missing user");
         }
         String context =
-                user.getTenantId() == null ? IdentityJwtClaims.CONTEXT_PLATFORM : IdentityJwtClaims.CONTEXT_TENANT;
+                user.getTenantId() == null ? IdentityJwtClaims.CONTEXT_SYSTEM : IdentityJwtClaims.CONTEXT_TENANT;
 
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()

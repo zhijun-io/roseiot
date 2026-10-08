@@ -21,7 +21,7 @@ import java.util.UUID;
 
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-@RequestMapping("/api/identity")
+@RequestMapping("/api/users")
 public class IdentityMeController {
 
     private final UserAccountService accountService;
@@ -50,7 +50,7 @@ public class IdentityMeController {
     }
 
     private void requirePermission(Jwt jwt, UUID userId, String permissionKey) {
-        if (!IdentityJwtClaims.CONTEXT_PLATFORM.equals(jwt.getClaimAsString(IdentityJwtClaims.CONTEXT))) {
+        if (!IdentityJwtClaims.CONTEXT_SYSTEM.equals(jwt.getClaimAsString(IdentityJwtClaims.CONTEXT))) {
             throw new AccessDeniedException("Forbidden");
         }
         long azv = readAuthorizationVersion(jwt);

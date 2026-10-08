@@ -26,18 +26,18 @@
 
 ### HTTP 路径（均相对于应用根，端口默认 8080）
 
-> **当前实现（identity 能力）** — 与 [`README.md`](../../README.md) 及 `SecurityConfig` 一致：**`/api/identity/login|token|logout*|recovery/*|me/**`**。下文 Slice 交付证据仍保留历史路径 `/api/auth/*`、`/api/platform/me` 表述。
+> **当前实现** — 与 [`README.md`](../../README.md) 一致：**`/api/auth/**`** 会话、**`/api/users/me/**`** profile。下文 Slice 证据保留历史 `/api/platform/me` 等表述。
 
 | 方法 | 路径 | 认证 |
 | --- | --- | --- |
-| POST | `/api/identity/login` | 匿名 |
-| POST | `/api/identity/token` | 匿名（body 含 refreshToken） |
-| POST | `/api/identity/logout` | Bearer（撤销当前 refresh 会话） |
-| POST | `/api/identity/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
-| GET | `/api/identity/me` | Bearer |
-| PATCH | `/api/identity/me/password` | Bearer |
-| POST | `/api/identity/recovery/request` | 匿名 |
-| POST | `/api/identity/recovery/confirm` | 匿名 |
+| POST | `/api/auth/login` | 匿名 |
+| POST | `/api/auth/token` | 匿名（body 含 refreshToken） |
+| POST | `/api/auth/logout` | Bearer（撤销当前 refresh 会话） |
+| POST | `/api/auth/logout-all` | Bearer（撤销该管理员全部 refresh 会话） |
+| GET | `/api/users/me` | Bearer |
+| PATCH | `/api/users/me/password` | Bearer |
+| POST | `/api/auth/recovery/request` | 匿名 |
+| POST | `/api/auth/recovery/confirm` | 匿名 |
 
 Actuator `/actuator/**` 保持 Spec #1 行为，不在 `/api` 下。
 

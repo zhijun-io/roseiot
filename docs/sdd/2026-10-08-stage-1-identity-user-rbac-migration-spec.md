@@ -3,8 +3,8 @@
 > 状态：已批准  
 > 更新日期：2026-10-08  
 > 批准日期：2026-10-08  
-> 位置：Spec #2（平台管理员认证）与 Spec #3（租户与用户业务）之间  
-> **实现说明**：对外 HTTP 认证与 **`/me/**`** 共用前缀 **`/api/identity`**（无中间 **`auth`** 段）；包布局见 migration-plan（`identity.application` / `identity.web` / `identity.infra.security` 等）。JWT **`ctx` / `azv`** 与 RBAC 守门为 Slice 3 目标；当前 access JWT 仍为 **`sub` + `sid`**（与 Spec #2 一致）。
+> 位置：Spec #2（系统用户认证）与 Spec #3（租户与用户业务）之间
+> **实现说明**：会话端点为 **`/api/auth/**`**，系统用户 profile 为 **`/api/users/me/**`**；包布局见 migration-plan（`identity.application` / `identity.web` / `identity.infra.security` 等）。access JWT 含 **`sub`**、**`sid`**、**`ctx=system`** 与 **`azv`**；系统 profile 由 RBAC 守门。
 
 ## Goal
 
@@ -13,11 +13,11 @@
 ## Scope
 
 - **持久化（Flyway）**：`users`、RBAC 四表（permission / role / role_permission / user_role）、会话与恢复表改为引用 `user_id`；自 `platform_admin` **一次性数据迁移** 后移除 `platform_admin` 表。
-- **RBAC-0 seed**：内置角色 `PlatformOperator`、`TenantAdmin`、`TenantMember` 与 Spec 附录中的 **permission 键**；本 Spec **仅对平台作用域 API 启用 permission 校验**（租户侧 permission 仅 seed，无 HTTP 消费）。
-- **Bootstrap（Spec #1）**：CLI 引导创建 `users(tenant_id NULL)` + `PlatformOperator` assignment，不再写入 `platform_admin`。
-- **认证与会话**：login / refresh / logout / logout-all / recovery / change-password / `GET /api/identity/me` 行为与 Spec #2 状态码与失败语义保持一致；实现基于 `user_id`（见 Decisions）。
-- **JWT access（目标）**：claims 增加 **`ctx=platform`**、**`azv`**；保留 **`sub`=User ID**、**`sid`=refresh 会话 ID**；TTL 与 Spec #2 一致（15 分钟 access，7 天 refresh）。
-- **授权（目标）**：`/api/identity/me/**` 要求 `ctx=platform` 且具备对应 permission；`AuthorizationService` 在请求边界加载 effective permissions。
+- **RBAC-0 seed**：内置角色 `SystemAdmin`、`TenantAdmin`、`TenantUser` 与 Spec 附录中的 **permission 键**；本 Spec **仅对系统作用域 API 启用 permission 校验**（租户侧 permission 仅 seed，无 HTTP 消费）。
+- **Bootstrap（Spec #1）**：CLI 引导创建 `users(tenant_id NULL)` + `SystemAdmin` assignment，不再写入 `platform_admin`。
+- **认证与会话**：`/api/auth/**` 下的 login / refresh / logout / logout-all / recovery，及 `/api/users/me/**` 下的 profile/change-password，保持 Spec #2 的状态码与失败语义；实现基于 `user_id`（见 Decisions）。
+- **JWT access（目标）**：claims 增加 **`ctx=system`**、**`azv`**；保留 **`sub`=User ID**、**`sid`=refresh 会话 ID**；TTL 与 Spec #2 一致（15 分钟 access，7 天 refresh）。
+- **授权**：`/api/users/me/**` 要求 `ctx=system` 且具备对应 permission；`AuthorizationService` 在请求边界加载 effective permissions。
 - **代码结构**：**`identity` + `shared`**；**取消 `io.roseiot.platform.*`**；IAM 在 **`identity.application` / `identity.web` / `identity.domain` / `identity.infra` / `identity.persistence`**；横切 API 与限速在 **`shared.api` / `shared.ratelimit`**。
 - **测试**：现有 Spec #2 相关 MockMvc / IT **全部通过**（回归）；新增 RBAC 与 JWT claims 的针对性测试。
 - **README**：若端点或 JWT 文档化字段有变，同步更新；否则注明「对外契约未变」。
@@ -27,40 +27,40 @@
 - 租户 CRUD、成员邀请、租户用户登录（Spec #3）。
 - 租户业务 API 与 `device.*` permission 的运行时校验（permission 可 seed，不强制挂到 Controller）。
 - 自定义角色 UI、用户组、ABAC 引擎、ThingsBoard PE 权限依赖图（ADR 演进项）。
-- 多平台管理员自助创建 UI；首版仍仅 **Bootstrap 创建首个** 平台用户（IAM-001），是否允许多个 `tenant_id IS NULL` 用户由应用层约束在 Spec #3 前 **仅 bootstrap 一条**（与现 Spec #1 一致）。
+- 多系统管理员自助创建 UI；首版仍仅 **Bootstrap 创建首个** 系统用户（IAM-001），是否允许多个 `tenant_id IS NULL` 用户由应用层约束在 Spec #3 前 **仅 bootstrap 一条**（与现 Spec #1 一致）。
 - 将历史 Git 中的 `platform_admin` 文档字符串全部重命名为 User（允许渐进；HTTP JSON 字段名不在本 Spec 变更范围内除非 AC 要求）。
 
 ## Current Context
 
 - **历史（V2/V3）**：曾用 `platform_admin` 及会话/恢复专表；**V4/V5 已收敛**至 `users`、`user_refresh_session`、`user_recovery_request` 与 RBAC 表。
-- **当前 JWT**：`sub` 为 `users.id`，`sid` 为会话 id；Resource Server 对 `/api/identity/me/**` 要求 authenticated（RBAC/`ctx`/`azv` 校验待 Slice 3）。
+- **当前 JWT**：`sub` 为 `users.id`，`sid` 为会话 id，且含 `ctx=system` 与 `azv`；Resource Server 对 `/api/users/me/**` 执行 `ctx`、`azv` 和 RBAC 校验。
 - **ADR**：[`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md) 为身份与 RBAC 语义来源。
 - **PRD**：`IAM-003`、`IAM-004`、`IAM-011`、`IAM-012` 已更新；本 Spec 落实平台侧子集。
 
 ## Requirements
 
 1. 数据库中存在符合 ADR 的 `users` 行：平台用户 `tenant_id IS NULL`；邮箱全平台唯一；密码字段与 Spec #1 相同语义（自适应哈希 + `password_algorithm`）；`authorization_version` 为正整数，首值 **1**；主体停用字段（如 `disabled_at` 或 `status`）在 Plan 中固定，本 Spec 至少支持「停用后无法登录」（与 Spec #2 失败语义一致，不区分原因）。
-2. RBAC 表存在且 Flyway seed 填充内置 permission 与 role；每个自 bootstrap 或自 `platform_admin` 迁移的平台用户拥有 **唯一** `PlatformOperator` assignment（PLATFORM scope）。
+2. RBAC 表存在且 Flyway seed 填充内置 permission 与 role；每个自 bootstrap 或自 `platform_admin` 迁移的系统用户拥有 **唯一** `SystemAdmin` assignment（SYSTEM scope）。
 3. 现有库中 `platform_admin` 数据在迁移后可在 `users` 中找到一一对应行（相同 id 或 Spec 固定映射策略），且会话/恢复行的 `user_id` 与 `users.id` 一致（**不在 DDL 中建数据库外键**）。
 4. Spec #2 全部匿名与 authenticated 端点对外行为不变（见 Acceptance Criteria 回归节）。
 5. 改密、recovery confirm、logout-all 等安全事件仍撤销 refresh 族；**改密、recovery 完成、或 role assignment 变更**时 `users.authorization_version`（或等价列）递增（`azv`），且 JWT 内 `azv` 须与库中值一致才视为有效平台/租户会话（Plan 固定校验点）。
-6. `/api/identity/me` 与改密 endpoint 在 RBAC 层要求显式 permission（至少 `identity.profile.read` / `identity.profile.password.write`）（Slice 3）。
-7. 持有 `ctx=tenant` 的 JWT（测试夹具签发）访问 `/api/identity/me/**` 被拒绝（403）（Slice 3）。
-8. `PlatformOperator` **不**包含 `device.read`、`device.credentials.read` 等租户设备类 permission（Q38；seed 可验证）。
+6. `/api/users/me` 与改密 endpoint 在 RBAC 层要求显式 permission（至少 `user.profile.read` / `user.password.write`）。
+7. 持有 `ctx=tenant` 的 JWT（测试夹具签发）访问 `/api/users/me/**` 被拒绝（403）。
+8. `SystemAdmin` **不**包含 `device.read`、`device.credential.read` 等租户设备类 permission（Q38；seed 可验证）。
 
 ## Acceptance Criteria
 
 ### 迁移与 RBAC 基础
 
 - **AC-1**：自空库 `./mvnw -q verify` 通过；Flyway 从 V1 顺序应用至最新，无 `platform_admin` 表。
-- **AC-2**：Bootstrap 成功后，`users` 存在一条 `tenant_id IS NULL` 记录，且 `user_role` 将其绑定到 `PlatformOperator`。
+- **AC-2**：Bootstrap 成功后，`users` 存在一条 `tenant_id IS NULL` 记录，且 `user_role` 将其绑定到 `SystemAdmin`。
 - **AC-3**：提供 Flyway 迁移测试或集成测试：预置 V2/V3 结构并插入 `platform_admin` 行，迁移后数据在 `users` 中可登录，refresh/recovery 的 `user_id` 与对应 `users.id` 一致。
 
 ### Spec #2 行为回归（对外契约）
 
-- **AC-4**：与 Spec #2 **AC-2** 等价：登录、`GET /api/identity/me` 成功；无 token / 无效 token 拒绝。
+- **AC-4**：与 Spec #2 **AC-2** 等价：登录、`GET /api/users/me` 成功；无 token / 无效 token 拒绝。
 - **AC-5**：与 Spec #2 **AC-3** 等价：refresh 轮换与重放撤销语义不变。
-- **AC-6**：与 Spec #2 **AC-4** 等价：`POST /api/identity/logout` 与 `POST /api/identity/logout-all` 后，相应 refresh 不能再换取 access。
+- **AC-6**：与 Spec #2 **AC-4** 等价：`POST /api/auth/logout` 与 `POST /api/auth/logout-all` 后，相应 refresh 不能再换取 access。
 - **AC-7**：与 Spec #2 **AC-5** 等价：登录失败统一语义。
 - **AC-8**：与 Spec #2 **AC-6、AC-7** 等价：recovery 流程与统一响应。
 - **AC-9**：与 Spec #2 **AC-8** 等价：Testcontainers + 测试 recovery notifier double。
@@ -69,14 +69,14 @@
 
 ### JWT 与授权
 
-- **AC-11**：合法平台 access JWT 解码后含 `ctx=platform`、`azv` ≥ 1，且 `sub` 等于对应 `users.id`。
+- **AC-11**：合法平台 access JWT 解码后含 `ctx=system`、`azv` ≥ 1，且 `sub` 等于对应 `users.id`。
 - **AC-12**：改密成功后 `azv` 递增，且旧 refresh 不能换取 access（全部族撤销）。
-- **AC-13**：测试 JWT 带 `ctx=tenant` 访问 `/api/identity/me` 返回 403（或项目统一 access denied，与 Spec #2 handler 一致）。
-- **AC-14**：数据库 seed 校验：`PlatformOperator` 的 permission 集合 **不包含** `device.read`、`device.credentials.read`（及 Plan 列出的其它 `device.*` 读类键，若有）。
+- **AC-13**：测试 JWT 带 `ctx=tenant` 访问 `/api/users/me` 返回 403（或项目统一 access denied，与 Spec #2 handler 一致）。
+- **AC-14**：数据库 seed 校验：`SystemAdmin` 的 permission 集合 **不包含** `device.read`、`device.credential.read`（及 Plan 列出的其它 `device.*` 读类键，若有）。
 
 ## Constraints
 
-- PostgreSQL + Flyway；**仅追加**新迁移版本（**V4** 结构/数据迁移，**V5** RBAC-0 目录，**V6** 权限键 `platform.*` → `identity.*` 重命名），不修改已发布迁移文件内容。
+- PostgreSQL + Flyway；**仅追加**新迁移版本（**V4** 结构/数据迁移，**V5** RBAC-0 目录，**V6** 权限键 `platform.*` → `identity.*` 重命名，**V7** 迁移至当前 system/user 命名），不修改已发布迁移文件内容。
 - 新迁移脚本在 **CI 空库** 上可重复跑全套 Flyway（V1→最新）；**已执行 V4 的生产/开发库** 不假设再次应用 V4。自 V2/V3 升级路径由 AC-3 覆盖。
 - 模块化单体；构造器注入；事务边界在 application `*Service`。
 - 不引入 Redis / OPA；permission 缓存允许 Caffeine 或请求内单次加载。
@@ -103,19 +103,19 @@
 
 ## 附录 A：RBAC-0 permission 键（首版 seed）
 
-命名约定：`{能力域}.{资源}.{动作}`，小写；平台作用域权限使用 **`identity.*`**（与 `identity` 能力包一致）；本 Spec **运行时校验**仅 **identity.*** 中标记为「本 Spec 使用」者。
+命名约定：`{能力域}.{资源}.{动作}`，小写；系统用户权限使用 **`user.*`**，租户生命周期权限使用 **`tenant.*`**；本 Spec 仅校验下表标记为「本 Spec HTTP」者。
 
-| Permission key | 用途 | PlatformOperator | TenantAdmin | TenantMember | 本 Spec HTTP |
+| Permission key | 用途 | SystemAdmin | TenantAdmin | TenantUser | 本 Spec HTTP |
 | --- | --- | --- | --- | --- | --- |
-| `identity.profile.read` | 当前平台用户 profile | ✓ | — | — | ✓ `/api/identity/me` |
-| `identity.profile.password.write` | 平台用户改密 | ✓ | — | — | ✓ |
-| `identity.tenant.create` | 创建租户 | ✓ | — | — | —（Spec #3+） |
-| `identity.tenant.disable` | 停用租户 | ✓ | — | — | — |
-| `identity.tenant.enable` | 恢复租户 | ✓ | — | — | — |
-| `tenant.member.invite` | 邀请成员 | — | ✓ | — | — |
-| `tenant.member.manage` | 成员停用/角色 | — | ✓ | — | — |
+| `user.profile.read` | 当前系统用户 profile | ✓ | — | — | ✓ `/api/users/me` |
+| `user.password.write` | 系统用户改密 | ✓ | — | — | ✓ |
+| `tenant.create` | 创建租户 | ✓ | — | — | —（Spec #3+） |
+| `tenant.disable` | 停用租户 | ✓ | — | — | — |
+| `tenant.enable` | 恢复租户 | ✓ | — | — | — |
+| `tenant.user.invite` | 邀请成员 | — | ✓ | — | — |
+| `tenant.user.manage` | 成员停用/角色 | — | ✓ | — | — |
 | `device.read` | 读设备与遥测 | — | ✓ | ✓ | —（Q38：平台无） |
-| `device.credentials.read` | 读设备凭证元数据 | — | ✓ | — | —（Q38：平台无） |
+| `device.credential.read` | 读设备凭证元数据 | — | ✓ | — | —（Q38：系统无） |
 | `device.command.issue` | 下发命令 | — | ✓ | ✓ | — |
 | `alarm.ack` | 确认告警 | — | ✓ | ✓ | — |
 
@@ -128,8 +128,8 @@
 | Slice | 目标 | 主要交付 | AC | Depends on |
 | --- | --- | --- | --- | --- |
 | **1** | 数据模型、包扁平化与 RBAC 底座 | **`io.roseiot.platform.*` → `io.roseiot.<能力>` 整体搬迁**（含测试镜像）；Flyway `V4` 与 `identity`/`rbac`/`persistence`；**AC-3 升级路径测试** | AC-1、AC-3、AC-14 | — |
-| **2** | 引导与测试夹具 | Spec #1 Bootstrap 改为写入 `users(tenant_id NULL)` + `PlatformOperator` assignment；**所有**集成/MockMvc 种子从 `platform_admin` 改为 users+assignment；移除对 `PlatformAdminMapper` 的业务依赖 | AC-2 | Slice 1 |
-| **3** | Auth 运行时收敛 | 会话/恢复/login/me/改密/recovery 全面 `user_id`；JWT 增加 `ctx=platform`、`azv` 并与库校验；`/api/identity/me/**` RBAC + `ctx` 守门 | AC-11、AC-12、AC-13 | Slice 2 |
+| **2** | 引导与测试夹具 | Spec #1 Bootstrap 改为写入 `users(tenant_id NULL)` + `SystemAdmin` assignment；**所有**集成/MockMvc 种子从 `platform_admin` 改为 users+assignment；移除对 `PlatformAdminMapper` 的业务依赖 | AC-2 | Slice 1 |
+| **3** | Auth 运行时收敛 | 会话/恢复/login/me/改密/recovery 全面 `user_id`；JWT 增加 `ctx=system`、`azv` 并与库校验；`/api/users/me/**` RBAC + `ctx` 守门 | AC-11、AC-12、AC-13 | Slice 2 |
 | **4** | Spec #2 行为回归 | 对照 Spec #2 Plan 端点逐条断言；限速测试若存在一并回归 | AC-4～AC-10 | Slice 3 |
 | **5** | 文档 | README（AC-15）；必要时 Spec #1 Bootstrap Spec **Revision**（引导目标表改为 `users`，不改正文历史 AC） | AC-15 | Slice 4 |
 
@@ -146,8 +146,8 @@
 ## Related Specs
 
 - Spec #1 Bootstrap — 引导写入目标改为 `users`  
-- Spec #2 平台管理员认证 — 本 Spec 的回归基准  
-- [Spec #3 租户与成员](2026-10-08-stage-1-tenant-and-members-spec.md) — 租户用户 `ctx=tenant` JWT、平台 **`/api/identity/tenants/**`**、租户内 **`/api/tenant/**`**；**待批准 / 未实现**  
+- Spec #2 系统用户认证 — 本 Spec 的回归基准
+- [Spec #3 租户与成员](2026-10-08-stage-1-tenant-and-members-spec.md) — 租户 REST **`/api/tenants/**`**（与 **`/api/auth`**、**`/api/users/me`** 并列）；**待批准 / 未实现**
 - 路线图 **`device` / `product` 等** — 各自 **`io.roseiot.<能力>.*`**，本 Spec 不创建  
 
 ## Open Questions

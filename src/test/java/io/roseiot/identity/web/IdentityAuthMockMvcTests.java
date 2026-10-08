@@ -49,9 +49,9 @@ class IdentityAuthMockMvcTests extends AbstractIt {
     }
 
     @Test
-    void platformMeRequiresAuthenticationWithStableJsonError() {
+    void systemMeRequiresAuthenticationWithStableJsonError() {
         mvc.get()
-                .uri("/api/identity/me")
+                .uri("/api/users/me")
                 .exchange()
                 .assertThat()
                 .hasStatus(HttpStatus.UNAUTHORIZED)
@@ -207,7 +207,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryRequest(String email) {
         return mvc.post()
-                .uri("/api/identity/recovery/request")
+                .uri("/api/auth/recovery/request")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email":"%s"}
@@ -219,7 +219,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRecoveryConfirm(
             String token, String newPassword) {
         return mvc.post()
-                .uri("/api/identity/recovery/confirm")
+                .uri("/api/auth/recovery/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -231,7 +231,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/identity/login")
+                .uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson(email, password))
                 .exchange();
@@ -239,7 +239,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
         return mvc.post()
-                .uri("/api/identity/token")
+                .uri("/api/auth/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(refreshJson(refreshToken))
                 .exchange();
@@ -247,7 +247,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogout(String accessToken) {
         return mvc.post()
-                .uri("/api/identity/logout")
+                .uri("/api/auth/logout")
                 .header("Authorization", "Bearer " + accessToken)
                 .exchange();
     }
@@ -255,7 +255,7 @@ class IdentityAuthMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult patchPassword(
             String accessToken, String currentPassword, String newPassword) {
         return mvc.patch()
-                .uri("/api/identity/me/password")
+                .uri("/api/users/me/password")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(

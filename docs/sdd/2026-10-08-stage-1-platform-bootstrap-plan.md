@@ -2,7 +2,7 @@
 
 **Spec:** [`docs/sdd/2026-10-08-stage-1-platform-bootstrap-spec.md`](2026-10-08-stage-1-platform-bootstrap-spec.md)
 
-> **当前实现（身份迁移后）**：`io.roseiot.identity.application.BootstrapUserService`；`RoseiotApplication` + `--bootstrap`；环境变量 **`BOOTSTRAP_USER_EMAIL`** / **`BOOTSTRAP_USER_PASSWORD`**；写入 **`users`（`tenant_id IS NULL`）** 与 **`user_role` → PlatformOperator**（Flyway V4/V5）。下文 Slice 描述历史 `platform_admin` 交付过程，Build log 保留旧类名。
+> **当前实现（身份迁移后）**：`io.roseiot.identity.application.BootstrapUserService`；`RoseiotApplication` + `--bootstrap`；环境变量 **`BOOTSTRAP_USER_EMAIL`** / **`BOOTSTRAP_USER_PASSWORD`**；写入 **`users`（`tenant_id IS NULL`）** 与 **`user_role` → SystemAdmin**（Flyway V4/V5）。下文 Slice 描述历史 `platform_admin` 交付过程，Build log 保留旧类名。
 
 ## Risks / Dependencies
 

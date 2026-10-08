@@ -55,12 +55,12 @@ public class BootstrapUserService {
         user.setCreatedAt(Instant.now());
         userMapper.insert(user);
 
-        UUID platformOperatorRoleId = jdbcTemplate.queryForObject(
+        UUID systemAdminRoleId = jdbcTemplate.queryForObject(
                 """
                 SELECT id FROM "role" WHERE code = ?
                 """,
                 UUID.class,
-                "PlatformOperator");
+                "SystemAdmin");
 
         jdbcTemplate.update(
                 """
@@ -69,7 +69,7 @@ public class BootstrapUserService {
                 """,
                 UuidV7.generate(),
                 userId,
-                platformOperatorRoleId);
+                systemAdminRoleId);
     }
 
     static String normalizeEmail(String rawEmail) {

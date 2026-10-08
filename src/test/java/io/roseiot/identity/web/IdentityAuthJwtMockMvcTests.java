@@ -53,7 +53,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
     JwtEncoder jwtEncoder;
 
     @BeforeEach
-    void seedPlatformUser() {
+    void seedSystemUser() {
         recoveryRequestMapper.delete(null);
         refreshSessionMapper.delete(null);
         jdbcTemplate.update("DELETE FROM user_role");
@@ -62,7 +62,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
     }
 
     @Test
-    void loginAccessTokenContainsPlatformContextAndAuthorizationVersion() {
+    void loginAccessTokenContainsSystemContextAndAuthorizationVersion() {
         AuthController.LoginResponse login = postLogin("admin@example.com", PASSWORD)
                 .assertThat()
                 .hasStatusOk()
@@ -71,7 +71,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
                 .actual();
 
         var jwt = jwtDecoder.decode(login.accessToken());
-        assertThat(jwt.getClaimAsString(IdentityJwtClaims.CONTEXT)).isEqualTo(IdentityJwtClaims.CONTEXT_PLATFORM);
+        assertThat(jwt.getClaimAsString(IdentityJwtClaims.CONTEXT)).isEqualTo(IdentityJwtClaims.CONTEXT_SYSTEM);
         Number azv = jwt.getClaim(IdentityJwtClaims.AUTHORIZATION_VERSION);
         assertThat(azv.longValue()).isEqualTo(1L);
     }
@@ -91,7 +91,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
         assertThat(user.getAuthorizationVersion()).isEqualTo(2);
 
         mvc.get()
-                .uri("/api/identity/me")
+                .uri("/api/users/me")
                 .header("Authorization", "Bearer " + login.accessToken())
                 .exchange()
                 .assertThat()
@@ -102,7 +102,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postRefresh(String refreshToken) {
         return mvc.post()
-                .uri("/api/identity/token")
+                .uri("/api/auth/token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -113,7 +113,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
     }
 
     @Test
-    void tenantContextJwtIsForbiddenOnPlatformMe() {
+    void tenantContextJwtIsForbiddenOnSystemMe() {
         User user = userMapper.selectOne(null);
         UUID sessionId = UUID.randomUUID();
         String tenantToken = jwtEncoder
@@ -130,7 +130,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
                 .getTokenValue();
 
         mvc.get()
-                .uri("/api/identity/me")
+                .uri("/api/users/me")
                 .header("Authorization", "Bearer " + tenantToken)
                 .exchange()
                 .assertThat()
@@ -143,7 +143,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
 
     private org.springframework.test.web.servlet.assertj.MvcTestResult postLogin(String email, String password) {
         return mvc.post()
-                .uri("/api/identity/login")
+                .uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                         """
@@ -156,7 +156,7 @@ class IdentityAuthJwtMockMvcTests extends AbstractIt {
     private org.springframework.test.web.servlet.assertj.MvcTestResult patchPassword(
             String accessToken, String currentPassword, String newPassword) {
         return mvc.patch()
-                .uri("/api/identity/me/password")
+                .uri("/api/users/me/password")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(

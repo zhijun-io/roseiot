@@ -56,7 +56,7 @@ io.roseiot
 | `io.roseiot.platform.PlatformPasswordPolicy` | `io.roseiot.identity.domain.PasswordPolicy` |
 | `io.roseiot.platform.support.UuidV7` | `io.roseiot.shared.util.UuidV7` |
 
-**HTTP 路径**（identity 能力）：认证与当前用户共用前缀 **`/api/identity`**（如 **`POST /login`**、**`/token`**、**`/logout*`**、**`/recovery/*`**、**`/me/**`**；见 README）。
+**HTTP 路径（当前实现）**：会话 **`/api/auth/**`**；平台 profile **`/api/users/me/**`**（见 README）。
 
 ## Risks / Dependencies
 
@@ -71,7 +71,7 @@ io.roseiot
 
 ### HTTP 路径
 
-与 [`2026-10-08-stage-1-platform-admin-auth-plan.md`](2026-10-08-stage-1-platform-admin-auth-plan.md) **语义相同**，路径前缀为 **`/api/identity`**（认证与 **`/me/**`** 同前缀，见 README）。
+与 platform-admin-auth-plan **语义相同**；当前路径 **`/api/auth/**`** + **`/api/users/me/**`**（见 README）。
 
 ### 访问令牌 JWT（相对 Spec #2 的变更）
 
@@ -79,20 +79,20 @@ io.roseiot
 | --- | --- |
 | `sub` | `users.id`（UUID 字符串） |
 | `sid` | refresh 会话 id |
-| `ctx` | 平台用户固定 **`platform`** |
+| `ctx` | 系统用户固定 **`system`** |
 | `azv` | `users.authorization_version`（整数） |
 | `exp` / `iat` | 不变（15 分钟） |
 
-Resource Server 在认证转换器中校验：**JWT `azv` == 库中 `authorization_version`**，且 **`ctx=platform`** 方可访问 `/api/identity/me/**`。不匹配 → **401**（视为无效令牌）。
+Resource Server 在认证转换器中校验：**JWT `azv` == 库中 `authorization_version`**，且 **`ctx=system`** 方可访问 **`/api/users/me/**`。不匹配 → **401**（视为无效令牌）。
 
 ### RBAC（本迁移 Spec 运行时）
 
 | 路径 | Permission |
 | --- | --- |
-| `GET /api/identity/me` | `identity.profile.read` |
-| `PATCH /api/identity/me/password` | `identity.profile.password.write` |
+| `GET /api/users/me` | `user.profile.read` |
+| `PATCH /api/users/me/password` | `user.password.write` |
 
-`/api/identity/login`、`/token`、`/recovery/*` 等匿名或会话逻辑 **不** 做 RBAC permission 检查（仍用凭证校验 + 限速）。
+`/api/auth/login`、`/token`、`/recovery/*` 等 **不** 做 RBAC permission 检查（仍用凭证校验 + 限速）。
 
 ### 用户停用
 
@@ -114,7 +114,7 @@ Resource Server 在认证转换器中校验：**JWT `azv` == 库中 `authorizati
 **RBAC**
 
 - `permission(id UUID PK, code VARCHAR(128) UNIQUE NOT NULL)`
-- `role(id UUID PK, code VARCHAR(64) UNIQUE NOT NULL, scope VARCHAR(16) NOT NULL)` — SQL 保留字，DDL 使用 `"role"` — `PLATFORM` \| `TENANT`
+- `role(id UUID PK, code VARCHAR(64) UNIQUE NOT NULL, scope VARCHAR(16) NOT NULL)` — SQL 保留字，DDL 使用 `"role"` — `SYSTEM` \| `TENANT`
 - `role_permission(role_id, permission_id, PK(role_id, permission_id))`
 - `user_role(id UUID PK, user_id → users, role_id → role, scope_tenant_id UUID NULL)` — 平台绑定的 `scope_tenant_id IS NULL`
 
@@ -126,9 +126,9 @@ Resource Server 在认证转换器中校验：**JWT `azv` == 库中 `authorizati
 **数据迁移步骤（单事务脚本内顺序）**
 
 1. **V4**：建 `users` / RBAC 空表；`INSERT INTO users SELECT … FROM platform_admin`；会话/恢复表重命名；`DROP platform_admin`（**不含** RBAC 目录 seed）。
-2. **V5**：**INSERT RBAC-0 目录 seed**（附录 A；`gen_random_uuid()`，按 `code` 关联）；为已迁移平台用户补 `user_role` → `PlatformOperator`。
+2. **V5**：**INSERT RBAC-0 目录 seed**（附录 A；`gen_random_uuid()`，按 `code` 关联）；为已迁移平台用户补 `user_role` → `SystemAdmin`。
 
-Seed 后 **`PlatformOperator`** 含 `identity.profile.*`、`identity.tenant.*`；**不含** `device.read`、`device.credentials.read`（AC-14）。
+Seed 后 **`SystemAdmin`** 含 `user.profile.*`、`tenant.*`；**不含** `device.read`、`device.credentials.read`（AC-14）。
 
 ---
 
@@ -140,14 +140,14 @@ Seed 后 **`PlatformOperator`** 含 `identity.profile.*`、`identity.tenant.*`�
 - **Test or proof**:
   - `IdentityUserRbacMigrationIntegrationTest`：空库 Flyway 后断言表存在、`platform_admin` 不存在。
   - `V3UserMigrationIntegrationTest`：仅 V1–V3 插入 1 行 `platform_admin` + 会话行 → 应用 V4 → 能 `SELECT` 对应 `users` 行与 `user_refresh_session.user_id`。
-  - `PlatformOperatorSeedIntegrationTest`：SQL/Mapper 断言 Operator 无 `device.read` / `device.credentials.read`。
+  - `SystemAdminSeedIntegrationTest`：SQL/Mapper 断言 Operator 无 `device.read` / `device.credentials.read`。
 - **Implementation outline**:
   - **包搬迁**：按上表移动 `src/main/java` 与 `src/test/java`；更新 `RoseiotApplication`、`MybatisPlusConfig`、全部 import；删除空 `platform` 目录。
   - `V4__identity_user_rbac.sql`、`V5__rbac_0_seed.sql`、`V6__permission_code_identity_prefix.sql`（见上）。
   - MyBatis 实体/Mapper 置于 `io.roseiot.identity.persistence`；删除 `PlatformAdmin*`。
   - `io.roseiot.identity.application.AuthorizationService`（`hasPermission(userId, azv, key)`）。
   - **auth 编译切换**：`platformAdminId` → `userId`，Mapper 指向新表（**JWT 暂仍仅 sub/sid**；全量 IT 绿在 Slice 2）。
-- **Verification**: `./mvnw -q test -Dtest=IdentityUserRbacMigrationIntegrationTest,V3UserMigrationIntegrationTest,PlatformOperatorSeedIntegrationTest` 与 `./mvnw -q compile`
+- **Verification**: `./mvnw -q test -Dtest=IdentityUserRbacMigrationIntegrationTest,V3UserMigrationIntegrationTest,SystemAdminSeedIntegrationTest` 与 `./mvnw -q compile`
 - **Done**: true
 
 > **说明**：Slice 1 不强制 `./mvnw verify` 全绿（auth IT 仍可能插旧表名）。**首次全量 `./mvnw -q verify` 在 Slice 2 完成时达成**（与 Spec 附录 B 一致）。
@@ -156,7 +156,7 @@ Seed 后 **`PlatformOperator`** 含 `identity.profile.*`、`identity.tenant.*`�
 
 ## Slice 2：Bootstrap 与测试夹具切到 User
 
-- **Goal**：CLI 引导写入 `users` + `PlatformOperator`；所有测试不再依赖 `platform_admin`；**全量 verify 绿**。
+- **Goal**：CLI 引导写入 `users` + `SystemAdmin`；所有测试不再依赖 `platform_admin`；**全量 verify 绿**。
 - **Acceptance**: AC-1、AC-2
 - **Depends on**: Slice 1
 - **Test or proof**:

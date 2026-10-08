@@ -71,11 +71,11 @@ class BootstrapUserServiceTests {
 
     @Test
     void bootstrapPersistsNormalizedUser() {
-        UUID platformOperatorRoleId = UUID.randomUUID();
+        UUID systemAdminRoleId = UUID.randomUUID();
         when(userMapper.selectCount(any())).thenReturn(0L);
         when(passwordEncoder.encode(PASSWORD)).thenReturn("bcrypt-hash");
-        when(jdbcTemplate.queryForObject(anyString(), eq(UUID.class), eq("PlatformOperator")))
-                .thenReturn(platformOperatorRoleId);
+        when(jdbcTemplate.queryForObject(anyString(), eq(UUID.class), eq("SystemAdmin")))
+                .thenReturn(systemAdminRoleId);
         when(jdbcTemplate.update(anyString(), any(), any(), any())).thenReturn(1);
 
         bootstrapService.bootstrap("Admin@Example.com", PASSWORD);
@@ -90,6 +90,6 @@ class BootstrapUserServiceTests {
         assertThat(stored.getId()).isNotNull();
         assertThat(stored.getId().version()).isEqualTo(7);
         assertThat(stored.getCreatedAt()).isNotNull();
-        verify(jdbcTemplate).update(anyString(), any(), eq(stored.getId()), eq(platformOperatorRoleId));
+        verify(jdbcTemplate).update(anyString(), any(), eq(stored.getId()), eq(systemAdminRoleId));
     }
 }

@@ -9,6 +9,6 @@ public class LoggingRecoveryNotifier implements RecoveryNotifier {
 
     @Override
     public void sendRecoveryEmail(String email, String plainToken) {
-        log.warn("Platform user recovery requested for email {}", email);
+        log.warn("System user recovery requested for email {}", email);
     }
 }

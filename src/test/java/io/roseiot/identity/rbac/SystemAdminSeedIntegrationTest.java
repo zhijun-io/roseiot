@@ -9,27 +9,27 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** AC-14：PlatformOperator seed 不含 device.read / device.credentials.read。 */
-class PlatformOperatorSeedIntegrationTest extends AbstractIt {
+/** AC-14：SystemAdmin seed 不含 device.read / device.credential.read。 */
+class SystemAdminSeedIntegrationTest extends AbstractIt {
 
     @Autowired
     JdbcTemplate jdbcTemplate;
 
     @Test
-    void platformOperatorDoesNotIncludeDeviceReadPermissions() {
+    void systemAdminDoesNotIncludeDeviceReadPermissions() {
         List<String> keys = jdbcTemplate.queryForList(
                 """
                 SELECT p.code
                 FROM "role" r
                 JOIN role_permission rp ON rp.role_id = r.id
                 JOIN permission p ON p.id = rp.permission_id
-                WHERE r.code = 'PlatformOperator'
+                WHERE r.code = 'SystemAdmin'
                 ORDER BY p.code
                 """,
                 String.class);
 
         assertThat(keys).isNotEmpty();
-        assertThat(keys).doesNotContain("device.read", "device.credentials.read");
-        assertThat(keys).contains("identity.profile.read", "identity.tenant.create");
+        assertThat(keys).doesNotContain("device.read", "device.credential.read");
+        assertThat(keys).contains("user.profile.read", "tenant.create");
     }
 }

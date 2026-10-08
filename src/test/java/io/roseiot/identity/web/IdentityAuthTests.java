@@ -42,7 +42,7 @@ class IdentityAuthTests extends AbstractIt {
         AuthController.LoginResponse login =
                 restTestClient
                         .post()
-                        .uri("/api/identity/login")
+                        .uri("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(loginJson("admin@example.com", PASSWORD))
                         .exchange()
@@ -57,7 +57,7 @@ class IdentityAuthTests extends AbstractIt {
 
         restTestClient
                 .get()
-                .uri("/api/identity/me")
+                .uri("/api/users/me")
                 .header("Authorization", "Bearer " + login.accessToken())
                 .exchange()
                 .expectStatus()

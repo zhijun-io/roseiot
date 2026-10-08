@@ -41,14 +41,14 @@ roseiot:
     window-minutes: 15
     rules:
       - method: POST
-        path: /api/identity/login
+        path: /api/auth/login
         body-field: email
-        key-prefix: "identity:login:"
+        key-prefix: "auth:login:"
         max-attempts: 10
       - method: POST
-        path: /api/identity/recovery/request
+        path: /api/auth/recovery/request
         body-field: email
-        key-prefix: "identity:recovery:"
+        key-prefix: "auth:recovery:"
         max-attempts: 5
   auth:
     jwt:

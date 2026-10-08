@@ -76,4 +76,4 @@
 - 2026-10-08 | 用户批准 Spec | none — clarification | no — 进入 Plan
 - 2026-10-08 | Slice 1 验证 MyBatis Plus | none — 使用 boot4-starter 3.5.17 | no — Plan Build log
 - 2026-10-08 | 阶段 1 统一 UUID v7 | Req 4、AC-2 相关 ID 语义 | no — `UuidV7` 工具类
-- 2026-10-08 | 引导写入 `users` + `PlatformOperator`；环境变量 `BOOTSTRAP_USER_*` | 身份迁移 Spec | no — README 同步
+- 2026-10-08 | 引导写入 `users` + `SystemAdmin`；环境变量 `BOOTSTRAP_USER_*` | 身份迁移 Spec | no — README 同步
