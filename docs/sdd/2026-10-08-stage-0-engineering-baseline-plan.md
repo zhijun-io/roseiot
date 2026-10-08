@@ -34,7 +34,7 @@
   - `db/migration/V1__baseline.sql` 最小占位（如 `SELECT 1` 或注释性 baseline 表，避免业务表）。
   - 更新 `.env.example` 与 README 配置说明（若变量名有变）。
 - Verification：`./mvnw -q verify`（含 Flyway 集成测试）
-- Done: false
+- Done: true
 
 ## Slice 3：存活/就绪健康检查与安全最小暴露
 
@@ -83,3 +83,4 @@
 ## Build log
 
 - 2026-10-08 Slice 1：`./mvnw -q verify` 通过（Java 25.0.2，Spring Boot 4.1.1，Maven Wrapper 3.9.9）。Testcontainers 依赖留待 Slice 2 加入。
+- 2026-10-08 Slice 2：`./mvnw -q verify` 通过；`RoseiotProperties`、Flyway `V1__baseline`、`FlywayMigrationIntegrationTest`（Testcontainers PostgreSQL 16）。

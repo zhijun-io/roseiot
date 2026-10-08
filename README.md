@@ -41,9 +41,12 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 验证与运行（阶段 0，随切片补充）
 
+前置：**Docker**（Testcontainers 跑集成测试）、本地 **PostgreSQL**（`spring-boot:run`）。
+
 ```bash
+cp .env.example .env   # 填写 SPRING_DATASOURCE_*
 ./mvnw -q verify
 ./mvnw spring-boot:run
 ```
 
-健康检查与数据库相关命令在后续切片完成后写入本文档。
+健康检查 curl 命令在 Slice 3 完成后写入本文档。
