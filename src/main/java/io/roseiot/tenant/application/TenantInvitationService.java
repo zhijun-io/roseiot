@@ -74,24 +74,27 @@ public class TenantInvitationService {
         if (userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0) {
             throw new BusinessException(ApiErrorCode.INVITATION_EMAIL_CONFLICT);
         }
+        try {
+            return issueInvitation(tenantId, email, targetRole.trim());
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ApiErrorCode.INVITATION_EMAIL_CONFLICT);
+        }
+    }
 
+    @Transactional
+    public InvitationSummary issueInvitation(UUID tenantId, String normalizedEmail, String targetRole) {
         String plainToken = TokenDigests.generateUrlSafe256Bit();
         Instant now = Instant.now();
         TenantUserInvitation invitation = new TenantUserInvitation();
         invitation.setId(UuidV7.generate());
         invitation.setTenantId(tenantId);
-        invitation.setEmail(email);
+        invitation.setEmail(normalizedEmail);
         invitation.setTargetRole(targetRole);
         invitation.setTokenHash(TokenDigests.sha256Hex(plainToken));
         invitation.setExpiresAt(now.plus(INVITATION_TTL));
         invitation.setCreatedAt(now);
-
-        try {
-            invitationMapper.insert(invitation);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ApiErrorCode.INVITATION_EMAIL_CONFLICT);
-        }
-        invitationNotifier.sendInvitation(email, targetRole, plainToken);
+        invitationMapper.insert(invitation);
+        invitationNotifier.sendInvitation(normalizedEmail, targetRole, plainToken);
         return toSummary(invitation);
     }
 

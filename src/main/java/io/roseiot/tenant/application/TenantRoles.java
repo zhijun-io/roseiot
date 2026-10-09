@@ -2,7 +2,7 @@ package io.roseiot.tenant.application;
 
 public final class TenantRoles {
 
-    public static final String TENANT_ADMIN = TenantService.TARGET_ROLE_TENANT_ADMIN;
+    public static final String TENANT_ADMIN = "TenantAdmin";
     public static final String TENANT_USER = "TenantUser";
 
     private TenantRoles() {}
@@ -11,11 +11,8 @@ public final class TenantRoles {
         if (targetRole == null) {
             throw new IllegalArgumentException("targetRole is required");
         }
-        requireAssigneeRoleCode(targetRole.trim());
-    }
-
-    public static void requireAssigneeRoleCode(String targetRole) {
-        if (!TENANT_ADMIN.equals(targetRole) && !TENANT_USER.equals(targetRole)) {
+        String role = targetRole.trim();
+        if (!TENANT_ADMIN.equals(role) && !TENANT_USER.equals(role)) {
             throw new IllegalArgumentException("Invalid targetRole");
         }
     }

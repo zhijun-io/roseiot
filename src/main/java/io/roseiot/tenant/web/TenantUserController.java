@@ -1,6 +1,6 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantUserService;
 import io.roseiot.tenant.application.TenantUserService.TenantUserSummary;
@@ -34,7 +34,7 @@ public class TenantUserController {
     }
 
     @GetMapping
-    @PreAuthorize("@authz.hasTenantPermission(authentication, '" + IdentityJwtClaims.PERMISSION_TENANT_USER_MANAGE + "')")
+    @PreAuthorize(MethodSecuritySpel.TENANT_USER_MANAGE)
     List<TenantUserResponse> list(@AuthenticationPrincipal SecurityUser user) {
         return userManagementService.listUsers(user.requireTenantId()).stream()
                 .map(TenantUserResponse::from)
@@ -43,7 +43,7 @@ public class TenantUserController {
 
     @PatchMapping("/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@authz.hasTenantPermission(authentication, '" + IdentityJwtClaims.PERMISSION_TENANT_USER_MANAGE + "')")
+    @PreAuthorize(MethodSecuritySpel.TENANT_USER_MANAGE)
     void update(
             @AuthenticationPrincipal SecurityUser user,
             @PathVariable UUID userId,

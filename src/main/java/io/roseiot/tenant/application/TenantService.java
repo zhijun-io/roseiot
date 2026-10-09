@@ -3,21 +3,16 @@ package io.roseiot.tenant.application;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.roseiot.identity.domain.LoginEmails;
-import io.roseiot.identity.domain.TokenDigests;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
-import io.roseiot.tenant.persistence.TenantUserInvitation;
-import io.roseiot.tenant.persistence.TenantUserInvitationMapper;
 import io.roseiot.shared.util.UuidV7;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -25,21 +20,14 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 public class TenantService {
 
-    public static final String TARGET_ROLE_TENANT_ADMIN = "TenantAdmin";
-
-    private static final Duration INVITATION_TTL = Duration.ofDays(7);
-
     private final TenantMapper tenantMapper;
-    private final TenantUserInvitationMapper invitationMapper;
-    private final TenantInvitationNotifier tenantInvitationNotifier;
+    private final TenantInvitationService invitationService;
 
     public TenantService(
             TenantMapper tenantMapper,
-            TenantUserInvitationMapper invitationMapper,
-            TenantInvitationNotifier tenantInvitationNotifier) {
+            TenantInvitationService invitationService) {
         this.tenantMapper = tenantMapper;
-        this.invitationMapper = invitationMapper;
-        this.tenantInvitationNotifier = tenantInvitationNotifier;
+        this.invitationService = invitationService;
     }
 
     @Transactional
@@ -57,48 +45,33 @@ public class TenantService {
         tenant.setName(name.trim());
         tenant.setCreatedAt(now);
 
-        String plainToken = TokenDigests.generateUrlSafe256Bit();
-        TenantUserInvitation invitation = new TenantUserInvitation();
-        invitation.setId(UuidV7.generate());
-        invitation.setTenantId(tenant.getId());
-        invitation.setEmail(email);
-        invitation.setTargetRole(TARGET_ROLE_TENANT_ADMIN);
-        invitation.setTokenHash(TokenDigests.sha256Hex(plainToken));
-        invitation.setExpiresAt(now.plus(INVITATION_TTL));
-        invitation.setCreatedAt(now);
-
         try {
             tenantMapper.insert(tenant);
-            invitationMapper.insert(invitation);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT);
         }
-        tenantInvitationNotifier.sendInvitation(email, TARGET_ROLE_TENANT_ADMIN, plainToken);
+        invitationService.issueInvitation(tenant.getId(), email, TenantRoles.TENANT_ADMIN);
         return tenant;
     }
 
     @Transactional
     public Tenant updateTenant(UUID tenantId, String name, Boolean disabled) {
-        Tenant current = tenantMapper.selectById(tenantId);
-        if (current == null) {
+        Tenant tenant = tenantMapper.selectById(tenantId);
+        if (tenant == null) {
             throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
         }
-
-        LambdaUpdateWrapper<Tenant> update = new LambdaUpdateWrapper<Tenant>().eq(Tenant::getId, tenantId);
-        boolean changed = false;
+        Instant disabledAt = tenant.getDisabledAt();
+        if (disabled != null) {
+            disabledAt = disabled ? (disabledAt == null ? Instant.now() : disabledAt) : null;
+        }
         if (name != null && !name.isBlank()) {
-            update.set(Tenant::getName, name.trim());
-            changed = true;
+            tenant.setName(name.trim());
         }
-        boolean currentlyDisabled = current.getDisabledAt() != null;
-        if (disabled != null && disabled != currentlyDisabled) {
-            update.set(Tenant::getDisabledAt, disabled ? Instant.now() : null);
-            changed = true;
-        }
-        if (!changed) {
-            return current;
-        }
-        tenantMapper.update(null, update);
-        return tenantMapper.selectById(tenantId);
+        tenant.setDisabledAt(disabledAt);
+        tenantMapper.update(null, new LambdaUpdateWrapper<Tenant>()
+                .eq(Tenant::getId, tenantId)
+                .set(Tenant::getName, tenant.getName())
+                .set(Tenant::getDisabledAt, disabledAt));
+        return tenant;
     }
 }

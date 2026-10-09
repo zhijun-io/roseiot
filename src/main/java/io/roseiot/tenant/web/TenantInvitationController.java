@@ -1,6 +1,6 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
@@ -38,7 +38,7 @@ public class TenantInvitationController {
     }
 
     @GetMapping
-    @PreAuthorize("@authz.hasTenantInviteOrManage(authentication)")
+    @PreAuthorize(MethodSecuritySpel.TENANT_INVITE_OR_MANAGE)
     List<InvitationResponse> list(
             @AuthenticationPrincipal SecurityUser user,
             @RequestParam(value = "status", required = false) String status) {
@@ -49,7 +49,7 @@ public class TenantInvitationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@authz.hasTenantPermission(authentication, '" + IdentityJwtClaims.PERMISSION_TENANT_USER_INVITE + "')")
+    @PreAuthorize(MethodSecuritySpel.TENANT_USER_INVITE)
     InvitationResponse create(
             @AuthenticationPrincipal SecurityUser user, @Valid @RequestBody CreateInvitationRequest request) {
         return InvitationResponse.from(invitationService.create(
@@ -57,14 +57,14 @@ public class TenantInvitationController {
     }
 
     @GetMapping("/{invitationId}")
-    @PreAuthorize("@authz.hasTenantInviteOrManage(authentication)")
+    @PreAuthorize(MethodSecuritySpel.TENANT_INVITE_OR_MANAGE)
     InvitationResponse get(@AuthenticationPrincipal SecurityUser user, @PathVariable UUID invitationId) {
         return InvitationResponse.from(invitationService.get(user.requireTenantId(), invitationId));
     }
 
     @DeleteMapping("/{invitationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@authz.hasTenantPermission(authentication, '" + IdentityJwtClaims.PERMISSION_TENANT_USER_INVITE + "')")
+    @PreAuthorize(MethodSecuritySpel.TENANT_USER_INVITE)
     void revoke(@AuthenticationPrincipal SecurityUser user, @PathVariable UUID invitationId) {
         invitationService.revoke(user.requireTenantId(), invitationId);
     }

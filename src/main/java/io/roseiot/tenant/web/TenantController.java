@@ -1,6 +1,6 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.tenant.application.TenantService;
 import io.roseiot.tenant.persistence.Tenant;
 import jakarta.validation.Valid;
@@ -34,14 +34,14 @@ public class TenantController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@authz.hasSystemPermission(authentication, '" + IdentityJwtClaims.PERMISSION_TENANT_CREATE + "')")
+    @PreAuthorize(MethodSecuritySpel.TENANT_CREATE)
     CreatedTenantResponse create(@Valid @RequestBody CreateTenantRequest request) {
         return CreatedTenantResponse.from(tenantService.create(
                 request.name(), request.slug(), request.initialAdminEmail()));
     }
 
     @PatchMapping("/{tenantId}")
-    @PreAuthorize("@authz.canPatchTenant(authentication, #request.disabled, #request.name)")
+    @PreAuthorize(MethodSecuritySpel.PATCH_TENANT)
     TenantResponse update(
             @PathVariable UUID tenantId,
             @Valid @RequestBody UpdateTenantRequest request) {

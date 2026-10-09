@@ -48,7 +48,8 @@ public class TenantUserService {
     @Transactional
     public void updateUser(UUID tenantId, UUID userId, Boolean disabled, String targetRole) {
         tenantMapper.requireActive(tenantId);
-        if (disabled == null && (targetRole == null || targetRole.isBlank())) {
+        String newRole = targetRole == null || targetRole.isBlank() ? null : targetRole.trim();
+        if (disabled == null && newRole == null) {
             throw new IllegalArgumentException("No changes requested");
         }
 
@@ -58,34 +59,27 @@ public class TenantUserService {
         }
 
         String currentRole = requireRoleCode(userId);
+        if (newRole != null) {
+            TenantRoles.requireAssigneeRole(newRole);
+        }
         boolean currentlyDisabled = user.getDisabledAt() != null;
-
-        if (disabled != null && disabled) {
-            if (!currentlyDisabled && TenantRoles.TENANT_ADMIN.equals(currentRole)) {
-                ensureNotLastActiveTenantAdmin(tenantId, userId);
-            }
-            if (!currentlyDisabled) {
-                user.setDisabledAt(Instant.now());
-                userMapper.updateById(user);
-            }
-        } else if (disabled != null) {
-            if (currentlyDisabled) {
-                user.setDisabledAt(null);
-                userMapper.updateById(user);
-            }
+        boolean willDisable = Boolean.TRUE.equals(disabled) && !currentlyDisabled;
+        boolean willStayActive = !currentlyDisabled && !willDisable;
+        boolean demotesActiveAdmin = newRole != null
+                && TenantRoles.TENANT_ADMIN.equals(currentRole)
+                && !TenantRoles.TENANT_ADMIN.equals(newRole)
+                && willStayActive;
+        if ((willDisable || demotesActiveAdmin) && TenantRoles.TENANT_ADMIN.equals(currentRole)) {
+            ensureNotLastActiveTenantAdmin(tenantId, userId);
         }
 
-        if (targetRole != null && !targetRole.isBlank()) {
-            TenantRoles.requireAssigneeRoleCode(targetRole);
-            if (TenantRoles.TENANT_ADMIN.equals(currentRole)
-                    && !TenantRoles.TENANT_ADMIN.equals(targetRole)
-                    && user.getDisabledAt() == null) {
-                ensureNotLastActiveTenantAdmin(tenantId, userId);
-            }
-            if (!targetRole.equals(currentRole)) {
-                userRoleMapper.replaceRoleInTenantScope(
-                        userId, tenantId, roleMapper.requireIdByCode(targetRole));
-            }
+        if (disabled != null && disabled != currentlyDisabled) {
+            user.setDisabledAt(disabled ? Instant.now() : null);
+            userMapper.updateById(user);
+        }
+        if (newRole != null && !newRole.equals(currentRole)) {
+            userRoleMapper.replaceRoleInTenantScope(
+                    userId, tenantId, roleMapper.requireIdByCode(newRole));
         }
     }
 
