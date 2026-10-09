@@ -33,6 +33,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/users/me/**")
                         .authenticated()
+                        .requestMatchers("/api/tenants", "/api/tenants/*")
+                        .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout")
                         .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout-all")

@@ -6,6 +6,7 @@ import io.roseiot.identity.domain.InvalidRefreshTokenException;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
 import io.roseiot.shared.api.ApiErrorResponse;
+import org.springframework.core.annotation.Order;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(basePackages = "io.roseiot.identity.web")
+@Order(0)
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 public class IdentityExceptionHandler {
 

@@ -140,7 +140,7 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldDenyAnonymousCallersEverythingElse() {
-        assertThat(mvc.get().uri("/api/tenants"))
+        assertThat(mvc.get().uri("/api/devices"))
                 .hasStatus(HttpStatus.UNAUTHORIZED)
                 .bodyJson()
                 .extractingPath("$.code")
@@ -149,7 +149,7 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldDenyAuthenticatedCallersEverythingElse() {
-        assertThat(mvc.get().uri("/api/tenants").with(jwt().jwt(this::systemToken)))
+        assertThat(mvc.get().uri("/api/devices").with(jwt().jwt(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN)
                 .bodyJson()
                 .isLenientlyEqualTo("""

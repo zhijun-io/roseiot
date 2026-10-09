@@ -67,6 +67,37 @@ CREATE TABLE user_recovery_request (
 
 CREATE UNIQUE INDEX user_recovery_request_token_hash_uq ON user_recovery_request (token_hash);
 
+CREATE TABLE tenant (
+    id UUID PRIMARY KEY,
+    slug VARCHAR(63) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    disabled_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT tenant_slug_format_ck CHECK (slug ~ '^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])$')
+);
+
+CREATE UNIQUE INDEX tenant_slug_uq ON tenant (slug);
+
+CREATE TABLE tenant_user_invitation (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    email VARCHAR(320) NOT NULL,
+    target_role VARCHAR(16) NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ NULL,
+    revoked_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT tenant_user_invitation_tenant_id_fk FOREIGN KEY (tenant_id) REFERENCES tenant (id),
+    CONSTRAINT tenant_user_invitation_target_role_ck CHECK (target_role IN ('TenantAdmin', 'TenantUser'))
+);
+
+CREATE UNIQUE INDEX tenant_user_invitation_token_hash_uq ON tenant_user_invitation (token_hash);
+CREATE UNIQUE INDEX tenant_user_invitation_pending_uq
+    ON tenant_user_invitation (tenant_id, email)
+    WHERE accepted_at IS NULL AND revoked_at IS NULL;
+CREATE INDEX tenant_user_invitation_tenant_id_idx ON tenant_user_invitation (tenant_id);
+
 INSERT INTO permission (id, code) VALUES
     (gen_random_uuid(), 'user.profile.read'),
     (gen_random_uuid(), 'user.password.write'),
