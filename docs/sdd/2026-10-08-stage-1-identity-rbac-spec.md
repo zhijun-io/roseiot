@@ -14,15 +14,19 @@
 
 - 当前 Flyway 基线仅支持空数据库；已存在的数据库必须清空重建。
 - 所有公开请求默认拒绝；资源授权在应用边界执行。
-- **`/api/users/me/**`**：系统用户（`ctx=system`）已交付；租户用户（`ctx=tenant`）在 Spec #3 会话切片交付后共用同一路径（**不**提供 `/api/tenants/users/me`）。`ctx=system` 不得访问租户管理员 API（如 `/api/tenants/users/**` 列管他人）。
+- 认证边界加载的 Spring `GrantedAuthority`：permission **code** 原样；角色 **code** 加前缀 `ROLE_`（如 `ROLE_SystemAdmin`）。
+- Controller 使用 `@PreAuthorize` + `hasAuthority`（见 `MethodSecuritySpel`）；系统/租户 API 边界以 `SecurityUser.isSystemUser()` / `isTenantUser()`（对应 `users.tenant_id` 是否为空）与 permission 组合。
+- access JWT 仅含 `sub`、`sid`、`azv`；**不**含 `ctx` / `tid`（租户归属以 `users.tenant_id` 为准）。
+- **`/api/users/me/**`**：系统用户与租户用户共用（**不**提供 `/api/tenants/users/me`）。系统用户（`tenant_id` 为空）不得调用租户侧 API（如 `/api/tenants/users/**`）。
 
 ## Verification
 
 - 空库应用 Flyway 后，当前表和 RBAC seed 均存在。
 - bootstrap 用户拥有 `SystemAdmin` 绑定。
-- 系统用户 JWT 含正确的 `ctx` 与 `azv`；`ctx=tenant` 且 `tid` 与 `users.tenant_id` 一致时可访问 `/api/users/me/**`（需 `user.profile.*`）。
+- 系统用户 JWT 含 `sub`、`sid`、`azv`；租户用户可访问 `/api/users/me/**`（需 `user.profile.*`）。
 - `./mvnw -q verify` 通过。
 
 ## Revision log
 
 - 2026-10-09 | 租户 self profile 不再使用 `/api/tenants/users/me`，与 Spec #3 对齐为 `/api/users/me/**` | Verification | yes — Spec #3 Plan Slice 4
+- 2026-10-09 | JWT 移除 ctx；方法安全以 ROLE_ 与 permission 为准 | Constraints / Verification | yes — UserDetailsService 重构

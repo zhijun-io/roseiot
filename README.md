@@ -70,7 +70,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 **写集成测试当**：
 
-- **HTTP 契约（MockMvc 切片）**：`AuthControllerWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
+- **HTTP 契约（MockMvc 切片）**：`SessionAuthWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
 - **Security + Controller 组合**：`SecurityConfigWebMvcTest`（匿名 recovery、JWT 入口等与过滤器链一致的行为）。
 - **持久化 / Flyway / 事务**：如 `TenantLifecyclePostgresTest`——在 PostgreSQL 上验证表、Mapper 与跨表原子性（不必走 HTTP）。
 
@@ -90,7 +90,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 | 类型 | 示例类 |
 | --- | --- |
 | 单元 | `UserProfileServiceTest`、`UserSessionServiceTest`、`TenantServiceTests` |
-| WebMvc 切片 | `AuthControllerWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests` |
+| WebMvc 切片 | `SessionAuthWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests` |
 | 真库集成 | `TenantLifecyclePostgresTest` |
 
 **原则**：能写单元测试的不要 `@SpringBootTest`；`@WebMvcTest` 只承担 HTTP 契约，Flyway 与持久化证据用真库集成测试。
