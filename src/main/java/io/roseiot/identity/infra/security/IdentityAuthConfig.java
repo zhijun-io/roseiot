@@ -1,8 +1,8 @@
 package io.roseiot.identity.infra.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import io.roseiot.identity.infra.recovery.LoggingRecoveryNotifier;
-import io.roseiot.identity.infra.recovery.RecoveryNotifier;
+import io.roseiot.identity.infra.recovery.LoggingUserRecoveryNotifier;
+import io.roseiot.identity.infra.recovery.UserRecoveryNotifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,9 +32,9 @@ public class IdentityAuthConfig {
     }
 
     @Bean
-    @ConditionalOnMissingBean(RecoveryNotifier.class)
-    RecoveryNotifier loggingRecoveryNotifier() {
-        return new LoggingRecoveryNotifier();
+    @ConditionalOnMissingBean(UserRecoveryNotifier.class)
+    UserRecoveryNotifier userRecoveryNotifier() {
+        return new LoggingUserRecoveryNotifier();
     }
 
     private static SecretKey hmacSecretKey(String hmacSecret) {

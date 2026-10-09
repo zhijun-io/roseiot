@@ -6,7 +6,7 @@ import io.roseiot.identity.domain.InvalidRecoveryTokenException;
 import io.roseiot.identity.domain.LoginEmails;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.identity.infra.recovery.RecoveryNotifier;
+import io.roseiot.identity.infra.recovery.UserRecoveryNotifier;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRecoveryRequest;
@@ -30,19 +30,19 @@ public class UserRecoveryService {
 
     private final UserMapper userMapper;
     private final UserRecoveryRequestMapper recoveryRequestMapper;
-    private final RecoveryNotifier recoveryNotifier;
+    private final UserRecoveryNotifier userRecoveryNotifier;
     private final UserRefreshSessions refreshSessions;
     private final PasswordEncoder passwordEncoder;
 
     public UserRecoveryService(
             UserMapper userMapper,
             UserRecoveryRequestMapper recoveryRequestMapper,
-            RecoveryNotifier recoveryNotifier,
+            UserRecoveryNotifier userRecoveryNotifier,
             UserRefreshSessions refreshSessions,
             @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.recoveryRequestMapper = recoveryRequestMapper;
-        this.recoveryNotifier = recoveryNotifier;
+        this.userRecoveryNotifier = userRecoveryNotifier;
         this.refreshSessions = refreshSessions;
         this.passwordEncoder = passwordEncoder;
     }
@@ -109,6 +109,6 @@ public class UserRecoveryService {
         request.setCreatedAt(now);
         recoveryRequestMapper.insert(request);
 
-        recoveryNotifier.sendRecoveryEmail(user.getEmail(), plainToken);
+        userRecoveryNotifier.sendRecoveryEmail(user.getEmail(), plainToken);
     }
 }

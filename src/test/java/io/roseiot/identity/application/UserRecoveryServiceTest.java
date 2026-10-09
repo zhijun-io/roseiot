@@ -3,7 +3,7 @@ package io.roseiot.identity.application;
 import io.roseiot.identity.domain.InvalidRecoveryTokenException;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.identity.infra.recovery.RecoveryNotifier;
+import io.roseiot.identity.infra.recovery.UserRecoveryNotifier;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRecoveryRequest;
@@ -33,7 +33,7 @@ class UserRecoveryServiceTest {
 
     private UserMapper userMapper;
     private UserRecoveryRequestMapper recoveryRequestMapper;
-    private RecoveryNotifier recoveryNotifier;
+    private UserRecoveryNotifier userRecoveryNotifier;
     private UserRefreshSessions refreshSessions;
     private PasswordEncoder passwordEncoder;
     private UserRecoveryService cut;
@@ -42,11 +42,11 @@ class UserRecoveryServiceTest {
     void setUp() {
         userMapper = mock(UserMapper.class);
         recoveryRequestMapper = mock(UserRecoveryRequestMapper.class);
-        recoveryNotifier = mock(RecoveryNotifier.class);
+        userRecoveryNotifier = mock(UserRecoveryNotifier.class);
         refreshSessions = mock(UserRefreshSessions.class);
         passwordEncoder = mock(PasswordEncoder.class);
         cut = new UserRecoveryService(
-                userMapper, recoveryRequestMapper, recoveryNotifier, refreshSessions, passwordEncoder);
+                userMapper, recoveryRequestMapper, userRecoveryNotifier, refreshSessions, passwordEncoder);
     }
 
     private User existingUser() {
@@ -107,7 +107,7 @@ class UserRecoveryServiceTest {
         ArgumentCaptor<UserRecoveryRequest> inserted = ArgumentCaptor.forClass(UserRecoveryRequest.class);
         verify(recoveryRequestMapper).insert(inserted.capture());
         ArgumentCaptor<String> notified = ArgumentCaptor.forClass(String.class);
-        verify(recoveryNotifier).sendRecoveryEmail(eq("ops@roseiot.io"), notified.capture());
+        verify(userRecoveryNotifier).sendRecoveryEmail(eq("ops@roseiot.io"), notified.capture());
 
         // The email must carry the usable secret; the stored row must not.
         UserRecoveryRequest request = inserted.getValue();
@@ -124,7 +124,7 @@ class UserRecoveryServiceTest {
         when(userMapper.selectOne(any())).thenReturn(null);
 
         assertThat(cut.requestRecovery("ghost@roseiot.io")).isEqualTo(UserRecoveryService.ACCEPTED_MESSAGE);
-        verifyNoInteractions(recoveryRequestMapper, recoveryNotifier, refreshSessions);
+        verifyNoInteractions(recoveryRequestMapper, userRecoveryNotifier, refreshSessions);
     }
 
     @Test
