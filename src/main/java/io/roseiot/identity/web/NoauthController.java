@@ -1,30 +1,33 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.PasswordResetService;
-import io.roseiot.identity.domain.ActivationNotImplementedException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
+import io.roseiot.tenant.application.TenantInvitationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
-
-import java.net.URI;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/noauth")
 public class NoauthController {
 
-    private static final String PASSWORD_RESET_FORM_PATH = "/auth/password-reset";
-
-    private static final String PASSWORD_RESET_LINK_EXPIRED_PATH = "/auth/password-reset/expired";
-
     private final PasswordResetService passwordResetService;
+    private final TenantInvitationService tenantInvitationService;
 
-    public NoauthController(PasswordResetService passwordResetService) {
+    public NoauthController(
+            PasswordResetService passwordResetService, TenantInvitationService tenantInvitationService) {
         this.passwordResetService = passwordResetService;
+        this.tenantInvitationService = tenantInvitationService;
     }
 
     @PostMapping("/password-reset/email")
@@ -34,12 +37,8 @@ public class NoauthController {
     }
 
     @GetMapping("/password-reset")
-    ResponseEntity<Void> checkResetToken(@RequestParam("resetToken") String resetToken) {
-        return switch (passwordResetService.checkResetToken(resetToken)) {
-            case VALID -> seeOther(resetFormLocation(resetToken));
-            case EXPIRED -> seeOther(PASSWORD_RESET_LINK_EXPIRED_PATH);
-            case INVALID -> ResponseEntity.status(HttpStatus.CONFLICT).build();
-        };
+    TokenCheckResponse checkResetToken(@RequestParam("resetToken") String resetToken) {
+        return TokenCheckResponse.from(passwordResetService.checkResetToken(resetToken));
     }
 
     @PostMapping("/password-reset")
@@ -49,42 +48,40 @@ public class NoauthController {
     }
 
     @GetMapping("/user-activation")
-    ResponseEntity<Void> checkActivateToken(@RequestParam("activateToken") String activateToken) {
-        throw new ActivationNotImplementedException();
+    void checkActivateToken(@RequestParam("activateToken") String activateToken) {
+        throw new BusinessException(ApiErrorCode.NOT_IMPLEMENTED);
     }
 
     @PostMapping("/user-activation")
-    LoginResponse activateUser(@Valid @RequestBody ActivateUserRequest request) {
-        throw new ActivationNotImplementedException();
+    AuthController.LoginResponse activateUser(@Valid @RequestBody ActivateUserRequest request) {
+        throw new BusinessException(ApiErrorCode.NOT_IMPLEMENTED);
     }
 
-    private ResponseEntity<Void> seeOther(URI location) {
-        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(location).build();
+    @GetMapping("/tenant-invitations")
+    TokenCheckResponse checkInvitationToken(@RequestParam("invitationToken") String invitationToken) {
+        return TokenCheckResponse.from(tenantInvitationService.checkInvitationToken(invitationToken));
     }
 
-    private ResponseEntity<Void> seeOther(String path) {
-        return seeOther(UriComponentsBuilder.fromPath(path).build().toUri());
+    @PostMapping("/tenant-invitations")
+    @ResponseStatus(HttpStatus.CREATED)
+    AuthController.LoginResponse acceptTenantInvitation(
+            @Valid @RequestBody AcceptTenantInvitationRequest request) {
+        return AuthController.LoginResponse.from(tenantInvitationService.acceptInvitation(
+                request.invitationToken(), request.password()));
     }
 
-    private URI resetFormLocation(String resetToken) {
-        return UriComponentsBuilder.fromPath(PASSWORD_RESET_FORM_PATH)
-                .queryParam("resetToken", resetToken)
-                .build()
-                .toUri();
+    public record TokenCheckResponse(String status) {
+
+        static TokenCheckResponse from(Enum<?> state) {
+            return new TokenCheckResponse(state.name().toLowerCase());
+        }
     }
 
-    public record ResetPasswordEmailRequest(@NotBlank String email) {
-    }
+    public record ResetPasswordEmailRequest(@NotBlank String email) {}
 
-    public record ResetPasswordRequest(@NotBlank String resetToken, @NotBlank String password) {
-    }
+    public record ResetPasswordRequest(@NotBlank String resetToken, @NotBlank String password) {}
 
-    public record ActivateUserRequest(@NotBlank String activateToken, @NotBlank String password) {
-    }
+    public record AcceptTenantInvitationRequest(@NotBlank String invitationToken, @NotBlank String password) {}
 
-    /**
-     * Placeholder for future {@code POST /api/noauth/user-activation} token pair.
-     */
-    public record LoginResponse(String token, String refreshToken) {
-    }
+    public record ActivateUserRequest(@NotBlank String activateToken, @NotBlank String password) {}
 }

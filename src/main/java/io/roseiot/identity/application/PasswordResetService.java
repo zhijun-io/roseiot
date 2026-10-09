@@ -1,10 +1,10 @@
 package io.roseiot.identity.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import io.roseiot.identity.domain.InvalidResetTokenException;
 import io.roseiot.identity.domain.LoginEmails;
 import io.roseiot.identity.domain.PasswordPolicy;
-import io.roseiot.identity.domain.PasswordValidationException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.domain.TokenDigests;
 import io.roseiot.identity.infra.passwordreset.PasswordResetNotifier;
 import io.roseiot.identity.persistence.PasswordResetRequest;
@@ -72,15 +72,12 @@ public class PasswordResetService {
         return ResetTokenState.VALID;
     }
 
-    @Transactional(noRollbackFor = InvalidResetTokenException.class)
+    @Transactional(noRollbackFor = BusinessException.class)
     public void confirmPasswordReset(String rawToken, String newPassword) {
         if (rawToken == null || rawToken.isBlank()) {
-            throw new InvalidResetTokenException();
+            throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
         }
-        PasswordPolicy.validationError(newPassword)
-                .ifPresent(message -> {
-                    throw new PasswordValidationException(message);
-                });
+        PasswordPolicy.ensureValid(newPassword, ApiErrorCode.VALIDATION_ERROR);
 
         String tokenHash = TokenDigests.sha256Hex(rawToken);
         Instant now = Instant.now();
@@ -92,13 +89,13 @@ public class PasswordResetService {
                         .gt(PasswordResetRequest::getExpiresAt, now));
 
         if (active == null) {
-            throw new InvalidResetTokenException();
+            throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
         }
 
         UUID userId = active.getUserId();
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new InvalidResetTokenException();
+            throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));

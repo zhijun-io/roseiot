@@ -3,15 +3,17 @@ package io.roseiot.identity.web;
 import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.PasswordResetService.ResetTokenState;
 import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.identity.domain.InvalidResetTokenException;
+import io.roseiot.tenant.application.TenantInvitationService;
+import io.roseiot.tenant.application.TenantInvitationService.InvitationTokenState;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.JsonSecurityHandlers;
-import io.roseiot.identity.infra.security.SecurityConfig;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRoleMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -28,7 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(controllers = NoauthController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
+@ImportRoseiotSecuredWebMvc
 class NoauthControllerWebMvcTest {
 
     @Autowired
@@ -38,6 +40,9 @@ class NoauthControllerWebMvcTest {
     private PasswordResetService passwordResetService;
 
     @MockitoBean
+    private TenantInvitationService tenantInvitationService;
+
+    @MockitoBean
     private UserSessionService sessionService;
 
     @MockitoBean
@@ -45,6 +50,12 @@ class NoauthControllerWebMvcTest {
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
+
+    @MockitoBean
+    private UserMapper userMapper;
+
+    @MockitoBean
+    private UserRoleMapper userRoleMapper;
 
     @Test
     void shouldAcceptResetPasswordByEmailWithOkAndNoBody() {
@@ -74,31 +85,49 @@ class NoauthControllerWebMvcTest {
     }
 
     @Test
-    void shouldRedirectValidResetTokenToThePasswordForm() {
+    void shouldAnswerValidResetTokenWithOkAndStatus() {
         given(passwordResetService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
 
         assertThat(mvc.get().uri("/api/noauth/password-reset?resetToken=plain-token"))
-                .hasStatus(HttpStatus.SEE_OTHER)
-                .headers()
-                .hasValue("Location", "/auth/password-reset?resetToken=plain-token");
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.status")
+                .isEqualTo("valid");
     }
 
     @Test
-    void shouldAnswerInvalidResetTokenWithConflict() {
+    void shouldAnswerValidResetTokenEvenWhenAuthorizationHeaderIsInvalid() {
+        given(passwordResetService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
+
+        assertThat(mvc.get()
+                        .uri("/api/noauth/password-reset?resetToken=plain-token")
+                        .header("Authorization", "Bearer not-a-valid-jwt"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.status")
+                .isEqualTo("valid");
+    }
+
+    @Test
+    void shouldAnswerInvalidResetTokenWithStatusInvalid() {
         given(passwordResetService.checkResetToken("bad")).willReturn(ResetTokenState.INVALID);
 
         assertThat(mvc.get().uri("/api/noauth/password-reset?resetToken=bad"))
-                .hasStatus(HttpStatus.CONFLICT);
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.status")
+                .isEqualTo("invalid");
     }
 
     @Test
-    void shouldRedirectExpiredResetTokenToTheExpiredPage() {
+    void shouldAnswerExpiredResetTokenWithStatusExpired() {
         given(passwordResetService.checkResetToken("old")).willReturn(ResetTokenState.EXPIRED);
 
         assertThat(mvc.get().uri("/api/noauth/password-reset?resetToken=old"))
-                .hasStatus(HttpStatus.SEE_OTHER)
-                .headers()
-                .hasValue("Location", "/auth/password-reset/expired");
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.status")
+                .isEqualTo("expired");
     }
 
     @Test
@@ -115,23 +144,53 @@ class NoauthControllerWebMvcTest {
 
     @Test
     void shouldAnswerInvalidResetTokenOnPostWithBadRequest() {
-        willThrow(new InvalidResetTokenException()).given(passwordResetService).confirmPasswordReset(any(), any());
+        willThrow(new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN))
+                .given(passwordResetService)
+                .confirmPasswordReset(any(), any());
 
         assertThat(mvc.post().uri("/api/noauth/password-reset")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"resetToken": "used-token", "password": "Passw0rd!"}
                         """))
-                .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("invalid_reset_token");
     }
 
     @Test
+    void shouldAnswerValidInvitationTokenWithStatus() {
+        given(tenantInvitationService.checkInvitationToken("plain-token"))
+                .willReturn(InvitationTokenState.VALID);
+
+        assertThat(mvc.get().uri("/api/noauth/tenant-invitations?invitationToken=plain-token"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.status")
+                .isEqualTo("valid");
+    }
+
+    @Test
+    void shouldAcceptInvitationAndReturnSessionTokens() {
+        given(tenantInvitationService.acceptInvitation("invite-token", "Passw0rd!"))
+                .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
+
+        assertThat(mvc.post().uri("/api/noauth/tenant-invitations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"invitationToken": "invite-token", "password": "Passw0rd!"}
+                                """))
+                .hasStatus(HttpStatus.CREATED)
+                .bodyJson()
+                .extractingPath("$.accessToken")
+                .isEqualTo("access-token");
+    }
+
+    @Test
     void shouldAnswerActivateEndpointsWithNotImplemented() {
         assertThat(mvc.get().uri("/api/noauth/user-activation?activateToken=t"))
-                .hasStatus(HttpStatus.NOT_IMPLEMENTED)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("not_implemented");
@@ -141,6 +200,6 @@ class NoauthControllerWebMvcTest {
                 .content("""
                         {"activateToken": "t", "password": "Passw0rd!"}
                         """))
-                .hasStatus(HttpStatus.NOT_IMPLEMENTED);
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

@@ -1,6 +1,8 @@
 spring:
   application:
     name: roseiot
+  lifecycle:
+    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}
   config:
     import: optional:file:.env[.properties]
   autoconfigure:
@@ -32,6 +34,7 @@ management:
 
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 
 roseiot:
   bootstrap:
@@ -53,6 +56,10 @@ roseiot:
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
+    password-reset:
+      link-base-url: ${ROSEIOT_PASSWORD_RESET_LINK_BASE_URL:http://localhost:${server.port:8080}}
+    tenant-invitation:
+      link-base-url: ${ROSEIOT_TENANT_INVITATION_LINK_BASE_URL:http://localhost:${server.port:8080}}
 
 mybatis-plus:
   type-handlers-package: io.roseiot.identity.infra.mybatis

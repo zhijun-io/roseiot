@@ -1,7 +1,7 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.InvalidResetTokenException;
-import io.roseiot.identity.domain.PasswordValidationException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.domain.TokenDigests;
 import io.roseiot.identity.infra.passwordreset.PasswordResetNotifier;
 import io.roseiot.identity.persistence.PasswordResetRequest;
@@ -71,21 +71,21 @@ class PasswordResetServiceTest {
     @Test
     void shouldRejectMissingResetTokenBeforeAnyOtherCheck() {
         assertThatThrownBy(() -> cut.confirmPasswordReset(null, "short1"))
-                .isInstanceOf(InvalidResetTokenException.class);
+                .isInstanceOf(BusinessException.class);
         verifyNoInteractions(passwordResetRequestMapper, userMapper, passwordEncoder, refreshSessions);
     }
 
     @Test
     void shouldRejectBlankResetTokenBeforeAnyOtherCheck() {
         assertThatThrownBy(() -> cut.confirmPasswordReset("   ", "new passphrase 77"))
-                .isInstanceOf(InvalidResetTokenException.class);
+                .isInstanceOf(BusinessException.class);
         verifyNoInteractions(passwordResetRequestMapper, userMapper, passwordEncoder, refreshSessions);
     }
 
     @Test
     void shouldRejectWeakNewPasswordBeforeLookingUpTheToken() {
         assertThatThrownBy(() -> cut.confirmPasswordReset("valid-looking-token", "short1"))
-                .isInstanceOf(PasswordValidationException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessage("Password must be at least 12 characters");
         verifyNoInteractions(passwordResetRequestMapper, userMapper, passwordEncoder, refreshSessions);
     }
@@ -93,7 +93,7 @@ class PasswordResetServiceTest {
     @Test
     void shouldReportInvalidTokenRatherThanWeakPasswordWhenBothAreWrong() {
         assertThatThrownBy(() -> cut.confirmPasswordReset(null, "short1"))
-                .isInstanceOf(InvalidResetTokenException.class);
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test
@@ -163,7 +163,7 @@ class PasswordResetServiceTest {
         when(userMapper.selectById(USER_ID)).thenReturn(null);
 
         assertThatThrownBy(() -> cut.confirmPasswordReset("reset-token", "new passphrase 77"))
-                .isInstanceOf(InvalidResetTokenException.class);
+                .isInstanceOf(BusinessException.class);
         verify(userMapper, never()).updateById(any(User.class));
         verifyNoInteractions(refreshSessions);
     }
@@ -190,7 +190,7 @@ class PasswordResetServiceTest {
         when(passwordResetRequestMapper.selectOne(any())).thenReturn(null);
 
         assertThatThrownBy(() -> cut.confirmPasswordReset("expired-token", "new passphrase 77"))
-                .isInstanceOf(InvalidResetTokenException.class);
+                .isInstanceOf(BusinessException.class);
         verifyNoInteractions(userMapper, passwordEncoder, refreshSessions);
     }
 }
