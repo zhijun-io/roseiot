@@ -16,10 +16,10 @@ import java.io.IOException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-class JsonSecurityHandlersTest {
+class SecurityExceptionHandlerTest {
 
-    private final JsonSecurityHandlers cut =
-            new JsonSecurityHandlers(new ApiErrorBodyWriter(JsonMapper.builder().build()));
+    private final SecurityExceptionHandler cut =
+            new SecurityExceptionHandler(new ApiErrorBodyWriter(JsonMapper.builder().build()));
 
     private void assertBody(ResponseEntity<ApiErrorResponse> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);

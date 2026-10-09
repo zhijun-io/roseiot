@@ -17,11 +17,11 @@ import java.io.IOException;
 
 /** JSON 401/403：Servlet 过滤器链与 MVC {@code @ExceptionHandler} 共用同一映射。 */
 @RestControllerAdvice(basePackages = "io.roseiot")
-public class JsonSecurityHandlers implements AuthenticationEntryPoint, AccessDeniedHandler {
+public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final ApiErrorBodyWriter apiErrorBodyWriter;
 
-    public JsonSecurityHandlers(ApiErrorBodyWriter apiErrorBodyWriter) {
+    public SecurityExceptionHandler(ApiErrorBodyWriter apiErrorBodyWriter) {
         this.apiErrorBodyWriter = apiErrorBodyWriter;
     }
 
