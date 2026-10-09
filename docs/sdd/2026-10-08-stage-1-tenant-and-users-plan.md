@@ -17,7 +17,7 @@
 - Test or proof: 先写 `TenantServiceTests` 覆盖原子创建与冲突规则，再用 `@WebMvcTest` 覆盖请求映射、201 响应和认证拒绝；最后以 Testcontainers 覆盖租户与邀请的真实事务写入。
 - Implementation outline: 扩展 `V1__baseline.sql` 创建 `tenant` 与 `tenant_user_invitation`、必要唯一约束和索引；新增 `tenant.persistence` 实体/Mapper、事务性 `TenantService` 与 `/api/tenants` Controller；复用 `AuthorizationService` 校验 `tenant.create`、`tenant.disable`、`tenant.enable`。
 - Verification: `./mvnw -q test -Dtest=TenantLifecycleMockMvcTests`.
-- Done: false.
+- Done: true（2026-10-09；额外以 `./mvnw -q verify` 全量 210 个测试通过，含 `TenantServiceTests` 与 `TenantLifecyclePostgresTest`）。
 
 ## Slice 2: 接受邀请并签发租户上下文会话
 
