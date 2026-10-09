@@ -108,15 +108,18 @@ public class UserRefreshSessions {
                 user.getTenantId() == null ? IdentityJwtClaims.CONTEXT_SYSTEM : IdentityJwtClaims.CONTEXT_TENANT;
 
         Instant now = Instant.now();
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .subject(userId.toString())
                 .claim("sid", sessionId.toString())
                 .claim(IdentityJwtClaims.CONTEXT, context)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, user.getAuthorizationVersion())
                 .issuedAt(now)
-                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
-                .build();
+                .expiresAt(now.plus(15, ChronoUnit.MINUTES));
+        if (user.getTenantId() != null) {
+            claims.claim(IdentityJwtClaims.TENANT_ID, user.getTenantId().toString());
+        }
+        JwtClaimsSet builtClaims = claims.build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
-        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, builtClaims)).getTokenValue();
     }
 }

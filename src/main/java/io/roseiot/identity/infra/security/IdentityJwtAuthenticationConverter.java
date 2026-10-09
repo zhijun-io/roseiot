@@ -42,6 +42,17 @@ public class IdentityJwtAuthenticationConverter implements Converter<Jwt, Abstra
             throw invalidToken("Authorization version mismatch");
         }
 
+        String context = jwt.getClaimAsString(IdentityJwtClaims.CONTEXT);
+        if (IdentityJwtClaims.CONTEXT_TENANT.equals(context)) {
+            String tenantId = jwt.getClaimAsString(IdentityJwtClaims.TENANT_ID);
+            if (user.getTenantId() == null || tenantId == null
+                    || !user.getTenantId().toString().equals(tenantId)) {
+                throw invalidToken("Tenant context mismatch");
+            }
+        } else if (IdentityJwtClaims.CONTEXT_SYSTEM.equals(context) && user.getTenantId() != null) {
+            throw invalidToken("System context mismatch");
+        }
+
         return delegate.convert(jwt);
     }
 

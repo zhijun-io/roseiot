@@ -4,6 +4,7 @@ public final class IdentityJwtClaims {
 
     public static final String CONTEXT = "ctx";
     public static final String AUTHORIZATION_VERSION = "azv";
+    public static final String TENANT_ID = "tid";
     public static final String CONTEXT_SYSTEM = "system";
     public static final String CONTEXT_TENANT = "tenant";
 
