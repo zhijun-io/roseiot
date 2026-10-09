@@ -1,8 +1,6 @@
 package io.roseiot.tenant.web;
 
 import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
-import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
@@ -10,7 +8,6 @@ import io.roseiot.tenant.application.TenantUserService;
 import io.roseiot.tenant.application.TenantUserService.TenantUserSummary;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -50,21 +47,10 @@ class TenantUsersMockMvcTests {
     private TenantUserService userManagementService;
 
     @MockitoBean
-    private UserMapper userMapper;
-
-    @MockitoBean
-    private UserRoleMapper userRoleMapper;
-
-    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
-
-    @BeforeEach
-    void grantManagePermission() {
-        RoseiotWebMvcTestSupport.grantEveryPermission(userMapper, userRoleMapper, ADMIN_USER_ID, 1L);
-    }
 
     @Test
     void shouldListTenantUsers() {
@@ -72,7 +58,7 @@ class TenantUsersMockMvcTests {
                 .willReturn(List.of(new TenantUserSummary(
                         MANAGED_USER_ID, "member@roseiot.io", "TenantUser", false)));
 
-        assertThat(mvc.get().uri("/api/tenants/users").with(jwt().jwt(this::tenantToken)))
+        assertThat(mvc.get().uri("/api/tenants/users").with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$[0].email")
@@ -81,14 +67,14 @@ class TenantUsersMockMvcTests {
 
     @Test
     void shouldRejectSystemJwtOnTenantUsers() {
-        assertThat(mvc.get().uri("/api/tenants/users").with(jwt().jwt(this::systemToken)))
+        assertThat(mvc.get().uri("/api/tenants/users").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
     void shouldPatchTenantUser() {
         assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
-                        .with(jwt().jwt(this::tenantToken))
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"disabled": true}
@@ -105,7 +91,7 @@ class TenantUsersMockMvcTests {
                 .updateUser(eq(TENANT_ID), eq(MANAGED_USER_ID), eq(true), any());
 
         assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
-                        .with(jwt().jwt(this::tenantToken))
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"disabled": true}
@@ -121,8 +107,7 @@ class TenantUsersMockMvcTests {
         return builder.header("alg", "none")
                 .subject(ADMIN_USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT)
-                .claim(IdentityJwtClaims.TENANT_ID, TENANT_ID.toString())
+                .claim("tid", TENANT_ID.toString())
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
@@ -132,7 +117,6 @@ class TenantUsersMockMvcTests {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(ADMIN_USER_ID.toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));

@@ -2,6 +2,8 @@ package io.roseiot.tenant.application;
 
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.identity.application.UserSessionService;
+import io.roseiot.identity.infra.security.SecurityUser;
+import io.roseiot.identity.infra.security.SecurityUserDetailsService;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ class TenantUserManagementPostgresTest {
     private UserSessionService userSessionService;
 
     @Autowired
+    private SecurityUserDetailsService securityUserDetailsService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
@@ -78,7 +83,9 @@ class TenantUserManagementPostgresTest {
 
         tenantService.updateTenant(tenant.getId(), null, true);
 
-        assertThatThrownBy(() -> userSessionService.login("owner@roseiot.io", "newSecurePass9012"))
+        SecurityUser owner =
+                (SecurityUser) securityUserDetailsService.loadUserByUsername("owner@roseiot.io");
+        assertThatThrownBy(() -> userSessionService.openSession(owner))
                 .isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class);
     }
 }

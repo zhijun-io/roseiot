@@ -1,8 +1,6 @@
 package io.roseiot.tenant.web;
 
 import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
-import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
@@ -10,7 +8,6 @@ import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -27,7 +24,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
@@ -50,21 +46,10 @@ class TenantInvitationsMockMvcTests {
     private TenantInvitationService invitationService;
 
     @MockitoBean
-    private UserMapper userMapper;
-
-    @MockitoBean
-    private UserRoleMapper userRoleMapper;
-
-    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
-
-    @BeforeEach
-    void grantInvitePermission() {
-        RoseiotWebMvcTestSupport.grantEveryPermission(userMapper, userRoleMapper, USER_ID, 1L);
-    }
 
     @Test
     void shouldCreateInvitationWithTenantJwt() {
@@ -74,7 +59,7 @@ class TenantInvitationsMockMvcTests {
                         INVITATION_ID, "new@roseiot.io", "TenantUser", now.plusSeconds(3600), now, null, null));
 
         assertThat(mvc.post().uri("/api/tenants/invitations")
-                        .with(jwt().jwt(this::tenantToken))
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "new@roseiot.io", "targetRole": "TenantUser"}
@@ -88,7 +73,7 @@ class TenantInvitationsMockMvcTests {
     @Test
     void shouldRejectSystemJwtForInvitations() {
         assertThat(mvc.post().uri("/api/tenants/invitations")
-                        .with(jwt().jwt(this::systemToken))
+                        .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "new@roseiot.io", "targetRole": "TenantUser"}
@@ -103,7 +88,8 @@ class TenantInvitationsMockMvcTests {
                 .willReturn(List.of(new InvitationSummary(
                         INVITATION_ID, "new@roseiot.io", "TenantUser", now.plusSeconds(3600), now, null, null)));
 
-        assertThat(mvc.get().uri("/api/tenants/invitations").with(jwt().jwt(this::tenantToken)))
+        assertThat(mvc.get().uri("/api/tenants/invitations")
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$[0].email")
@@ -112,7 +98,8 @@ class TenantInvitationsMockMvcTests {
 
     @Test
     void shouldRevokeInvitation() {
-        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID).with(jwt().jwt(this::tenantToken)))
+        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID)
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.NO_CONTENT);
 
         verify(invitationService).revoke(TENANT_ID, INVITATION_ID);
@@ -124,7 +111,8 @@ class TenantInvitationsMockMvcTests {
                 .given(invitationService)
                 .revoke(TENANT_ID, INVITATION_ID);
 
-        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID).with(jwt().jwt(this::tenantToken)))
+        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID)
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
@@ -136,8 +124,7 @@ class TenantInvitationsMockMvcTests {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT)
-                .claim(IdentityJwtClaims.TENANT_ID, TENANT_ID.toString())
+                .claim("tid", TENANT_ID.toString())
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
@@ -148,7 +135,6 @@ class TenantInvitationsMockMvcTests {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));

@@ -1,17 +1,18 @@
 package io.roseiot.identity.infra.security;
 
 import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.persistence.User;
-import io.roseiot.identity.persistence.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.core.Authentication;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,19 +26,18 @@ class IdentityJwtAuthenticationConverterTest {
 
     private static final UUID USER_ID = UUID.fromString("019a0000-0000-7000-8000-000000000004");
 
-    private UserMapper userMapper;
+    private SecurityUserDetailsService userDetailsService;
     private IdentityJwtAuthenticationConverter cut;
 
     @BeforeEach
     void setUp() {
-        userMapper = mock(UserMapper.class);
-        cut = new IdentityJwtAuthenticationConverter(userMapper);
+        userDetailsService = mock(SecurityUserDetailsService.class);
+        cut = new IdentityJwtAuthenticationConverter(userDetailsService);
     }
 
     private static Jwt token(String subject, Object authorizationVersion) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("sub", subject);
-        claims.put(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM);
         if (authorizationVersion != null) {
             claims.put(IdentityJwtClaims.AUTHORIZATION_VERSION, authorizationVersion);
         }
@@ -46,10 +46,18 @@ class IdentityJwtAuthenticationConverterTest {
                 Map.of("alg", "HS256"), claims);
     }
 
-    private User storedUser(int authorizationVersion) {
-        User user = new User();
+    private SecurityUser loadedUser(long authorizationVersion) {
+        return new SecurityUser(
+                userEntity(authorizationVersion),
+                List.of(new SimpleGrantedAuthority(IdentityJwtClaims.PERMISSION_PROFILE_READ)));
+    }
+
+    private static io.roseiot.identity.persistence.User userEntity(long authorizationVersion) {
+        io.roseiot.identity.persistence.User user = new io.roseiot.identity.persistence.User();
         user.setId(USER_ID);
-        user.setAuthorizationVersion(authorizationVersion);
+        user.setAuthorizationVersion(Math.toIntExact(authorizationVersion));
+        user.setEmail("ops@roseiot.io");
+        user.setPasswordHash("hash");
         return user;
     }
 
@@ -64,30 +72,31 @@ class IdentityJwtAuthenticationConverterTest {
 
     @Test
     void shouldAuthenticateActiveUserWithMatchingAuthorizationVersion() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(7));
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(7L));
 
         Authentication authentication = cut.convert(token(USER_ID.toString(), 7L));
 
         assertThat(authentication.isAuthenticated()).isTrue();
-        assertThat(authentication.getName()).isEqualTo(USER_ID.toString());
+        assertThat(authentication.getName()).isEqualTo("ops@roseiot.io");
         assertThat(authentication.getPrincipal()).isInstanceOf(SecurityUser.class);
         SecurityUser user = (SecurityUser) authentication.getPrincipal();
         assertThat(user.userId()).isEqualTo(USER_ID);
         assertThat(user.authorizationVersion()).isEqualTo(7L);
-        assertThat(user.context()).isEqualTo(IdentityJwtClaims.CONTEXT_SYSTEM);
+        assertThat(authentication.getAuthorities())
+                .extracting(Object::toString)
+                .contains(IdentityJwtClaims.PERMISSION_PROFILE_READ);
     }
 
     @Test
     void shouldAcceptAuthorizationVersionDeliveredAsInteger() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(3));
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(3L));
 
-        // JSON numbers arrive as Integer or Long depending on the decoder; both must compare equal.
         assertThat(cut.convert(token(USER_ID.toString(), 3))).isNotNull();
     }
 
     @Test
     void shouldRejectTokenMintedBeforeAuthorizationChanged() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(8));
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(8L));
 
         assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 7L)),
                 "Authorization version mismatch");
@@ -95,23 +104,14 @@ class IdentityJwtAuthenticationConverterTest {
 
     @Test
     void shouldRejectTokenForUnknownUser() {
-        when(userMapper.selectById(USER_ID)).thenReturn(null);
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "User not active");
-    }
-
-    @Test
-    void shouldRejectTokenForDisabledUser() {
-        User disabled = storedUser(1);
-        disabled.setDisabledAt(Instant.now());
-        when(userMapper.selectById(USER_ID)).thenReturn(disabled);
+        when(userDetailsService.loadByUserId(USER_ID)).thenThrow(new UsernameNotFoundException("missing"));
 
         assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "User not active");
     }
 
     @Test
     void shouldRejectTokenWithoutAuthorizationVersionClaim() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(1));
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1L));
 
         assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), null)),
                 "Missing authorization version");
@@ -119,7 +119,7 @@ class IdentityJwtAuthenticationConverterTest {
 
     @Test
     void shouldRejectAuthorizationVersionThatIsNotANumber() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(1));
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1L));
 
         assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), "1")),
                 "Missing authorization version");
@@ -128,6 +128,6 @@ class IdentityJwtAuthenticationConverterTest {
     @Test
     void shouldRejectSubjectThatIsNotAUserId() {
         assertInvalidToken(() -> cut.convert(token("session-scoped-principal", 1L)), "Invalid subject");
-        verifyNoInteractions(userMapper);
+        verifyNoInteractions(userDetailsService);
     }
 }

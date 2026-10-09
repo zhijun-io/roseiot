@@ -9,8 +9,6 @@ import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.persistence.UserRoleMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -50,12 +48,6 @@ class NoauthControllerWebMvcTest {
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
-
-    @MockitoBean
-    private UserMapper userMapper;
-
-    @MockitoBean
-    private UserRoleMapper userRoleMapper;
 
     @Test
     void shouldAcceptResetPasswordByEmailWithOkAndNoBody() {

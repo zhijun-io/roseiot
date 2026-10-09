@@ -1,16 +1,12 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.UserProfileService;
-import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
 import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.persistence.User;
-import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -27,21 +23,12 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
-/**
- * Protocol contract of {@code /api/users/me/**}: the principal is taken from the bearer token, the
- * permission decision runs via {@code @PreAuthorize} and {@code @authz}; tenant JWT consistency is
- * enforced in {@link io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter}, not
- * re-checked here. A rejected password is reported
- * through the shared error body. The filter chain is the production one; only the token converter
- * and the services are replaced, so this slice never touches the database.
- */
 @WebMvcTest(controllers = UserProfileController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @ImportRoseiotSecuredWebMvc
@@ -58,29 +45,17 @@ class UserProfileControllerWebMvcTest {
     private UserProfileService accountService;
 
     @MockitoBean
-    private UserMapper userMapper;
-
-    @MockitoBean
-    private UserRoleMapper userRoleMapper;
-
-    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
-
-    @BeforeEach
-    void grantTheTestPrincipalEveryPermission() {
-        RoseiotWebMvcTestSupport.grantEveryPermission(
-                userMapper, userRoleMapper, USER_ID, AUTHORIZATION_VERSION);
-    }
 
     @Test
     void shouldAnswerProfileWithIdAndEmailOfTheTokenSubject() {
         given(accountService.getProfile(USER_ID)).willReturn(
                 new UserProfileService.UserProfile(USER_ID, "ops@roseiot.io"));
 
-        assertThat(mvc.get().uri("/api/users/me").with(jwt().jwt(this::systemToken)))
+        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
@@ -93,15 +68,10 @@ class UserProfileControllerWebMvcTest {
 
     @Test
     void shouldAnswerProfileForTenantContextWhenTidMatchesSubject() {
-        User tenantUser = new User();
-        tenantUser.setId(USER_ID);
-        tenantUser.setTenantId(TENANT_ID);
-        tenantUser.setAuthorizationVersion(Math.toIntExact(AUTHORIZATION_VERSION));
-        given(userMapper.selectById(USER_ID)).willReturn(tenantUser);
         given(accountService.getProfile(USER_ID)).willReturn(
                 new UserProfileService.UserProfile(USER_ID, "tenant@roseiot.io"));
 
-        assertThat(mvc.get().uri("/api/users/me").with(jwt().jwt(this::tenantToken)))
+        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.email")
@@ -110,10 +80,6 @@ class UserProfileControllerWebMvcTest {
 
     @Test
     void shouldRejectPrincipalWhenThePermissionIsMissing() {
-        given(userRoleMapper.userHasPermission(
-                        eq(USER_ID), eq(IdentityJwtClaims.PERMISSION_PROFILE_READ)))
-                .willReturn(false);
-
         assertThat(mvc.get().uri("/api/users/me").with(jwt().jwt(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN)
                 .bodyJson()
@@ -132,13 +98,13 @@ class UserProfileControllerWebMvcTest {
                 })))
                 .hasStatus(HttpStatus.FORBIDDEN);
 
-        verifyNoInteractions(accountService, userRoleMapper);
+        verifyNoInteractions(accountService);
     }
 
     @Test
     void shouldAnswerPasswordChangeWithNoContent() {
         assertThat(mvc.patch().uri("/api/users/me/password")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"currentPassword": "old-Passw0rd!", "newPassword": "new-Passw0rd!"}
@@ -151,7 +117,7 @@ class UserProfileControllerWebMvcTest {
     @Test
     void shouldRejectPasswordChangeWithBlankNewPasswordBeforeReachingTheService() {
         assertThat(mvc.patch().uri("/api/users/me/password")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"currentPassword": "old-Passw0rd!", "newPassword": ""}
@@ -171,7 +137,7 @@ class UserProfileControllerWebMvcTest {
                 .changePassword(any(), any(), any());
 
         assertThat(mvc.patch().uri("/api/users/me/password")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"currentPassword": "old-Passw0rd!", "newPassword": "short"}
@@ -190,7 +156,6 @@ class UserProfileControllerWebMvcTest {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
@@ -200,8 +165,7 @@ class UserProfileControllerWebMvcTest {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT)
-                .claim(IdentityJwtClaims.TENANT_ID, TENANT_ID.toString())
+                .claim("tid", TENANT_ID.toString())
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));

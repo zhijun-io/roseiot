@@ -1,7 +1,7 @@
 package io.roseiot.identity.application;
 
-import org.springframework.security.authentication.BadCredentialsException;
 import io.roseiot.identity.infra.security.InvalidRefreshTokenAuthenticationException;
+import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRefreshSession;
@@ -10,10 +10,11 @@ import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,7 +35,6 @@ class UserSessionServiceTest {
 
     private UserMapper userMapper;
     private UserRefreshSessionMapper refreshSessionMapper;
-    private PasswordEncoder passwordEncoder;
     private UserRefreshSessions refreshSessions;
     private TenantMapper tenantMapper;
     private UserSessionService cut;
@@ -43,10 +43,9 @@ class UserSessionServiceTest {
     void setUp() {
         userMapper = mock(UserMapper.class);
         refreshSessionMapper = mock(UserRefreshSessionMapper.class);
-        passwordEncoder = mock(PasswordEncoder.class);
         refreshSessions = mock(UserRefreshSessions.class);
         tenantMapper = mock(TenantMapper.class);
-        cut = new UserSessionService(userMapper, refreshSessionMapper, passwordEncoder, refreshSessions, tenantMapper);
+        cut = new UserSessionService(userMapper, refreshSessionMapper, refreshSessions, tenantMapper);
     }
 
     private User activeUser() {
@@ -58,52 +57,17 @@ class UserSessionServiceTest {
         return user;
     }
 
+    private SecurityUser securityUser(User user) {
+        return new SecurityUser(user, List.of(new SimpleGrantedAuthority("user.profile.read")));
+    }
+
     @Test
-    void shouldIssueNewFamilyOnSuccessfulLogin() {
-        when(userMapper.selectOne(any())).thenReturn(activeUser());
-        when(passwordEncoder.matches("correct horse 42", "stored-hash")).thenReturn(true);
+    void shouldIssueNewFamilyWhenOpeningSession() {
+        User user = activeUser();
+        SecurityUser principal = securityUser(user);
         when(refreshSessions.issueNewFamily(eq(USER_ID), any(Instant.class))).thenReturn(TOKENS);
 
-        assertThat(cut.login("ops@roseiot.io", "correct horse 42")).isSameAs(TOKENS);
-    }
-
-    @Test
-    void shouldRejectUnknownEmailWithoutComparingPasswords() {
-        when(userMapper.selectOne(any())).thenReturn(null);
-
-        assertThatThrownBy(() -> cut.login("ghost@roseiot.io", "correct horse 42"))
-                .isInstanceOf(BadCredentialsException.class);
-        verifyNoInteractions(passwordEncoder, refreshSessions);
-    }
-
-    @Test
-    void shouldRejectDisabledUserEvenWithTheRightPassword() {
-        User disabled = activeUser();
-        disabled.setDisabledAt(Instant.now().minus(1, ChronoUnit.DAYS));
-        when(userMapper.selectOne(any())).thenReturn(disabled);
-
-        assertThatThrownBy(() -> cut.login("ops@roseiot.io", "correct horse 42"))
-                .isInstanceOf(BadCredentialsException.class);
-        verifyNoInteractions(refreshSessions);
-    }
-
-    @Test
-    void shouldRejectMissingPasswordWithoutConsultingTheEncoder() {
-        when(userMapper.selectOne(any())).thenReturn(activeUser());
-
-        assertThatThrownBy(() -> cut.login("ops@roseiot.io", null))
-                .isInstanceOf(BadCredentialsException.class);
-        verifyNoInteractions(passwordEncoder);
-    }
-
-    @Test
-    void shouldRejectWrongPasswordWithoutIssuingSessions() {
-        when(userMapper.selectOne(any())).thenReturn(activeUser());
-        when(passwordEncoder.matches(any(), any())).thenReturn(false);
-
-        assertThatThrownBy(() -> cut.login("ops@roseiot.io", "wrong password 1"))
-                .isInstanceOf(BadCredentialsException.class);
-        verifyNoInteractions(refreshSessions);
+        assertThat(cut.openSession(principal)).isSameAs(TOKENS);
     }
 
     @Test
@@ -127,19 +91,17 @@ class UserSessionServiceTest {
     }
 
     @Test
-    void shouldRejectLoginWhenTenantIsDisabled() {
+    void shouldRejectOpenSessionWhenTenantIsDisabled() {
         UUID tenantId = UUID.randomUUID();
         User tenantUser = activeUser();
         tenantUser.setTenantId(tenantId);
-        when(userMapper.selectOne(any())).thenReturn(tenantUser);
-        when(passwordEncoder.matches(any(), any())).thenReturn(true);
+        SecurityUser principal = securityUser(tenantUser);
         Tenant disabled = new Tenant();
         disabled.setId(tenantId);
         disabled.setDisabledAt(Instant.now());
         when(tenantMapper.selectById(tenantId)).thenReturn(disabled);
 
-        assertThatThrownBy(() -> cut.login("ops@roseiot.io", "correct horse 42"))
-                .isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> cut.openSession(principal)).isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(refreshSessions);
     }
 

@@ -105,23 +105,13 @@ class UserRefreshSessionsTest {
     }
 
     @Test
-    void shouldMarkSystemContextForUserWithoutTenant() {
-        when(userMapper.selectById(USER_ID)).thenReturn(storedUser(4, null));
-
-        cut.issueNewFamily(USER_ID, NOW);
-
-        assertThat(encodedParameters().getClaims().getClaims())
-                .containsEntry(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM);
-    }
-
-    @Test
-    void shouldMarkTenantContextForUserWithTenant() {
+    void shouldNotEmbedContextOrTenantIdClaims() {
         when(userMapper.selectById(USER_ID)).thenReturn(storedUser(4, UUID.randomUUID()));
 
         cut.issueNewFamily(USER_ID, NOW);
 
-        assertThat(encodedParameters().getClaims().getClaims())
-                .containsEntry(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT);
+        Map<String, Object> claims = encodedParameters().getClaims().getClaims();
+        assertThat(claims).doesNotContainKeys("ctx", "tid");
     }
 
     @Test

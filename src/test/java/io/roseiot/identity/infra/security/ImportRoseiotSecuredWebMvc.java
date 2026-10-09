@@ -9,13 +9,13 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Filter chain, JSON security errors, and {@code @authz} for {@code @WebMvcTest} slices. */
+/** Filter chain and JSON security errors for {@code @WebMvcTest} slices. */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Import({
+    SessionAuthWebMvcTestConfiguration.class,
     SecurityConfig.class,
-    RoseiotAuthorization.class,
-    JsonSecurityHandlers.class,
+    SecurityExceptionHandler.class,
     ApiErrorBodyWriter.class,
     ApiExceptionHandler.class
 })

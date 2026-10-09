@@ -2,15 +2,12 @@ package io.roseiot.tenant.web;
 
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
-import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.tenant.application.TenantService;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -55,22 +52,10 @@ class TenantLifecycleMockMvcTests {
     private TenantService tenantService;
 
     @MockitoBean
-    private UserMapper userMapper;
-
-    @MockitoBean
-    private UserRoleMapper userRoleMapper;
-
-    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
-
-    @BeforeEach
-    void grantTheTestPrincipalEveryPermission() {
-        RoseiotWebMvcTestSupport.grantEveryPermission(
-                userMapper, userRoleMapper, ADMIN_ID, AUTHORIZATION_VERSION);
-    }
 
     private Tenant tenant(boolean disabled) {
         Tenant tenant = new Tenant();
@@ -103,7 +88,7 @@ class TenantLifecycleMockMvcTests {
                 .willReturn(tenant(false));
 
         assertThat(mvc.post().uri("/api/tenants")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
@@ -122,10 +107,9 @@ class TenantLifecycleMockMvcTests {
     }
 
     @Test
-    void shouldRejectPrincipalOutsideTheSystemContextBeforeAskingForPermission() {
+    void shouldRejectTenantAdminFromCreatingTenantsAtSystemApi() {
         assertThat(mvc.post().uri("/api/tenants")
-                .with(jwt().jwt(builder -> systemToken(builder)
-                        .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT)))
+                .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
@@ -135,15 +119,11 @@ class TenantLifecycleMockMvcTests {
                 .extractingPath("$.code")
                 .isEqualTo("forbidden");
 
-        verifyNoInteractions(tenantService, userRoleMapper);
+        verifyNoInteractions(tenantService);
     }
 
     @Test
     void shouldRejectCreationWhenTheTenantCreatePermissionIsMissing() {
-        given(userRoleMapper.userHasPermission(
-                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_CREATE)))
-                .willReturn(false);
-
         assertThat(mvc.post().uri("/api/tenants")
                 .with(jwt().jwt(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -161,7 +141,7 @@ class TenantLifecycleMockMvcTests {
     @Test
     void shouldRejectMalformedCreationBodyBeforeCallingTheService() {
         assertThat(mvc.post().uri("/api/tenants")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "Acme_HVAC!", "initialAdminEmail": "not-an-email"}
@@ -180,7 +160,7 @@ class TenantLifecycleMockMvcTests {
                 .given(tenantService).create(any(), any(), any());
 
         assertThat(mvc.post().uri("/api/tenants")
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
@@ -196,7 +176,7 @@ class TenantLifecycleMockMvcTests {
         given(tenantService.updateTenant(TENANT_ID, null, true)).willReturn(tenant(true));
 
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"disabled": true}
@@ -206,18 +186,16 @@ class TenantLifecycleMockMvcTests {
                 .extractingPath("$.disabled")
                 .isEqualTo(true);
 
-        verify(userRoleMapper)
-                .userHasPermission(ADMIN_ID, IdentityJwtClaims.PERMISSION_TENANT_DISABLE);
+        verify(tenantService).updateTenant(TENANT_ID, null, true);
     }
 
     @Test
     void shouldRequireTheEnablePermissionToRestoreATenant() {
-        given(userRoleMapper.userHasPermission(
-                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_ENABLE)))
-                .willReturn(false);
-
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken,
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                IdentityJwtClaims.PERMISSION_TENANT_DISABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"disabled": false}
@@ -233,7 +211,7 @@ class TenantLifecycleMockMvcTests {
                 .given(tenantService).updateTenant(any(), any(), any());
 
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"disabled": true}
@@ -246,12 +224,13 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectRenamingWithoutTheLifecyclePermission() {
-        given(userRoleMapper.userHasPermission(
-                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_CREATE)))
-                .willReturn(false);
-
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
-                .with(jwt().jwt(this::systemToken))
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken,
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                IdentityJwtClaims.PERMISSION_TENANT_DISABLE),
+                        new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                IdentityJwtClaims.PERMISSION_TENANT_ENABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme Climate"}
@@ -265,9 +244,13 @@ class TenantLifecycleMockMvcTests {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(ADMIN_ID.toString())
-                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
+    }
+
+    private Jwt.Builder tenantToken(Jwt.Builder builder) {
+        Instant now = Instant.now();
+        return systemToken(builder).claim("tid", TENANT_ID.toString());
     }
 }

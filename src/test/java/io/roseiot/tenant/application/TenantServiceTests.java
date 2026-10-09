@@ -2,13 +2,9 @@ package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import io.roseiot.identity.domain.TokenDigests;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
-import io.roseiot.tenant.persistence.TenantUserInvitation;
-import io.roseiot.tenant.persistence.TenantUserInvitationMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -18,7 +14,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DuplicateKeyException;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -38,8 +33,7 @@ class TenantServiceTests {
     private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
 
     private TenantMapper tenantMapper;
-    private TenantUserInvitationMapper invitationMapper;
-    private TenantInvitationNotifier invitationNotifier;
+    private TenantInvitationService invitationService;
     private TenantService cut;
 
     @BeforeEach
@@ -47,9 +41,8 @@ class TenantServiceTests {
         Configuration configuration = new MybatisConfiguration();
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), Tenant.class);
         tenantMapper = mock(TenantMapper.class);
-        invitationMapper = mock(TenantUserInvitationMapper.class);
-        invitationNotifier = mock(TenantInvitationNotifier.class);
-        cut = new TenantService(tenantMapper, invitationMapper, invitationNotifier);
+        invitationService = mock(TenantInvitationService.class);
+        cut = new TenantService(tenantMapper, invitationService);
     }
 
     private void noExistingSlug() {
@@ -81,35 +74,8 @@ class TenantServiceTests {
         assertThat(stored.getDisabledAt()).isNull();
         assertThat(stored.getCreatedAt()).isNotNull();
 
-        ArgumentCaptor<TenantUserInvitation> invitationCaptor =
-                ArgumentCaptor.forClass(TenantUserInvitation.class);
-        verify(invitationMapper).insert(invitationCaptor.capture());
-        TenantUserInvitation invitation = invitationCaptor.getValue();
-        assertThat(invitation.getTenantId()).isEqualTo(stored.getId());
-        assertThat(invitation.getEmail()).isEqualTo("ops@roseiot.io");
-        assertThat(invitation.getTargetRole()).isEqualTo("TenantAdmin");
-        assertThat(invitation.getTokenHash()).hasSize(64).doesNotContain(" ");
-        assertThat(invitation.getAcceptedAt()).isNull();
-        assertThat(invitation.getRevokedAt()).isNull();
-        assertThat(Duration.between(
-                invitation.getCreatedAt(), invitation.getExpiresAt())).isEqualTo(Duration.ofDays(7));
-    }
-
-    @Test
-    void shouldHandPlainInvitationTokenOnlyToTheNotifier() {
-        noExistingSlug();
-
-        cut.create("Acme HVAC", "acme-hvac", "ops@roseiot.io");
-
-        ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
-        verify(invitationNotifier).sendInvitation(eq("ops@roseiot.io"), eq("TenantAdmin"), token.capture());
-        assertThat(token.getValue()).isNotBlank();
-
-        ArgumentCaptor<TenantUserInvitation> invitation = ArgumentCaptor.forClass(TenantUserInvitation.class);
-        verify(invitationMapper).insert(invitation.capture());
-        assertThat(invitation.getValue().getTokenHash())
-                .isNotEqualTo(token.getValue())
-                .isEqualTo(TokenDigests.sha256Hex(token.getValue()));
+        verify(invitationService)
+                .issueInvitation(stored.getId(), "ops@roseiot.io", TenantRoles.TENANT_ADMIN);
     }
 
     @Test
@@ -120,7 +86,7 @@ class TenantServiceTests {
                 .isInstanceOf(BusinessException.class);
 
         verify(tenantMapper, never()).insert(any(Tenant.class));
-        verifyNoInteractions(invitationMapper, invitationNotifier);
+        verifyNoInteractions(invitationService);
     }
 
     @Test
@@ -132,8 +98,7 @@ class TenantServiceTests {
         assertThatThrownBy(() -> cut.create("Acme HVAC", "acme-hvac", "ops@roseiot.io"))
                 .isInstanceOf(BusinessException.class);
 
-        verifyNoInteractions(invitationNotifier);
-        verify(invitationMapper, never()).insert(any(TenantUserInvitation.class));
+        verifyNoInteractions(invitationService);
     }
 
     @Test
@@ -150,8 +115,7 @@ class TenantServiceTests {
     @CsvSource({"true,false", "false,true"})
     void shouldToggleDisabledStateOnlyWhenItActuallyChanges(boolean requested, boolean alreadyDisabled) {
         Instant before = alreadyDisabled ? Instant.parse("2026-10-08T00:00:00Z") : null;
-        Tenant after = existingTenant(requested ? Instant.now() : null);
-        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(before), after);
+        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(before));
 
         Tenant result = cut.updateTenant(TENANT_ID, null, requested);
 
@@ -160,20 +124,18 @@ class TenantServiceTests {
     }
 
     @Test
-    void shouldKeepTenantUntouchedWhenRequestedStateMatchesCurrentState() {
-        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(null));
+    void shouldPreserveOriginalDisabledAtWhenDisablingAnAlreadyDisabledTenant() {
+        Instant originalDisabledAt = Instant.parse("2026-10-08T00:00:00Z");
+        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(originalDisabledAt));
 
-        Tenant result = cut.updateTenant(TENANT_ID, "  ", false);
+        Tenant result = cut.updateTenant(TENANT_ID, null, true);
 
-        assertThat(result.getDisabledAt()).isNull();
-        verify(tenantMapper, never()).update(isNull(), any());
+        assertThat(result.getDisabledAt()).isEqualTo(originalDisabledAt);
     }
 
     @Test
-    void shouldRenameTenantAndReturnRefreshedState() {
-        Tenant renamed = existingTenant(null);
-        renamed.setName("Acme Climate");
-        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(null), renamed);
+    void shouldRenameTenantAndReturnUpdatedState() {
+        when(tenantMapper.selectById(TENANT_ID)).thenReturn(existingTenant(null));
 
         Tenant result = cut.updateTenant(TENANT_ID, " Acme Climate ", null);
 
