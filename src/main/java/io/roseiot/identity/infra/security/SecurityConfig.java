@@ -3,32 +3,54 @@ package io.roseiot.identity.infra.security;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-public class SecurityConfig {
+public class SecurityConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.addFirst(new SecurityUserArgumentResolver());
+    }
+
+    /**
+     * Anonymous auth flows without JWT parsing so stale/invalid {@code Authorization} headers cannot
+     * turn a public endpoint into 401.
+     */
+    @Bean
+    @Order(1)
+    SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher(
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/api/login",
+                        "/api/token",
+                        "/api/noauth/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
 
     @Bean
-    SecurityFilterChain securityFilterChain(
+    @Order(2)
+    SecurityFilterChain authenticatedSecurityFilterChain(
             HttpSecurity http,
             JsonSecurityHandlers jsonSecurityHandlers,
             IdentityJwtAuthenticationConverter identityJwtAuthenticationConverter)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/health/**")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/login")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/token")
-                        .permitAll()
-                        .requestMatchers("/api/noauth/**")
-                        .permitAll()
                         .requestMatchers("/api/users/me/**")
                         .authenticated()
                         .requestMatchers("/api/tenants/**")

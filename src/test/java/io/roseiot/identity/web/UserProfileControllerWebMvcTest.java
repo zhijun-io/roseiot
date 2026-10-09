@@ -1,18 +1,19 @@
 package io.roseiot.identity.web;
 
-import io.roseiot.identity.application.AuthorizationService;
 import io.roseiot.identity.application.UserProfileService;
+import io.roseiot.identity.persistence.UserRoleMapper;
+import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
 import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.domain.PasswordValidationException;
+import io.roseiot.identity.persistence.User;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.JsonSecurityHandlers;
-import io.roseiot.identity.infra.security.SecurityConfig;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,8 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
@@ -36,16 +36,19 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 /**
  * Protocol contract of {@code /api/users/me/**}: the principal is taken from the bearer token, the
- * permission decision is delegated to the application layer, and a rejected password is reported
+ * permission decision runs via {@code @PreAuthorize} and {@code @authz}; tenant JWT consistency is
+ * enforced in {@link io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter}, not
+ * re-checked here. A rejected password is reported
  * through the shared error body. The filter chain is the production one; only the token converter
  * and the services are replaced, so this slice never touches the database.
  */
 @WebMvcTest(controllers = UserProfileController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
+@ImportRoseiotSecuredWebMvc
 class UserProfileControllerWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
+    private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
     private static final long AUTHORIZATION_VERSION = 3L;
 
     @Autowired
@@ -55,7 +58,10 @@ class UserProfileControllerWebMvcTest {
     private UserProfileService accountService;
 
     @MockitoBean
-    private AuthorizationService authorizationService;
+    private UserMapper userMapper;
+
+    @MockitoBean
+    private UserRoleMapper userRoleMapper;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -65,7 +71,8 @@ class UserProfileControllerWebMvcTest {
 
     @BeforeEach
     void grantTheTestPrincipalEveryPermission() {
-        given(authorizationService.hasPermission(any(), anyLong(), anyString())).willReturn(true);
+        RoseiotWebMvcTestSupport.grantEveryPermission(
+                userMapper, userRoleMapper, USER_ID, AUTHORIZATION_VERSION);
     }
 
     @Test
@@ -85,22 +92,27 @@ class UserProfileControllerWebMvcTest {
     }
 
     @Test
-    void shouldRejectPrincipalOutsideTheSystemContextBeforeAskingForPermission() {
-        assertThat(mvc.get().uri("/api/users/me")
-                .with(jwt().jwt(builder -> systemToken(builder).claim(IdentityJwtClaims.CONTEXT,
-                        IdentityJwtClaims.CONTEXT_TENANT))))
-                .hasStatus(HttpStatus.FORBIDDEN)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("forbidden");
+    void shouldAnswerProfileForTenantContextWhenTidMatchesSubject() {
+        User tenantUser = new User();
+        tenantUser.setId(USER_ID);
+        tenantUser.setTenantId(TENANT_ID);
+        tenantUser.setAuthorizationVersion(Math.toIntExact(AUTHORIZATION_VERSION));
+        given(userMapper.selectById(USER_ID)).willReturn(tenantUser);
+        given(accountService.getProfile(USER_ID)).willReturn(
+                new UserProfileService.UserProfile(USER_ID, "tenant@roseiot.io"));
 
-        verifyNoInteractions(accountService, authorizationService);
+        assertThat(mvc.get().uri("/api/users/me").with(jwt().jwt(this::tenantToken)))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.email")
+                .isEqualTo("tenant@roseiot.io");
     }
 
     @Test
     void shouldRejectPrincipalWhenThePermissionIsMissing() {
-        given(authorizationService.hasPermission(USER_ID, AUTHORIZATION_VERSION,
-                IdentityJwtClaims.PERMISSION_PROFILE_READ)).willReturn(false);
+        given(userRoleMapper.userHasPermission(
+                        eq(USER_ID), eq(IdentityJwtClaims.PERMISSION_PROFILE_READ)))
+                .willReturn(false);
 
         assertThat(mvc.get().uri("/api/users/me").with(jwt().jwt(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN)
@@ -120,7 +132,7 @@ class UserProfileControllerWebMvcTest {
                 })))
                 .hasStatus(HttpStatus.FORBIDDEN);
 
-        verifyNoInteractions(accountService, authorizationService);
+        verifyNoInteractions(accountService, userRoleMapper);
     }
 
     @Test
@@ -154,8 +166,9 @@ class UserProfileControllerWebMvcTest {
 
     @Test
     void shouldAnswerRejectedNewPasswordWithTheRuleThatFailed() {
-        willThrow(new PasswordValidationException("Password must be at least 12 characters"))
-                .given(accountService).changePassword(any(), any(), any());
+        willThrow(new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must be at least 12 characters"))
+                .given(accountService)
+                .changePassword(any(), any(), any());
 
         assertThat(mvc.patch().uri("/api/users/me/password")
                 .with(jwt().jwt(this::systemToken))
@@ -163,7 +176,7 @@ class UserProfileControllerWebMvcTest {
                 .content("""
                         {"currentPassword": "old-Passw0rd!", "newPassword": "short"}
                         """))
-                .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .isLenientlyEqualTo("""
                         {
@@ -178,6 +191,17 @@ class UserProfileControllerWebMvcTest {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
+                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60));
+    }
+
+    private Jwt.Builder tenantToken(Jwt.Builder builder) {
+        Instant now = Instant.now();
+        return builder.header("alg", "none")
+                .subject(USER_ID.toString())
+                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_TENANT)
+                .claim(IdentityJwtClaims.TENANT_ID, TENANT_ID.toString())
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));

@@ -36,7 +36,7 @@ public class UserRefreshSessions {
         this.jwtEncoder = jwtEncoder;
     }
 
-    UserSessionService.SessionTokens issueNewFamily(UUID userId, Instant now) {
+    public UserSessionService.SessionTokens issueNewFamily(UUID userId, Instant now) {
         UUID sessionId = UuidV7.generate();
         UUID familyId = UuidV7.generate();
         String refreshToken = TokenDigests.generateUrlSafe256Bit();

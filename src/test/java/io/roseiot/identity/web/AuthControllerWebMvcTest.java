@@ -1,16 +1,16 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.InvalidRefreshTokenException;
+import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.AuthenticationExceptionMapping;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.JsonSecurityHandlers;
-import io.roseiot.identity.infra.security.SecurityConfig;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRoleMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -36,7 +36,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  */
 @WebMvcTest(controllers = AuthController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
+@ImportRoseiotSecuredWebMvc
 class AuthControllerWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
@@ -53,6 +53,12 @@ class AuthControllerWebMvcTest {
 
     @MockitoBean
     private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
+
+    @MockitoBean
+    private UserMapper userMapper;
+
+    @MockitoBean
+    private UserRoleMapper userRoleMapper;
 
     @Test
     void shouldAnswerLoginWithBothTokens() {
@@ -79,7 +85,7 @@ class AuthControllerWebMvcTest {
 
     @Test
     void shouldAnswerWrongCredentialsWithOneStableUnauthorizedBody() {
-        willThrow(new InvalidCredentialsException()).given(sessionService).login(any(), any());
+        willThrow(AuthenticationExceptionMapping.invalidCredentials()).given(sessionService).login(any(), any());
 
         assertThat(mvc.post().uri("/api/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -91,7 +97,7 @@ class AuthControllerWebMvcTest {
                 .isLenientlyEqualTo("""
                         {
                           "code": "invalid_credentials",
-                          "message": "Invalid email or password"
+                          "message": "invalid_credentials"
                         }
                         """);
     }
@@ -148,7 +154,7 @@ class AuthControllerWebMvcTest {
 
     @Test
     void shouldAnswerReplayedRefreshTokenWithItsOwnCode() {
-        willThrow(new InvalidRefreshTokenException()).given(sessionService).refresh(any());
+        willThrow(AuthenticationExceptionMapping.invalidRefreshToken()).given(sessionService).refresh(any());
 
         assertThat(mvc.post().uri("/api/token")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -188,6 +194,8 @@ class AuthControllerWebMvcTest {
         builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("sid", SESSION_ID.toString())
+                .claim(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM)
+                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -66,13 +66,15 @@ class IdentityJwtAuthenticationConverterTest {
     void shouldAuthenticateActiveUserWithMatchingAuthorizationVersion() {
         when(userMapper.selectById(USER_ID)).thenReturn(storedUser(7));
 
-        JwtAuthenticationToken authentication =
-                (JwtAuthenticationToken) cut.convert(token(USER_ID.toString(), 7L));
+        Authentication authentication = cut.convert(token(USER_ID.toString(), 7L));
 
         assertThat(authentication.isAuthenticated()).isTrue();
         assertThat(authentication.getName()).isEqualTo(USER_ID.toString());
-        assertThat(authentication.getTokenAttributes())
-                .containsEntry(IdentityJwtClaims.CONTEXT, IdentityJwtClaims.CONTEXT_SYSTEM);
+        assertThat(authentication.getPrincipal()).isInstanceOf(SecurityUser.class);
+        SecurityUser user = (SecurityUser) authentication.getPrincipal();
+        assertThat(user.userId()).isEqualTo(USER_ID);
+        assertThat(user.authorizationVersion()).isEqualTo(7L);
+        assertThat(user.context()).isEqualTo(IdentityJwtClaims.CONTEXT_SYSTEM);
     }
 
     @Test

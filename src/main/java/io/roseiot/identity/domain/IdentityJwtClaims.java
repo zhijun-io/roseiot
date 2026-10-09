@@ -13,6 +13,8 @@ public final class IdentityJwtClaims {
     public static final String PERMISSION_TENANT_CREATE = "tenant.create";
     public static final String PERMISSION_TENANT_DISABLE = "tenant.disable";
     public static final String PERMISSION_TENANT_ENABLE = "tenant.enable";
+    public static final String PERMISSION_TENANT_USER_INVITE = "tenant.user.invite";
+    public static final String PERMISSION_TENANT_USER_MANAGE = "tenant.user.manage";
 
     private IdentityJwtClaims() {}
 }

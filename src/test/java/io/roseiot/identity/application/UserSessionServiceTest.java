@@ -1,11 +1,13 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.InvalidRefreshTokenException;
+import org.springframework.security.authentication.BadCredentialsException;
+import io.roseiot.identity.infra.security.InvalidRefreshTokenAuthenticationException;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRefreshSession;
 import io.roseiot.identity.persistence.UserRefreshSessionMapper;
+import io.roseiot.tenant.persistence.Tenant;
+import io.roseiot.tenant.persistence.TenantMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,6 +36,7 @@ class UserSessionServiceTest {
     private UserRefreshSessionMapper refreshSessionMapper;
     private PasswordEncoder passwordEncoder;
     private UserRefreshSessions refreshSessions;
+    private TenantMapper tenantMapper;
     private UserSessionService cut;
 
     @BeforeEach
@@ -42,7 +45,8 @@ class UserSessionServiceTest {
         refreshSessionMapper = mock(UserRefreshSessionMapper.class);
         passwordEncoder = mock(PasswordEncoder.class);
         refreshSessions = mock(UserRefreshSessions.class);
-        cut = new UserSessionService(userMapper, refreshSessionMapper, passwordEncoder, refreshSessions);
+        tenantMapper = mock(TenantMapper.class);
+        cut = new UserSessionService(userMapper, refreshSessionMapper, passwordEncoder, refreshSessions, tenantMapper);
     }
 
     private User activeUser() {
@@ -68,7 +72,7 @@ class UserSessionServiceTest {
         when(userMapper.selectOne(any())).thenReturn(null);
 
         assertThatThrownBy(() -> cut.login("ghost@roseiot.io", "correct horse 42"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(passwordEncoder, refreshSessions);
     }
 
@@ -79,7 +83,7 @@ class UserSessionServiceTest {
         when(userMapper.selectOne(any())).thenReturn(disabled);
 
         assertThatThrownBy(() -> cut.login("ops@roseiot.io", "correct horse 42"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(refreshSessions);
     }
 
@@ -88,7 +92,7 @@ class UserSessionServiceTest {
         when(userMapper.selectOne(any())).thenReturn(activeUser());
 
         assertThatThrownBy(() -> cut.login("ops@roseiot.io", null))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(passwordEncoder);
     }
 
@@ -98,14 +102,14 @@ class UserSessionServiceTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
         assertThatThrownBy(() -> cut.login("ops@roseiot.io", "wrong password 1"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(refreshSessions);
     }
 
     @Test
     void shouldRejectRefreshTokenThatIsMissingOrBlank() {
-        assertThatThrownBy(() -> cut.refresh(null)).isInstanceOf(InvalidRefreshTokenException.class);
-        assertThatThrownBy(() -> cut.refresh("  ")).isInstanceOf(InvalidRefreshTokenException.class);
+        assertThatThrownBy(() -> cut.refresh(null)).isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
+        assertThatThrownBy(() -> cut.refresh("  ")).isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
         verifyNoInteractions(refreshSessionMapper, refreshSessions);
     }
 
@@ -115,10 +119,28 @@ class UserSessionServiceTest {
         active.setId(UUID.randomUUID());
         active.setUserId(USER_ID);
         when(refreshSessionMapper.selectOne(any())).thenReturn(active);
+        when(userMapper.selectById(USER_ID)).thenReturn(activeUser());
         when(refreshSessions.rotate(eq(active), any(Instant.class))).thenReturn(TOKENS);
 
         assertThat(cut.refresh("presented-refresh-token")).isSameAs(TOKENS);
         verify(refreshSessionMapper).selectOne(any());
+    }
+
+    @Test
+    void shouldRejectLoginWhenTenantIsDisabled() {
+        UUID tenantId = UUID.randomUUID();
+        User tenantUser = activeUser();
+        tenantUser.setTenantId(tenantId);
+        when(userMapper.selectOne(any())).thenReturn(tenantUser);
+        when(passwordEncoder.matches(any(), any())).thenReturn(true);
+        Tenant disabled = new Tenant();
+        disabled.setId(tenantId);
+        disabled.setDisabledAt(Instant.now());
+        when(tenantMapper.selectById(tenantId)).thenReturn(disabled);
+
+        assertThatThrownBy(() -> cut.login("ops@roseiot.io", "correct horse 42"))
+                .isInstanceOf(BadCredentialsException.class);
+        verifyNoInteractions(refreshSessions);
     }
 
     @Test
@@ -131,7 +153,7 @@ class UserSessionServiceTest {
         when(refreshSessionMapper.selectOne(any())).thenReturn(null, alreadyRotated);
 
         assertThatThrownBy(() -> cut.refresh("stolen-refresh-token"))
-                .isInstanceOf(InvalidRefreshTokenException.class);
+                .isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
         verify(refreshSessions).revokeFamily(eq(familyId), any(Instant.class));
     }
 
@@ -140,7 +162,7 @@ class UserSessionServiceTest {
         when(refreshSessionMapper.selectOne(any())).thenReturn(null);
 
         assertThatThrownBy(() -> cut.refresh("invented-refresh-token"))
-                .isInstanceOf(InvalidRefreshTokenException.class);
+                .isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
         verify(refreshSessions, never()).revokeFamily(any(UUID.class), any(Instant.class));
     }
 
@@ -152,7 +174,7 @@ class UserSessionServiceTest {
         when(refreshSessionMapper.selectOne(any())).thenReturn(null, expiredButNotRevoked);
 
         assertThatThrownBy(() -> cut.refresh("expired-refresh-token"))
-                .isInstanceOf(InvalidRefreshTokenException.class);
+                .isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
         verify(refreshSessions, never()).revokeFamily(any(UUID.class), any(Instant.class));
     }
 

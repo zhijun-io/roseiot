@@ -1,21 +1,21 @@
 package io.roseiot.identity.infra.security;
 
-import io.roseiot.identity.application.AuthorizationService;
+import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.application.UserProfileService;
 import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.UserSessionService;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.web.AuthController;
 import io.roseiot.identity.web.NoauthController;
 import io.roseiot.identity.web.UserProfileController;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -29,8 +29,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -49,7 +47,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  */
 @WebMvcTest(controllers = {AuthController.class, NoauthController.class, UserProfileController.class})
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
+@ImportRoseiotSecuredWebMvc
 class SecurityConfigWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
@@ -64,10 +62,16 @@ class SecurityConfigWebMvcTest {
     private PasswordResetService passwordResetService;
 
     @MockitoBean
+    private TenantInvitationService tenantInvitationService;
+
+    @MockitoBean
+    private UserMapper userMapper;
+
+    @MockitoBean
     private UserProfileService accountService;
 
     @MockitoBean
-    private AuthorizationService authorizationService;
+    private UserRoleMapper userRoleMapper;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -81,15 +85,26 @@ class SecurityConfigWebMvcTest {
                 .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
         given(sessionService.refresh(any()))
                 .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
-        given(passwordResetService.checkResetToken(any())).willReturn(PasswordResetService.ResetTokenState.VALID);
-        given(authorizationService.hasPermission(any(), anyLong(), anyString())).willReturn(true);
+        given(passwordResetService.checkResetToken(any()))
+                .willReturn(PasswordResetService.ResetTokenState.VALID);
+        given(tenantInvitationService.acceptInvitation(any(), any()))
+                .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
+        RoseiotWebMvcTestSupport.grantEveryPermission(userMapper, userRoleMapper, USER_ID, 1L);
         given(accountService.getProfile(any()))
                 .willReturn(new UserProfileService.UserProfile(USER_ID, "ops@roseiot.io"));
     }
 
+    @Test
+    void shouldLetAnonymousCallersGetPasswordResetCheckWithInvalidBearer() {
+        assertThat(mvc.get()
+                        .uri("/api/noauth/password-reset?resetToken=recovery-token")
+                        .header("Authorization", "Bearer not-a-valid-jwt"))
+                .hasStatus(HttpStatus.OK);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/login", "/api/token", "/api/noauth/password-reset/email",
-            "/api/noauth/password-reset"})
+            "/api/noauth/password-reset", "/api/noauth/tenant-invitations"})
     void shouldLetAnonymousCallersUseThePublicAuthEndpoints(String path) {
         String body =
                 switch (path) {
@@ -101,6 +116,8 @@ class SecurityConfigWebMvcTest {
                             {"email": "ops@roseiot.io"}""";
                     case "/api/noauth/password-reset" -> """
                             {"resetToken": "recovery-token", "password": "Passw0rd!"}""";
+                    case "/api/noauth/tenant-invitations" -> """
+                            {"invitationToken": "invite-token", "password": "Passw0rd!"}""";
                     default -> throw new IllegalArgumentException(path);
                 };
         assertThat(mvc.post().uri(path).contentType(MediaType.APPLICATION_JSON).content(body))
@@ -116,7 +133,7 @@ class SecurityConfigWebMvcTest {
                 .isLenientlyEqualTo("""
                         {
                           "code": "unauthorized",
-                          "message": "Unauthorized"
+                          "message": "unauthorized"
                         }
                         """);
 
@@ -171,7 +188,7 @@ class SecurityConfigWebMvcTest {
     @Test
     void shouldNotPublishAuthEndpointsBeyondTheirMethod() {
         assertThat(mvc.get().uri("/api/login").with(jwt().jwt(this::systemToken)))
-                .hasStatus(HttpStatus.FORBIDDEN);
+                .hasStatus(HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     private Jwt.Builder systemToken(Jwt.Builder builder) {

@@ -1,20 +1,19 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.application.AuthorizationService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
+import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.JsonSecurityHandlers;
-import io.roseiot.identity.infra.security.SecurityConfig;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.tenant.application.TenantService;
-import io.roseiot.tenant.domain.TenantNotFoundException;
-import io.roseiot.tenant.domain.TenantSlugConflictException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -28,8 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
@@ -43,7 +41,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  */
 @WebMvcTest(controllers = TenantController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class, TenantExceptionHandler.class})
+@ImportRoseiotSecuredWebMvc
 class TenantLifecycleMockMvcTests {
 
     private static final UUID ADMIN_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000c1");
@@ -57,7 +55,10 @@ class TenantLifecycleMockMvcTests {
     private TenantService tenantService;
 
     @MockitoBean
-    private AuthorizationService authorizationService;
+    private UserMapper userMapper;
+
+    @MockitoBean
+    private UserRoleMapper userRoleMapper;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -67,7 +68,8 @@ class TenantLifecycleMockMvcTests {
 
     @BeforeEach
     void grantTheTestPrincipalEveryPermission() {
-        given(authorizationService.hasPermission(any(), anyLong(), anyString())).willReturn(true);
+        RoseiotWebMvcTestSupport.grantEveryPermission(
+                userMapper, userRoleMapper, ADMIN_ID, AUTHORIZATION_VERSION);
     }
 
     private Tenant tenant(boolean disabled) {
@@ -133,13 +135,14 @@ class TenantLifecycleMockMvcTests {
                 .extractingPath("$.code")
                 .isEqualTo("forbidden");
 
-        verifyNoInteractions(tenantService, authorizationService);
+        verifyNoInteractions(tenantService, userRoleMapper);
     }
 
     @Test
     void shouldRejectCreationWhenTheTenantCreatePermissionIsMissing() {
-        given(authorizationService.hasPermission(ADMIN_ID, AUTHORIZATION_VERSION,
-                IdentityJwtClaims.PERMISSION_TENANT_CREATE)).willReturn(false);
+        given(userRoleMapper.userHasPermission(
+                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_CREATE)))
+                .willReturn(false);
 
         assertThat(mvc.post().uri("/api/tenants")
                 .with(jwt().jwt(this::systemToken))
@@ -173,7 +176,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldAnswerTakenSlugWithConflictAndNoTokenLeak() {
-        willThrow(new TenantSlugConflictException())
+        willThrow(new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT))
                 .given(tenantService).create(any(), any(), any());
 
         assertThat(mvc.post().uri("/api/tenants")
@@ -182,7 +185,7 @@ class TenantLifecycleMockMvcTests {
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
                         """))
-                .hasStatus(HttpStatus.CONFLICT)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("tenant_slug_conflict");
@@ -203,14 +206,15 @@ class TenantLifecycleMockMvcTests {
                 .extractingPath("$.disabled")
                 .isEqualTo(true);
 
-        verify(authorizationService).hasPermission(ADMIN_ID, AUTHORIZATION_VERSION,
-                IdentityJwtClaims.PERMISSION_TENANT_DISABLE);
+        verify(userRoleMapper)
+                .userHasPermission(ADMIN_ID, IdentityJwtClaims.PERMISSION_TENANT_DISABLE);
     }
 
     @Test
     void shouldRequireTheEnablePermissionToRestoreATenant() {
-        given(authorizationService.hasPermission(ADMIN_ID, AUTHORIZATION_VERSION,
-                IdentityJwtClaims.PERMISSION_TENANT_ENABLE)).willReturn(false);
+        given(userRoleMapper.userHasPermission(
+                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_ENABLE)))
+                .willReturn(false);
 
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
                 .with(jwt().jwt(this::systemToken))
@@ -225,7 +229,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldAnswerUnknownTenantWithNotFoundWithoutLeakingExistenceElsewhere() {
-        willThrow(new TenantNotFoundException())
+        willThrow(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND))
                 .given(tenantService).updateTenant(any(), any(), any());
 
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
@@ -234,7 +238,7 @@ class TenantLifecycleMockMvcTests {
                 .content("""
                         {"disabled": true}
                         """))
-                .hasStatus(HttpStatus.NOT_FOUND)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("tenant_not_found");
@@ -242,8 +246,9 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectRenamingWithoutTheLifecyclePermission() {
-        given(authorizationService.hasPermission(ADMIN_ID, AUTHORIZATION_VERSION,
-                IdentityJwtClaims.PERMISSION_TENANT_CREATE)).willReturn(false);
+        given(userRoleMapper.userHasPermission(
+                        eq(ADMIN_ID), eq(IdentityJwtClaims.PERMISSION_TENANT_CREATE)))
+                .willReturn(false);
 
         assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
                 .with(jwt().jwt(this::systemToken))

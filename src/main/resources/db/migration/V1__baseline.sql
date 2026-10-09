@@ -131,6 +131,8 @@ INSERT INTO role_permission (role_id, permission_id)
 SELECT r.id, p.id
 FROM "role" r
 JOIN permission p ON p.code IN (
+    'user.profile.read',
+    'user.password.write',
     'tenant.user.invite',
     'tenant.user.manage',
     'device.read',
@@ -142,5 +144,10 @@ WHERE r.code = 'TenantAdmin';
 INSERT INTO role_permission (role_id, permission_id)
 SELECT r.id, p.id
 FROM "role" r
-JOIN permission p ON p.code IN ('device.read', 'device.command.issue', 'alarm.ack')
+JOIN permission p ON p.code IN (
+    'user.profile.read',
+    'user.password.write',
+    'device.read',
+    'device.command.issue',
+    'alarm.ack')
 WHERE r.code = 'TenantUser';

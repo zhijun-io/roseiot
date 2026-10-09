@@ -1,19 +1,17 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.UserSessionService;
+import io.roseiot.identity.infra.security.SecurityUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
@@ -38,16 +36,14 @@ public class AuthController {
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void logout(@AuthenticationPrincipal Jwt jwt) {
-        UUID sessionId = UUID.fromString(jwt.getClaimAsString("sid"));
-        sessionService.logoutCurrentSession(sessionId);
+    void logout(@AuthenticationPrincipal SecurityUser user) {
+        sessionService.logoutCurrentSession(user.requireSessionId());
     }
 
     @PostMapping("/logout-all")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void logoutAll(@AuthenticationPrincipal Jwt jwt) {
-        UUID userId = UUID.fromString(jwt.getSubject());
-        sessionService.logoutAllSessions(userId);
+    void logoutAll(@AuthenticationPrincipal SecurityUser user) {
+        sessionService.logoutAllSessions(user.userId());
     }
 
     public record LoginRequest(@NotBlank String email, @NotBlank String password) {}

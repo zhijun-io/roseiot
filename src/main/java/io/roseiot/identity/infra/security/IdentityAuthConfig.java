@@ -34,8 +34,7 @@ public class IdentityAuthConfig {
     @Bean
     @ConditionalOnMissingBean(PasswordResetNotifier.class)
     PasswordResetNotifier passwordResetNotifier(
-            @Value("${roseiot.auth.password-reset.link-base-url:http://localhost:${server.port:8080}}")
-                    String passwordResetLinkBaseUrl) {
+            @Value("${roseiot.auth.password-reset.link-base-url}") String passwordResetLinkBaseUrl) {
         return new LoggingPasswordResetNotifier(passwordResetLinkBaseUrl);
     }
 
