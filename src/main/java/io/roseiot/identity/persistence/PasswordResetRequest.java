@@ -7,8 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import java.util.UUID;
 
-@TableName("user_recovery_request")
-public class UserRecoveryRequest {
+@TableName("password_reset_request")
+public class PasswordResetRequest {
 
     @TableId(type = IdType.INPUT)
     private UUID id;

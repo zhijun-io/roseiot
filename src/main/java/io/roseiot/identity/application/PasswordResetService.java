@@ -1,16 +1,16 @@
 package io.roseiot.identity.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import io.roseiot.identity.domain.PasswordPolicy;
-import io.roseiot.identity.domain.InvalidRecoveryTokenException;
+import io.roseiot.identity.domain.InvalidResetTokenException;
 import io.roseiot.identity.domain.LoginEmails;
+import io.roseiot.identity.domain.PasswordPolicy;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.identity.infra.recovery.UserRecoveryNotifier;
+import io.roseiot.identity.infra.passwordreset.PasswordResetNotifier;
+import io.roseiot.identity.persistence.PasswordResetRequest;
+import io.roseiot.identity.persistence.PasswordResetRequestMapper;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.persistence.UserRecoveryRequest;
-import io.roseiot.identity.persistence.UserRecoveryRequestMapper;
 import io.roseiot.shared.util.UuidV7;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,44 +24,58 @@ import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-public class UserRecoveryService {
-
-    public static final String ACCEPTED_MESSAGE = "If an account exists, recovery instructions were sent";
+public class PasswordResetService {
 
     private final UserMapper userMapper;
-    private final UserRecoveryRequestMapper recoveryRequestMapper;
-    private final UserRecoveryNotifier userRecoveryNotifier;
+    private final PasswordResetRequestMapper passwordResetRequestMapper;
+    private final PasswordResetNotifier passwordResetNotifier;
     private final UserRefreshSessions refreshSessions;
     private final PasswordEncoder passwordEncoder;
 
-    public UserRecoveryService(
+    public PasswordResetService(
             UserMapper userMapper,
-            UserRecoveryRequestMapper recoveryRequestMapper,
-            UserRecoveryNotifier userRecoveryNotifier,
+            PasswordResetRequestMapper passwordResetRequestMapper,
+            PasswordResetNotifier passwordResetNotifier,
             UserRefreshSessions refreshSessions,
             @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
-        this.recoveryRequestMapper = recoveryRequestMapper;
-        this.userRecoveryNotifier = userRecoveryNotifier;
+        this.passwordResetRequestMapper = passwordResetRequestMapper;
+        this.passwordResetNotifier = passwordResetNotifier;
         this.refreshSessions = refreshSessions;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
-    public String requestRecovery(String rawEmail) {
+    public void requestResetByEmail(String rawEmail) {
         String email = LoginEmails.normalize(rawEmail);
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getEmail, email));
         if (user != null) {
-            issueRecoveryToken(user);
+            issueResetToken(user);
         }
-        return ACCEPTED_MESSAGE;
     }
 
-    @Transactional(noRollbackFor = InvalidRecoveryTokenException.class)
-    public void confirmRecovery(String rawToken, String newPassword) {
+    public ResetTokenState checkResetToken(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
-            throw new InvalidRecoveryTokenException();
+            return ResetTokenState.INVALID;
+        }
+        String tokenHash = TokenDigests.sha256Hex(rawToken);
+        PasswordResetRequest row = passwordResetRequestMapper.selectOne(
+                new LambdaQueryWrapper<PasswordResetRequest>()
+                        .eq(PasswordResetRequest::getTokenHash, tokenHash));
+        if (row == null || row.getUsedAt() != null) {
+            return ResetTokenState.INVALID;
+        }
+        if (!row.getExpiresAt().isAfter(Instant.now())) {
+            return ResetTokenState.EXPIRED;
+        }
+        return ResetTokenState.VALID;
+    }
+
+    @Transactional(noRollbackFor = InvalidResetTokenException.class)
+    public void confirmPasswordReset(String rawToken, String newPassword) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new InvalidResetTokenException();
         }
         PasswordPolicy.validationError(newPassword)
                 .ifPresent(message -> {
@@ -71,20 +85,20 @@ public class UserRecoveryService {
         String tokenHash = TokenDigests.sha256Hex(rawToken);
         Instant now = Instant.now();
 
-        UserRecoveryRequest active = recoveryRequestMapper.selectOne(
-                new LambdaQueryWrapper<UserRecoveryRequest>()
-                        .eq(UserRecoveryRequest::getTokenHash, tokenHash)
-                        .isNull(UserRecoveryRequest::getUsedAt)
-                        .gt(UserRecoveryRequest::getExpiresAt, now));
+        PasswordResetRequest active = passwordResetRequestMapper.selectOne(
+                new LambdaQueryWrapper<PasswordResetRequest>()
+                        .eq(PasswordResetRequest::getTokenHash, tokenHash)
+                        .isNull(PasswordResetRequest::getUsedAt)
+                        .gt(PasswordResetRequest::getExpiresAt, now));
 
         if (active == null) {
-            throw new InvalidRecoveryTokenException();
+            throw new InvalidResetTokenException();
         }
 
         UUID userId = active.getUserId();
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new InvalidRecoveryTokenException();
+            throw new InvalidResetTokenException();
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -92,23 +106,29 @@ public class UserRecoveryService {
         userMapper.updateById(user);
 
         active.setUsedAt(now);
-        recoveryRequestMapper.updateById(active);
+        passwordResetRequestMapper.updateById(active);
 
         refreshSessions.revokeAllForUser(userId, now);
     }
 
-    private void issueRecoveryToken(User user) {
+    private void issueResetToken(User user) {
         String plainToken = TokenDigests.generateUrlSafe256Bit();
         Instant now = Instant.now();
 
-        UserRecoveryRequest request = new UserRecoveryRequest();
+        PasswordResetRequest request = new PasswordResetRequest();
         request.setId(UuidV7.generate());
         request.setUserId(user.getId());
         request.setTokenHash(TokenDigests.sha256Hex(plainToken));
         request.setExpiresAt(now.plus(1, ChronoUnit.HOURS));
         request.setCreatedAt(now);
-        recoveryRequestMapper.insert(request);
+        passwordResetRequestMapper.insert(request);
 
-        userRecoveryNotifier.sendRecoveryEmail(user.getEmail(), plainToken);
+        passwordResetNotifier.sendPasswordResetEmail(user.getEmail(), plainToken);
+    }
+
+    public enum ResetTokenState {
+        VALID,
+        EXPIRED,
+        INVALID
     }
 }

@@ -5,7 +5,7 @@
 ## Data Model
 
 - 人类主体统一存于 `users`。`tenant_id IS NULL` 为系统用户，否则为租户用户；邮箱全局唯一。
-- 会话与恢复请求分别存于 `user_refresh_session`、`user_recovery_request`，均以 `user_id` 关联主体。
+- 会话与密码重置请求分别存于 `user_refresh_session`、`password_reset_request`（实体 `PasswordResetRequest`），均以 `user_id` 关联主体。
 - RBAC 表为 `permission`、`role`、`role_permission`、`user_role`。
 - 内置角色为 `SystemAdmin`（`SYSTEM`）、`TenantAdmin`（`TENANT`）和 `TenantUser`（`TENANT`）。
 - `SystemAdmin` 拥有 `user.profile.*` 与 `tenant.*` 系统管理权限，不拥有设备数据或设备凭证读取权限。

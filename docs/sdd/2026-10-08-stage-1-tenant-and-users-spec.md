@@ -10,7 +10,7 @@
 
 - 系统侧：`POST /api/tenants`、`PATCH /api/tenants/{tenantId}`，要求 `ctx=system` 和 `tenant.*` permission。创建 body 为 `{name, slug, initialAdminEmail}`；创建租户与写入目标角色为 `TenantAdmin` 的 pending 邀请在同一事务完成，响应为 `201 {id,name,slug}` 且不含邀请 token。PATCH 仅接受 `name` 与 `disabled`。
 - 租户侧：`GET|PATCH /api/tenants/users/me`；管理员可管理 `/api/tenants/users/**` 与 `/api/tenants/user-invitations/**`。
-- 匿名接受邀请：`POST /api/auth/user-invitation-acceptances`。
+- 匿名接受邀请：`POST /api/noauth/user-invitation-acceptance`。
 - 租户上下文从 JWT 推导；客户端不得传入或覆盖当前租户 ID。
 - `TenantUser` 不具有 `tenant.user.invite` 或 `tenant.user.manage`；不得停用或降级最后一名有效 `TenantAdmin`。
 - `tenant` 与 `tenant_user_invitation` 是本 Spec 的新持久化模型；不创建 `member` 表。

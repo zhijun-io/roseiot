@@ -25,7 +25,7 @@
 - Acceptance: AC-1, AC-2.
 - Depends on: Slice 1.
 - Test or proof: 先写 `TenantInvitationServiceTests` 覆盖邀请状态转换和 token 规则，再以 Testcontainers 覆盖首次接受、用户/角色写入和 JWT claim。
-- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；在 `AuthController` 与 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 recovery token。
+- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；在 `AuthController` 与 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 password reset token。
 - Verification: `./mvnw -q test -Dtest=TenantInvitationMockMvcTests,TenantUserAuthenticationMockMvcTests`.
 - Done: false.
 

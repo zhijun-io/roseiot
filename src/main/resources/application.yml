@@ -41,18 +41,18 @@ roseiot:
     window-minutes: 15
     rules:
       - method: POST
-        path: /api/auth/login
+        path: /api/login
         body-field: email
         key-prefix: "auth:login:"
         max-attempts: 10
       - method: POST
-        path: /api/auth/recovery/request
+        path: /api/noauth/password-reset/email
         body-field: email
-        key-prefix: "auth:recovery:"
+        key-prefix: "noauth:reset-password:"
         max-attempts: 5
   auth:
     jwt:
-      hmac-secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
+      secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
 
 mybatis-plus:
   type-handlers-package: io.roseiot.identity.infra.mybatis

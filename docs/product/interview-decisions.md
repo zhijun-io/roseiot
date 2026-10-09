@@ -3939,16 +3939,28 @@ AND 凭证当前有效
 
 ❓ **Q512 — 系统用户 HTTP 路径**：是否将会话端点定为 **`/api/auth/**`**、系统用户 profile 定为 **`/api/users/me/**`**，并保持业务 API 在 `/api` 下且无 URL 主版本号？
 
-➡️ **用户确认（2026-10-08）。** 以 README、系统用户认证 Spec 与 `SecurityConfig` 为准。
+➡️ **用户确认（2026-10-08）。** 以 README、系统用户认证 Spec 与 `SecurityConfig` 为准。**会话路径**已由 **Q515** supersede（现为 **`/api/login`** 等 + **`/api/noauth/**`**）。
 
 ---
 
 ❓ **Q513 — Spec #3 租户 HTTP 前缀**：系统侧租户生命周期 REST 是否定为 **`/api/tenants/**`**（permission `tenant.*`），租户内业务使用同一前缀且不在 URL 内传入当前租户 ID？
 
-➡️ **用户确认（2026-10-08）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 为准。对外 HTTP 为 **`/api/auth/**`**（会话）、**`/api/users/me/**`**（系统用户 profile）、**`/api/tenants/**`**（租户资源）；租户上下文使用 **`/api/tenants/users/**`** 和 **`/api/tenants/user-invitations/**`**，邀请接受使用 **`POST /api/auth/user-invitation-acceptances`**。租户 API 使用复数资源名与 `PATCH` 更新。
+➡️ **用户确认（2026-10-08）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 为准。对外 HTTP 为 **`/api/users/me/**`**（系统用户 profile）、**`/api/tenants/**`**（租户资源）；租户上下文使用 **`/api/tenants/users/**`** 和 **`/api/tenants/user-invitations/**`**。租户 API 使用复数资源名与 `PATCH` 更新。**会话与匿名前缀**以 **Q515/Q516** 为准（**supersede** 本段中的 **`/api/auth/**`** 与旧邀请接受路径）。
 
 ---
 
 ❓ **Q514 — 系统用户与 JWT ctx 术语**：产品是否将 **平台作用域用户** 改称 **系统用户**、**平台管理员** 改称 **系统管理员**，且 access JWT 的 **`ctx`** 取值由 **`platform`** 改为 **`system`**（与 RBAC 角色作用域 **`SYSTEM`** 对齐）？
 
 ➡️ **用户确认（2026-10-08）。** 以 [`GLOSSARY.md`](../GLOSSARY.md)、[`docs/product/prd.md`](prd.md) 与 [`docs/adr/2026-10-08-identity-user-rbac.md`](../adr/2026-10-08-identity-user-rbac.md) 为准。
+
+---
+
+❓ **Q515 — 会话与匿名 HTTP 路径（修订 Q512）**：会话是否改为 **`POST /api/login`**、**`/api/token`**、**`/api/logout`**、**`/api/logout-all`**；匿名 REST 是否统一前缀 **`/api/noauth/**`**（含密码重置与邀请接受）？
+
+➡️ **用户确认（2026-10-09）。** 以 [`docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md`](../sdd/2026-10-08-stage-1-system-user-auth-spec.md)、[`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 与 `SecurityConfig` 为准。Q512 中 **`/api/auth/**`** 会话约定由本决策 supersede；profile 仍为 **`/api/users/me/**`**。
+
+---
+
+❓ **Q516 — noauth 重置与激活 API**：匿名重置是否采用 **`POST /api/noauth/password-reset/email`** 与 **`/api/noauth/password-reset`（GET+POST）** 与 body 字段 **`resetToken`、`password`**；激活是否为 **`/api/noauth/user-activation`（GET+POST）**？
+
+➡️ **用户确认（2026-10-09）。** 采用上述 **REST 路径与 JSON 字段**；**`/api/noauth/**` 路径段统一 kebab-case**（如 `password-reset`、`user-activation`）。`user-activation` 待激活令牌模型交付前返回 **501**。邀请接受为 **`POST /api/noauth/user-invitation-acceptance`**，与用户激活分离。

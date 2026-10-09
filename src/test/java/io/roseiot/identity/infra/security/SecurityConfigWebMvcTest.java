@@ -2,11 +2,12 @@ package io.roseiot.identity.infra.security;
 
 import io.roseiot.identity.application.AuthorizationService;
 import io.roseiot.identity.application.UserProfileService;
-import io.roseiot.identity.application.UserRecoveryService;
+import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.UserSessionService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.web.AuthController;
-import io.roseiot.identity.web.UserMeController;
+import io.roseiot.identity.web.NoauthController;
+import io.roseiot.identity.web.UserProfileController;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +47,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * {@link IdentityJwtAuthenticationConverter} is not on this path: it is mocked to satisfy the chain
  * and its own rules are proven by {@code IdentityJwtAuthenticationConverterTest}.
  */
-@WebMvcTest(controllers = {AuthController.class, UserMeController.class})
+@WebMvcTest(controllers = {AuthController.class, NoauthController.class, UserProfileController.class})
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
 class SecurityConfigWebMvcTest {
@@ -60,7 +61,7 @@ class SecurityConfigWebMvcTest {
     private UserSessionService sessionService;
 
     @MockitoBean
-    private UserRecoveryService recoveryService;
+    private PasswordResetService passwordResetService;
 
     @MockitoBean
     private UserProfileService accountService;
@@ -80,22 +81,29 @@ class SecurityConfigWebMvcTest {
                 .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
         given(sessionService.refresh(any()))
                 .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
-        given(recoveryService.requestRecovery(any())).willReturn(UserRecoveryService.ACCEPTED_MESSAGE);
+        given(passwordResetService.checkResetToken(any())).willReturn(PasswordResetService.ResetTokenState.VALID);
         given(authorizationService.hasPermission(any(), anyLong(), anyString())).willReturn(true);
         given(accountService.getProfile(any()))
                 .willReturn(new UserProfileService.UserProfile(USER_ID, "ops@roseiot.io"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/auth/login", "/api/auth/token", "/api/auth/recovery/request",
-            "/api/auth/recovery/confirm"})
+    @ValueSource(strings = {"/api/login", "/api/token", "/api/noauth/password-reset/email",
+            "/api/noauth/password-reset"})
     void shouldLetAnonymousCallersUseThePublicAuthEndpoints(String path) {
-        assertThat(mvc.post().uri(path)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"email": "ops@roseiot.io", "password": "correct horse", "refreshToken": "token",
-                         "token": "recovery-token", "newPassword": "Passw0rd!"}
-                        """))
+        String body =
+                switch (path) {
+                    case "/api/login" -> """
+                            {"email": "ops@roseiot.io", "password": "correct horse"}""";
+                    case "/api/token" -> """
+                            {"refreshToken": "token"}""";
+                    case "/api/noauth/password-reset/email" -> """
+                            {"email": "ops@roseiot.io"}""";
+                    case "/api/noauth/password-reset" -> """
+                            {"resetToken": "recovery-token", "password": "Passw0rd!"}""";
+                    default -> throw new IllegalArgumentException(path);
+                };
+        assertThat(mvc.post().uri(path).contentType(MediaType.APPLICATION_JSON).content(body))
                 .hasStatus2xxSuccessful();
     }
 
@@ -123,7 +131,7 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldRequireBearerTokenForLogout() {
-        assertThat(mvc.post().uri("/api/auth/logout").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        assertThat(mvc.post().uri("/api/logout").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
 
         verifyNoInteractions(sessionService);
@@ -131,7 +139,7 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldAcceptBearerTokenForLogout() {
-        assertThat(mvc.post().uri("/api/auth/logout")
+        assertThat(mvc.post().uri("/api/logout")
                 .with(jwt().jwt(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
@@ -162,7 +170,7 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldNotPublishAuthEndpointsBeyondTheirMethod() {
-        assertThat(mvc.get().uri("/api/auth/login").with(jwt().jwt(this::systemToken)))
+        assertThat(mvc.get().uri("/api/login").with(jwt().jwt(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 

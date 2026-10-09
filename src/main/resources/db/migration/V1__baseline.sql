@@ -56,7 +56,7 @@ CREATE TABLE user_refresh_session (
 CREATE UNIQUE INDEX user_refresh_session_token_hash_uq ON user_refresh_session (token_hash);
 CREATE INDEX user_refresh_session_user_id_idx ON user_refresh_session (user_id);
 
-CREATE TABLE user_recovery_request (
+CREATE TABLE password_reset_request (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL,
     token_hash CHAR(64) NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE user_recovery_request (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX user_recovery_request_token_hash_uq ON user_recovery_request (token_hash);
+CREATE UNIQUE INDEX password_reset_request_token_hash_uq ON password_reset_request (token_hash);
 
 CREATE TABLE tenant (
     id UUID PRIMARY KEY,

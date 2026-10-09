@@ -18,7 +18,7 @@ class JsonBodyFieldRateLimitPolicyTest {
     private RateLimitProperties.Rule loginRule() {
         RateLimitProperties.Rule rule = new RateLimitProperties.Rule();
         rule.setMethod("POST");
-        rule.setPath("/api/auth/login");
+        rule.setPath("/api/login");
         rule.setBodyField("email");
         rule.setKeyPrefix("auth:login:");
         rule.setMaxAttempts(5);
@@ -40,28 +40,28 @@ class JsonBodyFieldRateLimitPolicyTest {
     void shouldMatchConfiguredMethodAndPath() {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(loginRule(), jsonMapper);
 
-        assertThat(cut.matches(request("POST", "/api/auth/login"))).isTrue();
+        assertThat(cut.matches(request("POST", "/api/login"))).isTrue();
     }
 
     @Test
     void shouldMatchMethodIgnoringCaseBecauseClientsSendBoth() {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(loginRule(), jsonMapper);
 
-        assertThat(cut.matches(request("post", "/api/auth/login"))).isTrue();
+        assertThat(cut.matches(request("post", "/api/login"))).isTrue();
     }
 
     @Test
     void shouldNotMatchAnotherPath() {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(loginRule(), jsonMapper);
 
-        assertThat(cut.matches(request("POST", "/api/auth/recovery/request"))).isFalse();
+        assertThat(cut.matches(request("POST", "/api/noauth/password-reset/email"))).isFalse();
     }
 
     @Test
     void shouldNotMatchAnotherMethod() {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(loginRule(), jsonMapper);
 
-        assertThat(cut.matches(request("GET", "/api/auth/login"))).isFalse();
+        assertThat(cut.matches(request("GET", "/api/login"))).isFalse();
     }
 
     @Test
@@ -71,7 +71,7 @@ class JsonBodyFieldRateLimitPolicyTest {
                 {"email":"  Ops@RoseIoT.io  "}
                 """);
 
-        Optional<String> key = cut.rateLimitKey(request("POST", "/api/auth/login"), body);
+        Optional<String> key = cut.rateLimitKey(request("POST", "/api/login"), body);
 
         assertThat(key).contains("auth:login:ops@roseiot.io");
     }
@@ -85,7 +85,7 @@ class JsonBodyFieldRateLimitPolicyTest {
                 {"email":"  Ops@RoseIoT.io  "}
                 """);
 
-        assertThat(cut.rateLimitKey(request("POST", "/api/auth/login"), body))
+        assertThat(cut.rateLimitKey(request("POST", "/api/login"), body))
                 .contains("auth:login:  Ops@RoseIoT.io  ");
     }
 
@@ -93,7 +93,7 @@ class JsonBodyFieldRateLimitPolicyTest {
     void shouldProduceNoKeyWhenFieldIsMissing() {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(loginRule(), jsonMapper);
 
-        assertThat(cut.rateLimitKey(request("POST", "/api/auth/login"), body("{}"))).isEmpty();
+        assertThat(cut.rateLimitKey(request("POST", "/api/login"), body("{}"))).isEmpty();
     }
 
     @Test
@@ -103,7 +103,7 @@ class JsonBodyFieldRateLimitPolicyTest {
         JsonBodyFieldRateLimitPolicy cut = new JsonBodyFieldRateLimitPolicy(rule, jsonMapper);
 
         // "  " is filtered by the reader; a value that normalizes to empty must not become "auth:login:".
-        assertThat(cut.rateLimitKey(request("POST", "/api/auth/login"),
+        assertThat(cut.rateLimitKey(request("POST", "/api/login"),
                 body("""
                         {"tenant":"   "}
                         """))).isEmpty();

@@ -92,7 +92,7 @@
     - `infra` — 技术实现：JWT、MQTT 适配、限速等可替换集成；
     - `config` — 该能力（或能力内子域）专属的 `@Configuration` / `@ConfigurationProperties`；
     - `persistence` — 该能力拥有的表与 MyBatis Mapper（能力独占表默认在此；见下条扫描）。
-  - **`identity` 能力**（人类 IAM）：当前实现为 **`identity.application`**（`*Service`）、**`identity.web`**（Controller / `@RestControllerAdvice`）、**`identity.domain`**、**`identity.infra.*`**（如 `security`、`mybatis`、`recovery`）、**`identity.persistence`**；会话、RBAC、`users` 表归属 **identity**。
+  - **`identity` 能力**（人类 IAM）：当前实现为 **`identity.application`**（`*Service`）、**`identity.web`**（Controller / `@RestControllerAdvice`）、**`identity.domain`**、**`identity.infra.*`**（如 `security`、`mybatis`、`passwordreset`）、**`identity.persistence`**；会话、RBAC、`users` 表归属 **identity**。
   - **`shared`**：跨能力、无单一业务所有权 — **`shared.api`**、**`shared.util`**、**`shared.ratelimit`** 等；平台 Security 过滤器链在 **`identity.infra.security`**（`SecurityConfig`、`JsonSecurityHandlers`）。
   - **MyBatis `@MapperScan`**：当前 `io.roseiot.identity.infra.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.identity.persistence`**；UUID 类型处理器在 **`identity.infra.mybatis`**（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
   - **能力间调用**：允许 `device.application` 依赖 `identity.rbac` 等 ** inward API**；禁止循环依赖；跨能力 HTTP 契约以外部/Spec 为准。

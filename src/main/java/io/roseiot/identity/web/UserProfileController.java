@@ -22,12 +22,12 @@ import java.util.UUID;
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/users")
-public class UserMeController {
+public class UserProfileController {
 
     private final UserProfileService accountService;
     private final AuthorizationService authorizationService;
 
-    public UserMeController(UserProfileService accountService, AuthorizationService authorizationService) {
+    public UserProfileController(UserProfileService accountService, AuthorizationService authorizationService) {
         this.accountService = accountService;
         this.authorizationService = authorizationService;
     }

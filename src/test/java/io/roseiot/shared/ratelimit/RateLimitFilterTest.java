@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 class RateLimitFilterTest {
 
-    private static final String LOGIN_PATH = "/api/auth/login";
+    private static final String LOGIN_PATH = "/api/login";
     private static final byte[] LOGIN_BODY = """
             {"email":"ops@roseiot.io","password":"correct horse 42"}
             """.getBytes(StandardCharsets.UTF_8);

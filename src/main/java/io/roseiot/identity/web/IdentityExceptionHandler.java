@@ -1,7 +1,8 @@
 package io.roseiot.identity.web;
 
+import io.roseiot.identity.domain.ActivationNotImplementedException;
 import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.InvalidRecoveryTokenException;
+import io.roseiot.identity.domain.InvalidResetTokenException;
 import io.roseiot.identity.domain.InvalidRefreshTokenException;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
@@ -41,12 +42,20 @@ public class IdentityExceptionHandler {
                 "Invalid refresh token");
     }
 
-    @ExceptionHandler(InvalidRecoveryTokenException.class)
-    ResponseEntity<ApiErrorResponse> handleInvalidRecoveryToken(InvalidRecoveryTokenException exception) {
+    @ExceptionHandler(InvalidResetTokenException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidResetToken(InvalidResetTokenException exception) {
         return apiErrorBodyWriter.responseEntity(
-                HttpStatus.UNAUTHORIZED.value(),
-                "invalid_recovery_token",
-                "Invalid recovery token");
+                HttpStatus.BAD_REQUEST.value(),
+                "invalid_reset_token",
+                "Invalid reset token");
+    }
+
+    @ExceptionHandler(ActivationNotImplementedException.class)
+    ResponseEntity<ApiErrorResponse> handleActivationNotImplemented(ActivationNotImplementedException exception) {
+        return apiErrorBodyWriter.responseEntity(
+                HttpStatus.NOT_IMPLEMENTED.value(),
+                "not_implemented",
+                "User activation is not available yet");
     }
 
     @ExceptionHandler(PasswordValidationException.class)

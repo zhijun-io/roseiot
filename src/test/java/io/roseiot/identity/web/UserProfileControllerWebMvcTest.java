@@ -40,10 +40,10 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * through the shared error body. The filter chain is the production one; only the token converter
  * and the services are replaced, so this slice never touches the database.
  */
-@WebMvcTest(controllers = UserMeController.class)
+@WebMvcTest(controllers = UserProfileController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @Import({SecurityConfig.class, JsonSecurityHandlers.class, ApiErrorBodyWriter.class})
-class UserMeControllerWebMvcTest {
+class UserProfileControllerWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
     private static final long AUTHORIZATION_VERSION = 3L;

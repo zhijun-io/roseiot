@@ -1,6 +1,5 @@
 package io.roseiot.identity.web;
 
-import io.roseiot.identity.application.UserRecoveryService;
 import io.roseiot.identity.application.UserSessionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -18,15 +17,13 @@ import java.util.UUID;
 
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 public class AuthController {
 
     private final UserSessionService sessionService;
-    private final UserRecoveryService recoveryService;
 
-    public AuthController(UserSessionService sessionService, UserRecoveryService recoveryService) {
+    public AuthController(UserSessionService sessionService) {
         this.sessionService = sessionService;
-        this.recoveryService = recoveryService;
     }
 
     @PostMapping("/login")
@@ -53,26 +50,9 @@ public class AuthController {
         sessionService.logoutAllSessions(userId);
     }
 
-    @PostMapping("/recovery/request")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    RecoveryRequestResponse recoveryRequest(@Valid @RequestBody RecoveryRequest request) {
-        String message = recoveryService.requestRecovery(request.email());
-        return new RecoveryRequestResponse(message);
-    }
-
-    @PostMapping("/recovery/confirm")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    void recoveryConfirm(@Valid @RequestBody RecoveryConfirmRequest request) {
-        recoveryService.confirmRecovery(request.token(), request.newPassword());
-    }
-
     public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
 
     public record TokenRefreshRequest(@NotBlank String refreshToken) {}
-
-    public record RecoveryRequest(@NotBlank String email) {}
-
-    public record RecoveryConfirmRequest(@NotBlank String token, @NotBlank String newPassword) {}
 
     public record LoginResponse(String accessToken, String refreshToken) {
 
@@ -80,6 +60,4 @@ public class AuthController {
             return new LoginResponse(tokens.accessToken(), tokens.refreshToken());
         }
     }
-
-    public record RecoveryRequestResponse(String message) {}
 }

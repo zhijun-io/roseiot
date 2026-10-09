@@ -1,7 +1,7 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.InvalidRecoveryTokenException;
+import io.roseiot.identity.domain.InvalidResetTokenException;
 import io.roseiot.identity.domain.InvalidRefreshTokenException;
 import io.roseiot.identity.domain.PasswordValidationException;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
@@ -39,9 +39,9 @@ class IdentityExceptionHandlerTest {
     }
 
     @Test
-    void shouldAnswerRecoveryTokenFailureWithItsOwnCode() {
-        assertBody(cut.handleInvalidRecoveryToken(new InvalidRecoveryTokenException()),
-                401, "invalid_recovery_token", "Invalid recovery token");
+    void shouldAnswerResetTokenFailureWithItsOwnCode() {
+        assertBody(cut.handleInvalidResetToken(new InvalidResetTokenException()),
+                400, "invalid_reset_token", "Invalid reset token");
     }
 
     @Test
