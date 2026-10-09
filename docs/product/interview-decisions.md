@@ -3964,3 +3964,15 @@ AND 凭证当前有效
 ❓ **Q516 — noauth 重置与激活 API**：匿名重置是否采用 **`POST /api/noauth/password-reset/email`** 与 **`/api/noauth/password-reset`（GET+POST）** 与 body 字段 **`resetToken`、`password`**；激活是否为 **`/api/noauth/user-activation`（GET+POST）**？
 
 ➡️ **用户确认（2026-10-09）。** 采用上述 **REST 路径与 JSON 字段**；**`/api/noauth/**` 路径段统一 kebab-case**（如 `password-reset`、`user-activation`）。`user-activation` 待激活令牌模型交付前返回 **501**。邀请接受为 **`POST /api/noauth/user-invitation-acceptance`**，与用户激活分离。
+
+---
+
+❓ **Q517 — 租户用户 self profile 路径**：是否**不**单独提供 **`/api/tenants/users/me`**，租户用户读 profile/改密与系统用户共用 **`/api/users/me/**`**？
+
+➡️ **用户确认（2026-10-09）。** 不新增 `/api/tenants/users/me`。以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 与修订后的 Identity Spec 为准；租户管理员列管 **`/api/tenants/users/**`**；邀请路径见 **Q518**。
+
+---
+
+❓ **Q518 — 租户邀请 REST 路径（修订 Q516 邀请接受段）**：租户 Admin 是否使用 **`/api/tenants/invitations`**（POST 创建、GET 列表/详情、DELETE 撤销）；匿名是否使用 **`GET|POST /api/noauth/tenant-invitations`**（query/body 字段 **`invitationToken`**），**不再**使用 **`user-invitations`** / **`user-invitation-acceptance`**？
+
+➡️ **用户确认（2026-10-09）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) HTTP Contract 为准；与 **`password-reset`** 同构的 noauth GET（303）+ POST（接受并发会话）。Q516 中 **`user-invitation-acceptance`** 路径由本决策 supersede。

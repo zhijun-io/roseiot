@@ -14,11 +14,15 @@
 
 - 当前 Flyway 基线仅支持空数据库；已存在的数据库必须清空重建。
 - 所有公开请求默认拒绝；资源授权在应用边界执行。
-- `ctx=tenant` 令牌不能访问 `/api/users/me/**`。
+- **`/api/users/me/**`**：系统用户（`ctx=system`）已交付；租户用户（`ctx=tenant`）在 Spec #3 会话切片交付后共用同一路径（**不**提供 `/api/tenants/users/me`）。`ctx=system` 不得访问租户管理员 API（如 `/api/tenants/users/**` 列管他人）。
 
 ## Verification
 
 - 空库应用 Flyway 后，当前表和 RBAC seed 均存在。
 - bootstrap 用户拥有 `SystemAdmin` 绑定。
-- 系统用户 JWT 含正确的 `ctx` 与 `azv`，租户上下文访问系统 profile 返回 403。
+- 系统用户 JWT 含正确的 `ctx` 与 `azv`；`ctx=tenant` 且 `tid` 与 `users.tenant_id` 一致时可访问 `/api/users/me/**`（需 `user.profile.*`）。
 - `./mvnw -q verify` 通过。
+
+## Revision log
+
+- 2026-10-09 | 租户 self profile 不再使用 `/api/tenants/users/me`，与 Spec #3 对齐为 `/api/users/me/**` | Verification | yes — Spec #3 Plan Slice 4

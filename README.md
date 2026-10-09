@@ -5,7 +5,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：系统引导、系统用户认证和 Identity/RBAC 基线（Flyway **V1**）。HTTP：会话 **`/api/login`**、**`/api/token`**、**`/api/logout`**、**`/api/logout-all`**；匿名 **`/api/noauth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3** 中系统侧 **`POST/PATCH /api/tenants`** 已交付；租户用户、邀请与 **`ctx=tenant`** 路径 **尚未实现** — 见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：系统引导、系统用户认证和 Identity/RBAC 基线（Flyway **V1**）。HTTP：会话 **`/api/login`**、**`/api/token`**、**`/api/logout`**、**`/api/logout-all`**；匿名 **`/api/noauth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3**（租户生命周期、邀请、租户用户管理、租户 **`ctx=tenant`** 会话与 **`/api/users/me/**`**）已交付 — 见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
 
 ## 建设原则
 
@@ -127,8 +127,6 @@ cp .env.example .env   # 可选：覆盖 POSTGRES_PASSWORD
 
 **不用 Compose**：在 `.env` 中设 `SPRING_DOCKER_COMPOSE_ENABLED=false` 并填写 `SPRING_DATASOURCE_*`，再 `./mvnw spring-boot:run`（仓库根存在 `compose.yaml` 时默认仍会 compose up，须显式关闭）。
 
-可选：`SERVER_PORT` 覆盖默认 8080。
-
 健康检查（未认证，不返回连接串或凭证详情）：
 
 ```bash
@@ -192,7 +190,7 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 | POST | `/api/logout` | Bearer |
 | POST | `/api/logout-all` | Bearer |
 | POST | `/api/noauth/password-reset/email` | 匿名 |
-| GET | `/api/noauth/password-reset` | 匿名（邮件链接校验，**303**） |
+| GET | `/api/noauth/password-reset` | 匿名（校验 token，**200** + `{ "status": "valid"|"expired"|"invalid" }`） |
 | POST | `/api/noauth/password-reset` | 匿名（成功 **204**） |
 | GET/POST | `/api/noauth/user-activation` | 匿名（激活流程 **501** 占位） |
 | GET | `/api/users/me` | Bearer |
@@ -213,7 +211,7 @@ BASE=http://localhost:8080
 
 LOGIN=$(curl -sS -X POST "$BASE/api/login" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"YOUR_BOOTSTRAP_PASSWORD"}')
+  -d '{"email":"admin@example.com","password":"your-password-at-least-12-chars"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
 REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
 
@@ -234,7 +232,7 @@ curl -sS -X POST "$BASE/api/token" \
 
 ### 手动验证（AC-6：密码重置）
 
-默认 Bean 为 `LoggingPasswordResetNotifier`，仅 **WARN 日志**（不含令牌明文）；本地手动验证需自定义 `PasswordResetNotifier` 或后续邮件实现才能拿到令牌。自动化断言见 `PasswordResetServiceTest` 与 `NoauthControllerWebMvcTest`。
+默认 Bean 为 `LoggingPasswordResetNotifier`，在 WARN 日志中打印 **`/api/noauth/password-reset?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见 `PasswordResetServiceTest` 与 `NoauthControllerWebMvcTest`。
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-reset/email" \
@@ -242,25 +240,27 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-res
   -d '{"email":"admin@example.com"}'
 # 期望 200，无 body（与未注册邮箱请求相同）
 
-# 取得 RESET_TOKEN 后（或浏览器打开 GET password-reset?resetToken=… 收 303）：
+# 校验令牌（邮件/日志里的链接应对 API，不是 /auth/…）：
+curl -sS "$BASE/api/noauth/password-reset?resetToken=$RESET_TOKEN"
+# 期望 200，例如 {"status":"valid"}
+
+# 无前端时可直接 POST 改密：
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-reset" \
   -H 'Content-Type: application/json' \
   -d "{\"resetToken\":\"$RESET_TOKEN\",\"password\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用
 ```
 
-## 规划中：租户与用户（Spec #3，部分交付）
-
-以下 **租户内**路径为 Spec 目标契约，当前代码**尚无**对应 Controller。
+## 租户与用户（Spec #3）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/tenants` | 系统：创建租户 |
 | PATCH | `/api/tenants/{tenantId}` | 系统：更新租户（含停用/启用） |
-| GET | `/api/tenants/users/me` | 租户用户：当前 profile |
 | GET | `/api/tenants/users` | 租户 Admin：列用户 |
 | PATCH | `/api/tenants/users/{userId}` | 租户 Admin：角色/停用 |
-| POST | `/api/tenants/user-invitations` | 租户 Admin：邀请用户 |
-| POST | `/api/noauth/user-invitation-acceptance` | 匿名：接受邀请 |
+| GET/POST/DELETE | `/api/tenants/invitations`… | 租户 Admin：邀请 CRUD |
+| GET/POST | `/api/noauth/tenant-invitations` | 匿名：校验/接受邀请 |
+| GET/PATCH | `/api/users/me`… | 租户用户 profile（**`ctx=tenant`**） |
 
-会话 **`/api/login`** 等；匿名 **`/api/noauth/**`**；系统用户 profile **`/api/users/me`**。完整 REST 表见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
+完整契约见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。

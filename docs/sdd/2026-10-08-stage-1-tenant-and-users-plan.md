@@ -25,9 +25,9 @@
 - Acceptance: AC-1, AC-2.
 - Depends on: Slice 1.
 - Test or proof: 先写 `TenantInvitationServiceTests` 覆盖邀请状态转换和 token 规则，再以 Testcontainers 覆盖首次接受、用户/角色写入和 JWT claim。
-- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；在 `AuthController` 与 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 password reset token。
-- Verification: `./mvnw -q test -Dtest=TenantInvitationMockMvcTests,TenantUserAuthenticationMockMvcTests`.
-- Done: false.
+- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；在 `identity.web` 暴露 **`GET|POST /api/noauth/tenant-invitations`**（与 password-reset 同构）；在 `AuthController` 与 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 password reset token。
+- Verification: `./mvnw -q test -Dtest=NoauthControllerWebMvcTest,TenantInvitationPostgresTest`.
+- Done: true（2026-10-09；`GET|POST /api/noauth/tenant-invitations`、`TenantInvitationService.acceptInvitation`、Postgres 接受闭环）。
 
 ## Slice 3: 租户管理员邀请和用户管理
 
@@ -35,16 +35,16 @@
 - Acceptance: AC-1, AC-2.
 - Depends on: Slice 2.
 - Test or proof: 先写 `TenantUserManagementServiceTests` 覆盖最后管理员与归属规则，再用 `@WebMvcTest` 和必要的 Testcontainers 测试覆盖 HTTP 与跨租户拒绝。
-- Implementation outline: 在 `tenant.web` 暴露 `/api/tenants/users/**` 与 `/api/tenants/user-invitations/**`；在 `tenant.application` 集中实施租户归属、`tenant.user.invite`、`tenant.user.manage` 与最后管理员规则；错误响应复用现有能力内处理机制。
-- Verification: `./mvnw -q test -Dtest=TenantUserManagementMockMvcTests,TenantIsolationMockMvcTests`.
-- Done: false.
+- Implementation outline: 在 `tenant.web` 暴露 **`/api/tenants/users/**`** 与 **`/api/tenants/invitations/**`**（REST：POST 创建、GET 列表/详情、DELETE 撤销）；在 `tenant.application` 集中实施租户归属、`tenant.user.invite`、`tenant.user.manage` 与最后管理员规则；错误响应复用现有能力内处理机制。
+- Verification: `./mvnw -q test -Dtest=TenantInvitationsMockMvcTests`.
+- Done: true（2026-10-09；`TenantInvitationController`、`TenantUserController`、`TenantUsersMockMvcTests`、`TenantUserManagementPostgresTest`）。
 
-## Slice 4: 租户 self profile、会话资格与交付证据
+## Slice 4: 租户用户 `/api/users/me/**`、会话资格与交付证据
 
-- Goal: TenantAdmin 和 TenantUser 可访问自身租户 profile/改密；停用租户后登录和 refresh 均失效，系统与租户 profile 路径互相拒绝。
+- Goal: 租户 JWT（`ctx=tenant`）可访问 **`/api/users/me/**`**（不新增 `/api/tenants/users/me`）；停用租户后 login/refresh 均失效；`ctx=system` 不得调用租户管理员路径（如 `/api/tenants/users`）。
 - Acceptance: AC-1, AC-2, AC-3.
 - Depends on: Slice 3.
-- Test or proof: 扩展 JWT MockMvc 测试断言 `/api/users/me/**` 拒绝 tenant JWT、`/api/tenants/users/me` 拒绝 system JWT，以及租户停用后 login/refresh 的统一失败语义。
-- Implementation outline: 添加租户 self Controller 和服务入口；复用 `UserProfileService` 的改密与会话撤销语义；在会话签发与 refresh 时检查租户状态；同步 README、PRD 与 GLOSSARY 的已交付说明，不扩展到产品、设备或自定义角色。
+- Test or proof: MockMvc 断言 tenant JWT 可读/改自身 profile；system JWT 访问 `/api/tenants/users/**` 拒绝；租户停用后 login/refresh 失败。
+- Implementation outline: 扩展 `UserProfileController`（或等价入口）接受 `ctx=tenant` 并校验 JWT `tid` 与 `users.tenant_id`；复用 `UserProfileService` 改密与会话撤销；会话签发与 refresh 检查租户状态；同步 README、PRD 与 GLOSSARY。
 - Verification: `./mvnw -q verify`.
-- Done: false.
+- Done: true（2026-10-09；`UserProfileController` 租户 ctx、`UserSessionService` 租户停用拒绝 login/refresh、V1 RBAC 为 TenantAdmin/TenantUser 增加 profile permission）。
