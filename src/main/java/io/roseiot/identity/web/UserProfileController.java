@@ -1,7 +1,7 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.UserProfileService;
-import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.identity.infra.security.SecurityUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -30,14 +30,14 @@ public class UserProfileController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("@authz.hasPermission(authentication, '" + IdentityJwtClaims.PERMISSION_PROFILE_READ + "')")
+    @PreAuthorize(MethodSecuritySpel.PROFILE_READ)
     IdentityMeResponse me(@AuthenticationPrincipal SecurityUser user) {
         return IdentityMeResponse.from(accountService.getProfile(user.userId()));
     }
 
     @PatchMapping("/me/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("@authz.hasPermission(authentication, '" + IdentityJwtClaims.PERMISSION_PROFILE_PASSWORD_WRITE + "')")
+    @PreAuthorize(MethodSecuritySpel.PROFILE_PASSWORD_WRITE)
     void changePassword(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody ChangePasswordRequest request) {
         accountService.changePassword(user.userId(), request.currentPassword(), request.newPassword());
     }

@@ -104,20 +104,13 @@ public class UserRefreshSessions {
         if (user == null) {
             throw new IllegalStateException("Cannot issue access token for missing user");
         }
-        String context =
-                user.getTenantId() == null ? IdentityJwtClaims.CONTEXT_SYSTEM : IdentityJwtClaims.CONTEXT_TENANT;
-
         Instant now = Instant.now();
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .subject(userId.toString())
                 .claim("sid", sessionId.toString())
-                .claim(IdentityJwtClaims.CONTEXT, context)
                 .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, user.getAuthorizationVersion())
                 .issuedAt(now)
                 .expiresAt(now.plus(15, ChronoUnit.MINUTES));
-        if (user.getTenantId() != null) {
-            claims.claim(IdentityJwtClaims.TENANT_ID, user.getTenantId().toString());
-        }
         JwtClaimsSet builtClaims = claims.build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, builtClaims)).getTokenValue();

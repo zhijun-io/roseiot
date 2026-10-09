@@ -3,32 +3,60 @@ package io.roseiot.identity.infra.security;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.persistence.User;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.Collection;
 import java.util.UUID;
 
-/** Authenticated human principal; built once in {@link IdentityJwtAuthenticationConverter}. */
-public record SecurityUser(
-        UUID userId,
-        long authorizationVersion,
-        String context,
-        UUID tenantId,
-        UUID sessionId) {
+/** Loaded by {@link SecurityUserDetailsService}; access JWT adds {@code sid} only. */
+public final class SecurityUser implements UserDetails {
 
-    public boolean isSystemContext() {
-        return IdentityJwtClaims.CONTEXT_SYSTEM.equals(context);
+    private final User user;
+    private final Collection<? extends GrantedAuthority> authorities;
+    private final UUID sessionId;
+
+    public SecurityUser(User user, Collection<? extends GrantedAuthority> authorities) {
+        this(user, authorities, null);
     }
 
-    public boolean isTenantContext() {
-        return IdentityJwtClaims.CONTEXT_TENANT.equals(context);
+    private SecurityUser(User user, Collection<? extends GrantedAuthority> authorities, UUID sessionId) {
+        this.user = user;
+        this.authorities = authorities;
+        this.sessionId = sessionId;
+    }
+
+    SecurityUser withSessionId(Jwt jwt) {
+        return new SecurityUser(user, authorities, readOptionalUuid(jwt, "sid"));
+    }
+
+    public UUID userId() {
+        return user.getId();
+    }
+
+    public long authorizationVersion() {
+        return user.getAuthorizationVersion();
+    }
+
+    public UUID tenantId() {
+        return user.getTenantId();
+    }
+
+    /** {@code users.tenant_id IS NULL} — 系统用户，否则为租户用户。 */
+    public boolean isSystemUser() {
+        return tenantId() == null;
+    }
+
+    public boolean isTenantUser() {
+        return tenantId() != null;
     }
 
     public UUID requireTenantId() {
-        if (!isTenantContext() || tenantId == null) {
+        if (tenantId() == null) {
             throw new AccessDeniedException("Forbidden");
         }
-        return tenantId;
+        return tenantId();
     }
 
     public UUID requireSessionId() {
@@ -38,49 +66,24 @@ public record SecurityUser(
         return sessionId;
     }
 
-    @Override
-    public String toString() {
-        return userId.toString();
-    }
-
-    static SecurityUser from(Authentication authentication) {
-        if (authentication == null) {
-            throw new AccessDeniedException("Forbidden");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof SecurityUser user) {
-            return user;
-        }
-        if (principal instanceof Jwt jwt) {
-            return fromJwt(jwt);
-        }
-        throw new AccessDeniedException("Forbidden");
-    }
-
-    static SecurityUser fromJwt(Jwt jwt, User validatedUser) {
-        return build(jwt, validatedUser.getId(), validatedUser.getAuthorizationVersion());
-    }
-
     static Long authorizationVersion(Jwt jwt) {
         Object claim = jwt.getClaim(IdentityJwtClaims.AUTHORIZATION_VERSION);
         return claim instanceof Number number ? number.longValue() : null;
     }
 
-    private static SecurityUser fromJwt(Jwt jwt) {
+    static SecurityUser fromJwtClaimsOnly(Jwt jwt) {
         Long azv = authorizationVersion(jwt);
         if (azv == null) {
             throw new AccessDeniedException("Forbidden");
         }
-        return build(jwt, UUID.fromString(jwt.getSubject()), azv);
-    }
-
-    private static SecurityUser build(Jwt jwt, UUID userId, long authorizationVersion) {
-        return new SecurityUser(
-                userId,
-                authorizationVersion,
-                jwt.getClaimAsString(IdentityJwtClaims.CONTEXT),
-                readOptionalUuid(jwt, IdentityJwtClaims.TENANT_ID),
-                readOptionalUuid(jwt, "sid"));
+        User stub = new User();
+        stub.setId(UUID.fromString(jwt.getSubject()));
+        stub.setAuthorizationVersion(Math.toIntExact(azv));
+        String tid = jwt.getClaimAsString("tid");
+        if (tid != null && !tid.isBlank()) {
+            stub.setTenantId(UUID.fromString(tid));
+        }
+        return new SecurityUser(stub, java.util.List.of(), readOptionalUuid(jwt, "sid"));
     }
 
     private static UUID readOptionalUuid(Jwt jwt, String claimName) {
@@ -89,5 +92,45 @@ public record SecurityUser(
             return null;
         }
         return UUID.fromString(value);
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return authorities;
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPasswordHash();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getEmail();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return user.getDisabledAt() == null;
+    }
+
+    @Override
+    public String toString() {
+        return userId().toString();
     }
 }

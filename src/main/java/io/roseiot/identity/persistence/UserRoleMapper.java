@@ -25,6 +25,23 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     }
 
     @Select("""
+            SELECT DISTINCT p.code
+            FROM user_role ur
+            JOIN role_permission rp ON rp.role_id = ur.role_id
+            JOIN permission p ON p.id = rp.permission_id
+            WHERE ur.user_id = #{userId}
+            """)
+    List<String> listPermissionCodesForUser(@Param("userId") UUID userId);
+
+    @Select("""
+            SELECT DISTINCT r.code
+            FROM user_role ur
+            JOIN "role" r ON r.id = ur.role_id
+            WHERE ur.user_id = #{userId}
+            """)
+    List<String> listRoleCodesForUser(@Param("userId") UUID userId);
+
+    @Select("""
             SELECT COUNT(*)
             FROM users u
             JOIN user_role ur ON ur.user_id = u.id AND ur.scope_tenant_id = u.tenant_id

@@ -53,7 +53,7 @@ public class NoauthController {
     }
 
     @PostMapping("/user-activation")
-    AuthController.LoginResponse activateUser(@Valid @RequestBody ActivateUserRequest request) {
+    SessionTokenResponse activateUser(@Valid @RequestBody ActivateUserRequest request) {
         throw new BusinessException(ApiErrorCode.NOT_IMPLEMENTED);
     }
 
@@ -64,9 +64,9 @@ public class NoauthController {
 
     @PostMapping("/tenant-invitations")
     @ResponseStatus(HttpStatus.CREATED)
-    AuthController.LoginResponse acceptTenantInvitation(
+    SessionTokenResponse acceptTenantInvitation(
             @Valid @RequestBody AcceptTenantInvitationRequest request) {
-        return AuthController.LoginResponse.from(tenantInvitationService.acceptInvitation(
+        return SessionTokenResponse.from(tenantInvitationService.acceptInvitation(
                 request.invitationToken(), request.password()));
     }
 

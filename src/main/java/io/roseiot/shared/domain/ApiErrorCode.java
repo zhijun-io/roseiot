@@ -1,8 +1,10 @@
 package io.roseiot.shared.domain;
 
+import io.roseiot.identity.infra.security.SecurityExceptionHandler;
+
 /**
  * Stable error identifiers ({@link #code()}) for JSON and i18n keys. HTTP status is chosen only in adapters
- * ({@link io.roseiot.shared.api.ApiExceptionHandler}, {@link io.roseiot.identity.infra.security.JsonSecurityHandlers}, etc.).
+ * ({@link io.roseiot.shared.api.ApiExceptionHandler}, {@link SecurityExceptionHandler}, etc.).
  */
 public enum ApiErrorCode {
     /** Spring Security {@link org.springframework.security.authentication.BadCredentialsException}. */

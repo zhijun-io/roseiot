@@ -22,6 +22,6 @@ final class SecurityUserArgumentResolver implements HandlerMethodArgumentResolve
             ModelAndViewContainer mavContainer,
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory) {
-        return SecurityUser.from(SecurityContextHolder.getContext().getAuthentication());
+        return SecurityUserUtils.from(SecurityContextHolder.getContext().getAuthentication());
     }
 }
