@@ -16,13 +16,13 @@ import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-public class UserAccountService {
+public class UserProfileService {
 
     private final UserMapper userMapper;
     private final UserRefreshSessions refreshSessions;
     private final PasswordEncoder passwordEncoder;
 
-    public UserAccountService(
+    public UserProfileService(
             UserMapper userMapper,
             UserRefreshSessions refreshSessions,
             @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder) {

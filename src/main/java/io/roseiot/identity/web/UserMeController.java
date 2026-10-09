@@ -1,7 +1,7 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.AuthorizationService;
-import io.roseiot.identity.application.UserAccountService;
+import io.roseiot.identity.application.UserProfileService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -24,10 +24,10 @@ import java.util.UUID;
 @RequestMapping("/api/users")
 public class UserMeController {
 
-    private final UserAccountService accountService;
+    private final UserProfileService accountService;
     private final AuthorizationService authorizationService;
 
-    public UserMeController(UserAccountService accountService, AuthorizationService authorizationService) {
+    public UserMeController(UserProfileService accountService, AuthorizationService authorizationService) {
         this.accountService = accountService;
         this.authorizationService = authorizationService;
     }
@@ -36,7 +36,7 @@ public class UserMeController {
     IdentityMeResponse me(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         requirePermission(jwt, userId, IdentityJwtClaims.PERMISSION_PROFILE_READ);
-        UserAccountService.UserProfile profile = accountService.getProfile(userId);
+        UserProfileService.UserProfile profile = accountService.getProfile(userId);
         return new IdentityMeResponse(profile.id(), profile.email());
     }
 
