@@ -1,15 +1,16 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.AlreadyBootstrappedException;
-import io.roseiot.identity.domain.BootstrapValidationException;
+import io.roseiot.identity.persistence.RoleMapper;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
+import io.roseiot.identity.persistence.UserRoleMapper;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
@@ -29,23 +30,24 @@ class BootstrapUserServiceTest {
     private static final UUID SYSTEM_ADMIN_ROLE_ID = UUID.fromString("019a0000-0000-7000-8000-0000000000a1");
 
     private UserMapper userMapper;
-    private JdbcTemplate jdbcTemplate;
+    private RoleMapper roleMapper;
+    private UserRoleMapper userRoleMapper;
     private PasswordEncoder passwordEncoder;
     private BootstrapUserService cut;
 
     @BeforeEach
     void setUp() {
         userMapper = mock(UserMapper.class);
-        jdbcTemplate = mock(JdbcTemplate.class);
+        roleMapper = mock(RoleMapper.class);
+        userRoleMapper = mock(UserRoleMapper.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        cut = new BootstrapUserService(userMapper, jdbcTemplate, passwordEncoder);
-        when(userMapper.selectCount(any())).thenReturn(0L);
+        cut = new BootstrapUserService(userMapper, roleMapper, userRoleMapper, passwordEncoder);
+        when(userMapper.countUnscopedUsers()).thenReturn(0L);
     }
 
     private void stubEmptyRoleTable() {
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-hash");
-        when(jdbcTemplate.queryForObject(anyString(), eq(UUID.class), eq("SystemAdmin")))
-                .thenReturn(SYSTEM_ADMIN_ROLE_ID);
+        when(roleMapper.requireIdByCode("SystemAdmin")).thenReturn(SYSTEM_ADMIN_ROLE_ID);
     }
 
     @Test
@@ -73,23 +75,19 @@ class BootstrapUserServiceTest {
 
         cut.bootstrap("ops@roseiot.io", "correct horse 42");
 
-        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Object> values = ArgumentCaptor.forClass(Object.class);
-        verify(jdbcTemplate).update(sql.capture(), values.capture(), values.capture(), values.capture());
         User created = insertedUser();
-        assertThat(sql.getValue())
-                .contains("INSERT INTO user_role")
-                .contains("scope_tenant_id");
-        assertThat(values.getAllValues()).hasSize(3);
-        assertThat(values.getAllValues()).containsSequence(created.getId(), SYSTEM_ADMIN_ROLE_ID);
+        verify(userRoleMapper)
+                .insertAssignment(any(), eq(created.getId()), eq(SYSTEM_ADMIN_ROLE_ID), eq(null));
     }
 
     @Test
     void shouldRefuseSecondBootstrapWithoutWritingAnything() {
-        when(userMapper.selectCount(any())).thenReturn(1L);
+        when(userMapper.countUnscopedUsers()).thenReturn(1L);
 
         assertThatThrownBy(() -> cut.bootstrap("ops@roseiot.io", "correct horse 42"))
-                .isInstanceOf(AlreadyBootstrappedException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.ALREADY_BOOTSTRAPPED));
         verify(userMapper, never()).insert(any(User.class));
         verifyNoRoleWrite();
     }
@@ -98,7 +96,9 @@ class BootstrapUserServiceTest {
     @ValueSource(strings = {"ops", "ops@", "@roseiot.io", "ops @roseiot.io", "ops@roseiot", "ops@roseiot."})
     void shouldRejectMalformedEmailBeforeWritingAnything(String email) {
         assertThatThrownBy(() -> cut.bootstrap(email, "correct horse 42"))
-                .isInstanceOf(BootstrapValidationException.class)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.BOOTSTRAP_VALIDATION))
                 .hasMessage("Invalid email");
         verify(userMapper, never()).insert(any(User.class));
         verifyNoRoleWrite();
@@ -107,7 +107,9 @@ class BootstrapUserServiceTest {
     @Test
     void shouldRejectMissingEmailWithItsOwnMessage() {
         assertThatThrownBy(() -> cut.bootstrap(null, "correct horse 42"))
-                .isInstanceOf(BootstrapValidationException.class)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.BOOTSTRAP_VALIDATION))
                 .hasMessage("Email is required");
         verify(userMapper, never()).insert(any(User.class));
     }
@@ -117,7 +119,9 @@ class BootstrapUserServiceTest {
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-hash");
 
         assertThatThrownBy(() -> cut.bootstrap("ops@roseiot.io", "short1"))
-                .isInstanceOf(BootstrapValidationException.class)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.BOOTSTRAP_VALIDATION))
                 .hasMessage("Password must be at least 12 characters");
         verify(userMapper, never()).insert(any(User.class));
         verifyNoRoleWrite();
@@ -125,11 +129,12 @@ class BootstrapUserServiceTest {
 
     @Test
     void shouldCheckBootstrapStateBeforeValidatingInput() {
-        when(userMapper.selectCount(any())).thenReturn(1L);
+        when(userMapper.countUnscopedUsers()).thenReturn(1L);
 
-        // A bootstrapped system must not leak which field of the request was invalid.
         assertThatThrownBy(() -> cut.bootstrap("not-an-email", "short1"))
-                .isInstanceOf(AlreadyBootstrappedException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.ALREADY_BOOTSTRAPPED));
     }
 
     @Test
@@ -144,6 +149,6 @@ class BootstrapUserServiceTest {
     }
 
     private void verifyNoRoleWrite() {
-        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+        verify(userRoleMapper, never()).insertAssignment(any(), any(), any(), any());
     }
 }

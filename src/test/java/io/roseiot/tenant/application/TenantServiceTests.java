@@ -3,8 +3,7 @@ package io.roseiot.tenant.application;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.tenant.domain.TenantNotFoundException;
-import io.roseiot.tenant.domain.TenantSlugConflictException;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
@@ -118,7 +117,7 @@ class TenantServiceTests {
         when(tenantMapper.selectCount(any())).thenReturn(1L);
 
         assertThatThrownBy(() -> cut.create("Acme HVAC", "acme-hvac", "ops@roseiot.io"))
-                .isInstanceOf(TenantSlugConflictException.class);
+                .isInstanceOf(BusinessException.class);
 
         verify(tenantMapper, never()).insert(any(Tenant.class));
         verifyNoInteractions(invitationMapper, invitationNotifier);
@@ -131,7 +130,7 @@ class TenantServiceTests {
                 .thenThrow(new DuplicateKeyException("tenant_slug_uq"));
 
         assertThatThrownBy(() -> cut.create("Acme HVAC", "acme-hvac", "ops@roseiot.io"))
-                .isInstanceOf(TenantSlugConflictException.class);
+                .isInstanceOf(BusinessException.class);
 
         verifyNoInteractions(invitationNotifier);
         verify(invitationMapper, never()).insert(any(TenantUserInvitation.class));
@@ -142,7 +141,7 @@ class TenantServiceTests {
         when(tenantMapper.selectById(UUID.randomUUID())).thenReturn(null);
 
         assertThatThrownBy(() -> cut.updateTenant(UUID.randomUUID(), "New name", null))
-                .isInstanceOf(TenantNotFoundException.class);
+                .isInstanceOf(BusinessException.class);
 
         verify(tenantMapper, never()).update(isNull(), any());
     }

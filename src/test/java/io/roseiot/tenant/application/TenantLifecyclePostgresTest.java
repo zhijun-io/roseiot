@@ -2,7 +2,7 @@ package io.roseiot.tenant.application;
 
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.tenant.domain.TenantSlugConflictException;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.Test;
@@ -78,7 +78,7 @@ class TenantLifecyclePostgresTest {
         tenantService.create("Acme HVAC", "acme-dup", "ops-a@roseiot.io");
 
         assertThatThrownBy(() -> tenantService.create("Acme Second", "acme-dup", "ops-b@roseiot.io"))
-                .isInstanceOf(TenantSlugConflictException.class);
+                .isInstanceOf(BusinessException.class);
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM tenant WHERE slug = ?", Integer.class, "acme-dup")).isEqualTo(1);

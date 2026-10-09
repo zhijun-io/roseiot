@@ -1,13 +1,13 @@
 package io.roseiot.identity.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import io.roseiot.identity.domain.AlreadyBootstrappedException;
-import io.roseiot.identity.domain.BootstrapValidationException;
+import io.roseiot.identity.domain.PasswordPolicy;
+import io.roseiot.identity.persistence.RoleMapper;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
-import io.roseiot.identity.domain.PasswordPolicy;
+import io.roseiot.identity.persistence.UserRoleMapper;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.shared.util.UuidV7;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,28 +22,31 @@ public class BootstrapUserService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private final UserMapper userMapper;
-    private final JdbcTemplate jdbcTemplate;
+    private final RoleMapper roleMapper;
+    private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
 
     public BootstrapUserService(
-            UserMapper userMapper, JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
+            UserMapper userMapper,
+            RoleMapper roleMapper,
+            UserRoleMapper userRoleMapper,
+            PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
-        this.jdbcTemplate = jdbcTemplate;
+        this.roleMapper = roleMapper;
+        this.userRoleMapper = userRoleMapper;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
     public void bootstrap(String rawEmail, String rawPassword) {
-        if (userMapper.selectCount(new LambdaQueryWrapper<User>().isNull(User::getTenantId)) > 0) {
-            throw new AlreadyBootstrappedException();
+        if (userMapper.countUnscopedUsers() > 0) {
+            throw new BusinessException(
+                    ApiErrorCode.ALREADY_BOOTSTRAPPED, "System is already bootstrapped");
         }
 
         String email = normalizeEmail(rawEmail);
         validateEmail(email);
-        PasswordPolicy.validationError(rawPassword)
-                .ifPresent(message -> {
-                    throw new BootstrapValidationException(message);
-                });
+        PasswordPolicy.ensureValid(rawPassword, ApiErrorCode.BOOTSTRAP_VALIDATION);
 
         UUID userId = UuidV7.generate();
         User user = new User();
@@ -55,33 +58,20 @@ public class BootstrapUserService {
         user.setCreatedAt(Instant.now());
         userMapper.insert(user);
 
-        UUID systemAdminRoleId = jdbcTemplate.queryForObject(
-                """
-                SELECT id FROM "role" WHERE code = ?
-                """,
-                UUID.class,
-                "SystemAdmin");
-
-        jdbcTemplate.update(
-                """
-                INSERT INTO user_role (id, user_id, role_id, scope_tenant_id)
-                VALUES (?, ?, ?, NULL)
-                """,
-                UuidV7.generate(),
-                userId,
-                systemAdminRoleId);
+        userRoleMapper.insertAssignment(
+                UuidV7.generate(), userId, roleMapper.requireIdByCode("SystemAdmin"), null);
     }
 
     static String normalizeEmail(String rawEmail) {
         if (rawEmail == null) {
-            throw new BootstrapValidationException("Email is required");
+            throw new BusinessException(ApiErrorCode.BOOTSTRAP_VALIDATION, "Email is required");
         }
         return rawEmail.trim().toLowerCase(Locale.ROOT);
     }
 
     private static void validateEmail(String email) {
         if (email.isEmpty() || !EMAIL_PATTERN.matcher(email).matches()) {
-            throw new BootstrapValidationException("Invalid email");
+            throw new BusinessException(ApiErrorCode.BOOTSTRAP_VALIDATION, "Invalid email");
         }
     }
 }

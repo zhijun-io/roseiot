@@ -1,8 +1,9 @@
 package io.roseiot.identity.application;
 
 import io.roseiot.identity.domain.PasswordPolicy;
-import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.PasswordValidationException;
+import io.roseiot.identity.infra.security.AuthenticationExceptionMapping;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,7 +35,7 @@ public class UserProfileService {
     public UserProfile getProfile(UUID userId) {
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new InvalidCredentialsException();
+            throw AuthenticationExceptionMapping.invalidCredentials();
         }
         return new UserProfile(user.getId(), user.getEmail());
     }
@@ -45,13 +46,10 @@ public class UserProfileService {
         if (user == null
                 || currentPassword == null
                 || !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-            throw new InvalidCredentialsException();
+            throw AuthenticationExceptionMapping.invalidCredentials();
         }
 
-        PasswordPolicy.validationError(newPassword)
-                .ifPresent(message -> {
-                    throw new PasswordValidationException(message);
-                });
+        PasswordPolicy.ensureValid(newPassword, ApiErrorCode.VALIDATION_ERROR);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);

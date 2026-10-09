@@ -1,7 +1,8 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.InvalidCredentialsException;
-import io.roseiot.identity.domain.PasswordValidationException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
+import org.springframework.security.authentication.BadCredentialsException;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +63,7 @@ class UserProfileServiceTest {
     void shouldHideAccountExistenceFromProfileLookup() {
         when(userMapper.selectById(USER_ID)).thenReturn(null);
 
-        assertThatThrownBy(() -> cut.getProfile(USER_ID)).isInstanceOf(InvalidCredentialsException.class);
+        assertThatThrownBy(() -> cut.getProfile(USER_ID)).isInstanceOf(BadCredentialsException.class);
     }
 
     @Test
@@ -89,7 +90,7 @@ class UserProfileServiceTest {
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
 
         assertThatThrownBy(() -> cut.changePassword(USER_ID, "wrong password 1", "new passphrase 77"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verify(userMapper, never()).updateById(any(User.class));
         verifyNoInteractions(refreshSessions);
     }
@@ -99,7 +100,7 @@ class UserProfileServiceTest {
         when(userMapper.selectById(USER_ID)).thenReturn(storedUser(3));
 
         assertThatThrownBy(() -> cut.changePassword(USER_ID, null, "new passphrase 77"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verify(passwordEncoder, never()).matches(any(), any());
         verify(userMapper, never()).updateById(any(User.class));
     }
@@ -109,7 +110,7 @@ class UserProfileServiceTest {
         when(userMapper.selectById(USER_ID)).thenReturn(null);
 
         assertThatThrownBy(() -> cut.changePassword(USER_ID, "correct horse 42", "new passphrase 77"))
-                .isInstanceOf(InvalidCredentialsException.class);
+                .isInstanceOf(BadCredentialsException.class);
         verifyNoInteractions(passwordEncoder);
     }
 
@@ -120,7 +121,7 @@ class UserProfileServiceTest {
         when(passwordEncoder.matches("correct horse 42", "stored-hash")).thenReturn(true);
 
         assertThatThrownBy(() -> cut.changePassword(USER_ID, "correct horse 42", "short1"))
-                .isInstanceOf(PasswordValidationException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessage("Password must be at least 12 characters");
         assertThat(user.getPasswordHash()).isEqualTo("stored-hash");
         assertThat(user.getAuthorizationVersion()).isEqualTo(3);

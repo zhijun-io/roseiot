@@ -1,5 +1,8 @@
 package io.roseiot.shared.api;
 
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
+import io.roseiot.shared.ratelimit.RateLimitExceededException;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpInputMessage;
@@ -8,7 +11,6 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import io.roseiot.shared.ratelimit.RateLimitExceededException;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,8 +30,23 @@ class ApiExceptionHandlerTest {
 
     @Test
     void shouldAnswerRateLimitWithTooManyRequestsAndStableCode() {
-        assertBody(cut.handleRateLimit(new RateLimitExceededException()),
-                429, "rate_limited", "Too many requests");
+        assertBody(cut.handleRateLimit(new RateLimitExceededException()), 429, "rate_limited", "rate_limited");
+    }
+
+    @Test
+    void shouldAnswerBusinessErrorsWithInternalServerErrorAndStableCode() {
+        assertBody(cut.handleBusiness(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND)),
+                500, "tenant_not_found", "tenant_not_found");
+    }
+
+    @Test
+    void shouldEchoValidationDetailWhenPresent() {
+        assertBody(
+                cut.handleBusiness(new BusinessException(
+                        ApiErrorCode.VALIDATION_ERROR, "Password must contain letters and digits")),
+                500,
+                "validation_error",
+                "Password must contain letters and digits");
     }
 
     @Test

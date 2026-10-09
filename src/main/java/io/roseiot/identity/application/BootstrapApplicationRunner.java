@@ -1,6 +1,7 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.BootstrapValidationException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,7 +26,9 @@ public class BootstrapApplicationRunner implements ApplicationRunner {
         String email = environment.getProperty("BOOTSTRAP_USER_EMAIL");
         String password = environment.getProperty("BOOTSTRAP_USER_PASSWORD");
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
-            throw new BootstrapValidationException("BOOTSTRAP_USER_EMAIL and BOOTSTRAP_USER_PASSWORD are required");
+            throw new BusinessException(
+                    ApiErrorCode.BOOTSTRAP_VALIDATION,
+                    "BOOTSTRAP_USER_EMAIL and BOOTSTRAP_USER_PASSWORD are required");
         }
         bootstrapUserService.bootstrap(email, password);
     }

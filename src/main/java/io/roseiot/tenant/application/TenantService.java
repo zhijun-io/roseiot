@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.roseiot.identity.domain.LoginEmails;
 import io.roseiot.identity.domain.TokenDigests;
-import io.roseiot.tenant.domain.TenantNotFoundException;
-import io.roseiot.tenant.domain.TenantSlugConflictException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
@@ -47,7 +47,7 @@ public class TenantService {
         String email = LoginEmails.normalize(rawInitialAdminEmail);
         if (tenantMapper.selectCount(
                 new LambdaQueryWrapper<Tenant>().eq(Tenant::getSlug, slug)) > 0) {
-            throw new TenantSlugConflictException();
+            throw new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT);
         }
 
         Instant now = Instant.now();
@@ -71,7 +71,7 @@ public class TenantService {
             tenantMapper.insert(tenant);
             invitationMapper.insert(invitation);
         } catch (DuplicateKeyException exception) {
-            throw new TenantSlugConflictException();
+            throw new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT);
         }
         tenantInvitationNotifier.sendInvitation(email, TARGET_ROLE_TENANT_ADMIN, plainToken);
         return tenant;
@@ -81,7 +81,7 @@ public class TenantService {
     public Tenant updateTenant(UUID tenantId, String name, Boolean disabled) {
         Tenant current = tenantMapper.selectById(tenantId);
         if (current == null) {
-            throw new TenantNotFoundException();
+            throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
         }
 
         LambdaUpdateWrapper<Tenant> update = new LambdaUpdateWrapper<Tenant>().eq(Tenant::getId, tenantId);

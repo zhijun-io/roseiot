@@ -1,5 +1,8 @@
 package io.roseiot.identity.domain;
 
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
+
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -18,5 +21,12 @@ public final class PasswordPolicy {
             return Optional.of("Password must contain letters and digits");
         }
         return Optional.empty();
+    }
+
+    public static void ensureValid(String password, ApiErrorCode errorCode) {
+        validationError(password)
+                .ifPresent(message -> {
+                    throw new BusinessException(errorCode, message);
+                });
     }
 }

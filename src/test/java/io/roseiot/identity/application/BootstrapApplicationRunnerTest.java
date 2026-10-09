@@ -1,6 +1,7 @@
 package io.roseiot.identity.application;
 
-import io.roseiot.identity.domain.BootstrapValidationException;
+import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.domain.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,6 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.core.env.Environment;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -48,7 +50,9 @@ class BootstrapApplicationRunnerTest {
         when(environment.getProperty("BOOTSTRAP_USER_PASSWORD")).thenReturn("correct horse 42");
 
         assertThatThrownBy(() -> cut.run(mock(ApplicationArguments.class)))
-                .isInstanceOf(BootstrapValidationException.class)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.BOOTSTRAP_VALIDATION))
                 .hasMessageContaining("BOOTSTRAP_USER_EMAIL");
         verifyNoInteractions(bootstrapUserService);
     }
@@ -61,7 +65,9 @@ class BootstrapApplicationRunnerTest {
         when(environment.getProperty("BOOTSTRAP_USER_PASSWORD")).thenReturn(password);
 
         assertThatThrownBy(() -> cut.run(mock(ApplicationArguments.class)))
-                .isInstanceOf(BootstrapValidationException.class)
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).errorCode())
+                        .isEqualTo(ApiErrorCode.BOOTSTRAP_VALIDATION))
                 .hasMessageContaining("BOOTSTRAP_USER_PASSWORD");
         verify(bootstrapUserService, never()).bootstrap(anyString(), anyString());
     }

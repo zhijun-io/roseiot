@@ -132,7 +132,7 @@ class RateLimitFilterTest {
         verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
         assertThat(responseBody.asText())
                 .contains("\"code\":\"rate_limited\"")
-                .contains("\"message\":\"Too many requests\"");
+                .contains("\"message\":\"rate_limited\"");
     }
 
     @Test

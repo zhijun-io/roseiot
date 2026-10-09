@@ -1,7 +1,6 @@
 package io.roseiot;
 
-import io.roseiot.identity.domain.AlreadyBootstrappedException;
-import io.roseiot.identity.domain.BootstrapValidationException;
+import io.roseiot.shared.domain.BusinessException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -44,8 +43,8 @@ public class RoseiotApplication {
         while (root.getCause() != null && root.getCause() != root) {
             root = root.getCause();
         }
-        if (root instanceof BootstrapValidationException || root instanceof AlreadyBootstrappedException) {
-            return root.getMessage();
+        if (root instanceof BusinessException business) {
+            return business.detail().orElseGet(business::apiMessage);
         }
         String message = root.getMessage();
         if (message == null || message.isBlank()) {

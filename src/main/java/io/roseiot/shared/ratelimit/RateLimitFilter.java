@@ -1,6 +1,8 @@
 package io.roseiot.shared.ratelimit;
 
 import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.domain.ApiErrorCode;
+import org.springframework.http.HttpStatus;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,7 +61,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             try {
                 rateLimiter.checkAllowed(key.get(), policy.maxAttempts());
             } catch (RateLimitExceededException exception) {
-                apiErrorBodyWriter.write(response, 429, "rate_limited", "Too many requests");
+                String code = ApiErrorCode.RATE_LIMITED.code();
+                apiErrorBodyWriter.write(response, HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
                 return;
             }
         }
