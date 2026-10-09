@@ -45,9 +45,9 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 **命名**：
 
-- `*MockMvcTests`：继承 `AbstractIt`，只使用 `mvc`，**不用** `restTestClient`。
-- 其他集成 `*Tests`：继承 `AbstractIt`，**不用** `mvc`；需要真实 HTTP 时可选 `restTestClient`。
-- `*ServiceTests` 等单元测试：不启 Spring。
+- `*WebMvcTest`、`*MockMvcTests`：`@WebMvcTest` + MockMvc，只断言 HTTP 契约（Controller / Security 切片）。
+- `*PostgresTest` 等真库集成：`@SpringBootTest` + `@Import(TestcontainersConfig.class)`，验证 Flyway、Mapper、事务。
+- `*Test` / `*ServiceTests` 等单元测试：不启 Spring。
 
 ### 单元测试
 
@@ -66,38 +66,34 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ### 集成测试
 
-**边界**：`@SpringBootTest` + `TestcontainersConfig`（PostgreSQL `@ServiceConnection`），证明**真实接线**。
+**边界**：HTTP 契约用 `@WebMvcTest` 切片；真库接线用 `@SpringBootTest` + `TestcontainersConfig`（PostgreSQL `@ServiceConnection`）。
 
 **写集成测试当**：
 
-- **HTTP 契约（MockMvc）**：`*MockMvcTests`（401、错误体、登录失败分支等）。
-- **HTTP 契约（可选真实端口）**：`*Tests` + `AbstractIt` 的 `restTestClient`（如 JWT 往返 happy path）。
-- **持久化/迁移**：Flyway 脚本、表/索引/约束与 Mapper 在真库上可运行 → 继承 `AbstractIt`（不必调用 HTTP）。
-- **模式开关**：bootstrap CLI、`roseiot.bootstrap.enabled` 等改变 Bean 集合 → 继承 `AbstractIt`（必要时子类再加 `@SpringBootTest(properties=…)`）。
-- **Actuator / 健康检查**：有库场景继承 `AbstractIt`；**故意不可达数据源**（readiness DOWN / liveness UP）用独立 `@SpringBootTest`（**不** import `TestcontainersConfig`），见 `ActuatorHealthWhenDatabaseUnreachableTests`。
+- **HTTP 契约（MockMvc 切片）**：`AuthControllerWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
+- **Security + Controller 组合**：`SecurityConfigWebMvcTest`（匿名 recovery、JWT 入口等与过滤器链一致的行为）。
+- **持久化 / Flyway / 事务**：如 `TenantLifecyclePostgresTest`——在 PostgreSQL 上验证表、Mapper 与跨表原子性（不必走 HTTP）。
 
 **不写集成测试当**：
 
 - 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
 - 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/users/me` 即可）。
 
-### 基类
+### 公共夹具
 
 | 类型 | 用途 |
 | --- | --- |
-| `TestcontainersConfig` | 唯一 Postgres 容器 + `@ServiceConnection` |
-| `AbstractIt` | 集成测试基类：Testcontainers + `mvc` + `restTestClient`（按类名约定选用其一） |
+| `TestcontainersConfig` | 唯一 Postgres 容器 + `@ServiceConnection`（真库 `@SpringBootTest` 通过 `@Import` 引入） |
 
 ### 示例
 
 | 类型 | 示例类 |
 | --- | --- |
-| 单元 | `UserSessionServiceTests`、`UserAccountServiceTests` |
-| MockMvc | `IdentityAuthMockMvcTests`、`ActuatorHealthMockMvcTests` |
-| RestTestClient（可选） | `IdentityAuthTests` |
-| 冒烟 + Flyway | `PlatformFlywaySchemaTests`（含 `contextLoads`） |
+| 单元 | `UserProfileServiceTest`、`UserSessionServiceTest`、`TenantServiceTests` |
+| WebMvc 切片 | `AuthControllerWebMvcTest`、`UserMeControllerWebMvcTest`、`TenantLifecycleMockMvcTests` |
+| 真库集成 | `TenantLifecyclePostgresTest` |
 
-**原则**：能写 `*ServiceTests` 的不要写继承 `AbstractIt` 的类；集成测试只保留契约/接线证据。
+**原则**：能写单元测试的不要 `@SpringBootTest`；`@WebMvcTest` 只承担 HTTP 契约，Flyway 与持久化证据用真库集成测试。
 
 
 ## 文档
