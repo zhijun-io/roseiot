@@ -236,7 +236,7 @@ curl -sS -X POST "$BASE/api/auth/token" \
 
 ### 手动验证（AC-6：账户恢复）
 
-默认实现仅 **WARN 日志**（不含令牌明文）；本地需自行从测试替身或后续邮件实现取得令牌。自动化路径见 `InMemoryRecoveryNotifier` 与 `IdentityAuthMockMvcTests`。
+默认 Bean 为 `LoggingUserRecoveryNotifier`，仅 **WARN 日志**（不含令牌明文）；本地手动验证需自定义 `UserRecoveryNotifier` 或后续邮件实现才能拿到令牌。自动化断言见 `UserRecoveryServiceTest` 与 `AuthControllerWebMvcTest`。
 
 ```bash
 curl -sS -X POST "$BASE/api/auth/recovery/request" \
