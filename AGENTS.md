@@ -79,17 +79,6 @@
 - 未经可复现测量，不得声称高性能、高并发、生产可用或达到特定规模。
 - 测试应覆盖用户可观察行为和关键失败场景，不以测试数量作为质量指标。
 
-## 测试开发
-
-- 通用测试规范见 [`docs/testing/unit-testing-conventions.md`](docs/testing/unit-testing-conventions.md)：第一部分规范（TDD 工作流、写法约定、L0 纯规则 → L1 应用服务 → L2 协议切片 → L3 基础设施 → L4 端到端 的选择顺序、Mock 与时间边界、上下文成本纪律），第二部分 Maven/Gradle 与 CI 配置，第三部分各层测试类示例。以下要点仍是本仓库的权威摘要。
-- 行为代码遵循 **RED → GREEN → REFACTOR**：先在匹配目标边界的测试中表达一个可观察行为并确认其失败，再写最小实现使其通过，最后再重构；文档、机械重命名和纯配置可使用可重复的确定性检查。
-- **单元测试优先**：`domain` 与 `application` 的纯规则、状态转换和失败语义使用 JUnit 5、AssertJ 与 Mockito，不启动 Spring；被测对象可命名为 `cut`。
-- **协议测试收窄上下文**：Controller 的路由、JSON、输入校验、HTTP 状态和错误体使用 `@WebMvcTest` 与 mock 的 application service；不要在这类测试中验证数据库细节。
-- **基础设施测试使用真实依赖**：Flyway、MyBatis SQL、唯一约束、跨表事务和完整安全链使用 Testcontainers PostgreSQL；不以 mock 替代数据库实际语义。
-- 测试方法以行为与条件命名（如 `shouldRejectTenantUserWhenManagingUsers`），使用 Arrange–Act–Assert；一个测试只证明一个规则。仅当同一规则需覆盖多组等价输入时使用参数化测试。
-- 测试数据从局部、显式的构造开始；仅在复杂且重复时引入 Builder 或 Object Mother。较大的 JSON 使用 text block。
-- 测试与实现的提交边界仍遵循本仓库 Git 规则：仅在用户明确要求时提交，每个提交保持单一逻辑变更。
-
 ## 架构约束
 
 - 默认采用模块化单体，不提前拆分微服务。
