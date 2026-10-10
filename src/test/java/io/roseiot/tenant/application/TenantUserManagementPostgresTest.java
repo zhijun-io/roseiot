@@ -7,12 +7,15 @@ import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.identity.infra.security.SecurityUserDetailsService;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
+import io.roseiot.tenant.persistence.TenantUserInvitationMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +54,9 @@ class TenantUserManagementPostgresTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TenantUserInvitationMapper invitationMapper;
 
     @MockitoBean
     private TenantInvitationNotifier tenantInvitationNotifier;
@@ -141,5 +147,31 @@ class TenantUserManagementPostgresTest {
         assertThat(userManagementService.listUsers(tenant.getId()))
                 .extracting(TenantUserService.TenantUserSummary::id, TenantUserService.TenantUserSummary::role)
                 .contains(tuple(userId, RoleService.TENANT_USER));
+    }
+
+    @Test
+    void shouldApplyMybatisTenantPluginToInvitationQueries() {
+        Tenant firstTenant = tenantService.create("Plugin First", "plugin-first", "plugin-first@roseiot.io");
+        Tenant secondTenant = tenantService.create("Plugin Second", "plugin-second", "plugin-second@roseiot.io");
+        TenantInvitationService.InvitationSummary firstInvitation =
+                invitationService.list(firstTenant.getId(), "pending").getFirst();
+        TenantInvitationService.InvitationSummary secondInvitation =
+                invitationService.list(secondTenant.getId(), "pending").getFirst();
+        ArgumentCaptor<String> tokens = ArgumentCaptor.forClass(String.class);
+        verify(tenantInvitationNotifier, times(2)).sendInvitation(any(), any(), tokens.capture());
+        invitationService.acceptInvitation(tokens.getAllValues().get(0), "newSecurePass9012");
+        invitationService.acceptInvitation(tokens.getAllValues().get(1), "newSecurePass9012");
+        UUID firstUserId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email = ?", UUID.class, "plugin-first@roseiot.io");
+        SecurityUser firstUser = securityUserDetailsService.loadByUserId(firstUserId);
+        SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                firstUser, null, firstUser.getAuthorities()));
+
+        try {
+            assertThat(invitationMapper.selectById(firstInvitation.id())).isNotNull();
+            assertThat(invitationMapper.selectById(secondInvitation.id())).isNull();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
