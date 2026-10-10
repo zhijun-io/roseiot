@@ -8,6 +8,7 @@ import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.shared.util.UuidV7;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +57,13 @@ public class BootstrapUserService {
         user.setPasswordAlgorithm("bcrypt");
         user.setAuthorizationVersion(1);
         user.setCreatedAt(Instant.now());
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            // The database constraint closes the race between concurrent bootstrap requests.
+            throw new BusinessException(
+                    ApiErrorCode.ALREADY_BOOTSTRAPPED, "System is already bootstrapped");
+        }
 
         userRoleMapper.insertAssignment(
                 UuidV7.generate(), userId, roleMapper.requireIdByCode(RoleService.SYSTEM_ADMIN), null);
