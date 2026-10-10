@@ -1,7 +1,7 @@
 package io.roseiot.iam.application;
 
 import io.roseiot.iam.domain.TokenDigests;
-import io.roseiot.iam.infra.passwordreset.PasswordResetNotifier;
+import io.roseiot.iam.infra.notifier.PasswordResetNotifier;
 import io.roseiot.iam.persistence.User;
 import io.roseiot.iam.persistence.UserCredential;
 import io.roseiot.iam.persistence.UserCredentialMapper;
@@ -33,7 +33,6 @@ class UserCredentialServiceTest {
     private UserMapper userMapper;
     private UserCredentialMapper credentialMapper;
     private PasswordResetNotifier notifier;
-    private UserSessionService userSessionService;
     private PasswordEncoder passwordEncoder;
     private UserCredentialService cut;
 
@@ -42,23 +41,21 @@ class UserCredentialServiceTest {
         userMapper = mock(UserMapper.class);
         credentialMapper = mock(UserCredentialMapper.class);
         notifier = mock(PasswordResetNotifier.class);
-        userSessionService = mock(UserSessionService.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        cut = new UserCredentialService(userMapper, credentialMapper, notifier, userSessionService, passwordEncoder);
+        cut = new UserCredentialService(userMapper, credentialMapper, notifier, passwordEncoder);
     }
 
     private User user() {
         User user = new User();
         user.setId(USER_ID);
         user.setEmail("ops@roseiot.io");
-        user.setAuthorizationVersion(5);
         return user;
     }
 
     private UserCredential credential() {
         UserCredential credential = new UserCredential();
         credential.setUserId(USER_ID);
-        credential.setPasswordHash("old-hash");
+        credential.setPassword("old-hash");
                 return credential;
     }
 
@@ -66,7 +63,7 @@ class UserCredentialServiceTest {
     void shouldRejectMissingResetTokenBeforeAnyOtherCheck() {
         assertThatThrownBy(() -> cut.confirmPasswordReset(null, "short1"))
                 .isInstanceOf(BusinessException.class);
-        verifyNoInteractions(credentialMapper, userMapper, passwordEncoder, userSessionService);
+        verifyNoInteractions(credentialMapper, userMapper, passwordEncoder);
     }
 
     @Test
@@ -74,7 +71,7 @@ class UserCredentialServiceTest {
         assertThatThrownBy(() -> cut.confirmPasswordReset("valid-token", "short1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("Password must be at least 12 characters");
-        verifyNoInteractions(credentialMapper, userMapper, passwordEncoder, userSessionService);
+        verifyNoInteractions(credentialMapper, userMapper, passwordEncoder);
     }
 
     @Test
@@ -90,7 +87,7 @@ class UserCredentialServiceTest {
         ArgumentCaptor<String> notified = ArgumentCaptor.forClass(String.class);
         verify(notifier).sendPasswordResetEmail(eq("ops@roseiot.io"), notified.capture());
         UserCredential stored = captor.getValue();
-        assertThat(stored.getResetTokenHash()).isEqualTo(TokenDigests.sha256Hex(notified.getValue()));
+        assertThat(stored.getResetToken()).isEqualTo(TokenDigests.sha256Hex(notified.getValue()));
         assertThat(stored.getResetAt()).isNull();
         assertThat(stored.getUpdatedAt()).isBetween(before, Instant.now());
         assertThat(stored.getResetExpiresAt()).isBetween(
@@ -103,7 +100,7 @@ class UserCredentialServiceTest {
 
         cut.requestResetByEmail("ghost@roseiot.io");
 
-        verifyNoInteractions(credentialMapper, notifier, userSessionService);
+        verifyNoInteractions(credentialMapper, notifier);
     }
 
     @Test
@@ -119,12 +116,12 @@ class UserCredentialServiceTest {
         ArgumentCaptor<String> notified = ArgumentCaptor.forClass(String.class);
         verify(notifier, org.mockito.Mockito.times(2))
                 .sendPasswordResetEmail(eq("ops@roseiot.io"), notified.capture());
-        assertThat(credential.getResetTokenHash()).isEqualTo(TokenDigests.sha256Hex(notified.getAllValues().get(1)));
-        assertThat(credential.getResetTokenHash()).isNotEqualTo(TokenDigests.sha256Hex(notified.getAllValues().get(0)));
+        assertThat(credential.getResetToken()).isEqualTo(TokenDigests.sha256Hex(notified.getAllValues().get(1)));
+        assertThat(credential.getResetToken()).isNotEqualTo(TokenDigests.sha256Hex(notified.getAllValues().get(0)));
     }
 
     @Test
-    void shouldChangePasswordAndRevokeSessionsAfterVerifyingCurrentPassword() {
+    void shouldChangePasswordAfterVerifyingCurrentPassword() {
         User user = user();
         UserCredential credential = credential();
         when(userMapper.selectById(USER_ID)).thenReturn(user);
@@ -134,31 +131,26 @@ class UserCredentialServiceTest {
 
         cut.changePassword(USER_ID, "current passphrase 33", "new passphrase 77");
 
-        assertThat(credential.getPasswordHash()).isEqualTo("new-hash");
-        assertThat(user.getAuthorizationVersion()).isEqualTo(6);
+        assertThat(credential.getPassword()).isEqualTo("new-hash");
         verify(credentialMapper).updateById(credential);
-        verify(userMapper).updateById(user);
-        verify(userSessionService).logoutAllSessions(USER_ID);
     }
 
     @Test
-    void shouldReplacePasswordConsumeTokenAndRevokeSessions() {
+    void shouldReplacePasswordAndConsumeToken() {
         UserCredential credential = credential();
-        credential.setResetTokenHash(TokenDigests.sha256Hex("reset-token"));
+        credential.setResetToken(TokenDigests.sha256Hex("reset-token"));
         credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
-        when(credentialMapper.consumeResetTokenIfActive(eq(USER_ID), eq(credential.getResetTokenHash()), any()))
+        when(credentialMapper.consumeResetTokenIfActive(eq(USER_ID), eq(credential.getResetToken()), any()))
                 .thenReturn(1);
         when(userMapper.selectById(USER_ID)).thenReturn(user());
         when(passwordEncoder.encode("new passphrase 77")).thenReturn("new-hash");
 
         cut.confirmPasswordReset("reset-token", "new passphrase 77");
 
-        assertThat(credential.getPasswordHash()).isEqualTo("new-hash");
+        assertThat(credential.getPassword()).isEqualTo("new-hash");
         assertThat(credential.getResetAt()).isNotNull();
         verify(credentialMapper).updateById(credential);
-        verify(userMapper).updateById(any(User.class));
-        verify(userSessionService).logoutAllSessions(USER_ID);
     }
 
     @Test
@@ -168,13 +160,13 @@ class UserCredentialServiceTest {
         assertThatThrownBy(() -> cut.confirmPasswordReset("old-token", "new passphrase 77"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining(ApiErrorCode.INVALID_RESET_TOKEN.code());
-        verifyNoInteractions(userMapper, passwordEncoder, userSessionService);
+        verifyNoInteractions(userMapper, passwordEncoder);
     }
 
     @Test
     void shouldRejectConcurrentResetConsumerWithoutChangingPassword() {
         UserCredential credential = credential();
-        credential.setResetTokenHash(TokenDigests.sha256Hex("reset-token"));
+        credential.setResetToken(TokenDigests.sha256Hex("reset-token"));
         credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
         when(credentialMapper.consumeResetTokenIfActive(any(), any(), any())).thenReturn(0);
@@ -182,13 +174,13 @@ class UserCredentialServiceTest {
         assertThatThrownBy(() -> cut.confirmPasswordReset("reset-token", "new passphrase 77"))
                 .isInstanceOf(BusinessException.class);
         verify(credentialMapper, never()).updateById(any(UserCredential.class));
-        verifyNoInteractions(userMapper, passwordEncoder, userSessionService);
+        verifyNoInteractions(userMapper, passwordEncoder);
     }
 
     @Test
     void shouldClassifyCurrentResetTokenState() {
         UserCredential credential = credential();
-        credential.setResetTokenHash(TokenDigests.sha256Hex("reset-token"));
+        credential.setResetToken(TokenDigests.sha256Hex("reset-token"));
         credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
 

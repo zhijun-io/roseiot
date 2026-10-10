@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 /**
- * Protocol contract of {@code /api/tenants}: the production filter chain decides authentication,
+ * Protocol contract of {@code /tenants}: the production filter chain decides authentication,
  * the system context and permission gate runs before the service, and domain failures map to
  * stable error codes. Services are mocked, so this slice never touches the database.
  */
@@ -44,7 +44,6 @@ class TenantLifecycleMockMvcTests {
 
     private static final UUID ADMIN_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000c1");
     private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
-    private static final long AUTHORIZATION_VERSION = 1L;
 
     @Autowired
     private MockMvcTester mvc;
@@ -70,7 +69,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectTenantCreationWithoutAuthentication() {
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
@@ -88,13 +87,13 @@ class TenantLifecycleMockMvcTests {
         given(tenantService.create("Acme HVAC", "acme-hvac", "ops@roseiot.io"))
                 .willReturn(tenant(false));
 
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme HVAC", "slug": "acme-hvac", "initialAdminEmail": "ops@roseiot.io"}
                         """))
-                .hasStatus(HttpStatus.CREATED)
+                .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
                         {
@@ -109,7 +108,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectTenantAdminFromCreatingTenantsAtSystemApi() {
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -125,7 +124,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectCreationWhenTheTenantCreatePermissionIsMissing() {
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .with(jwt().jwt(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -141,7 +140,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectMalformedCreationBodyBeforeCallingTheService() {
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -160,7 +159,7 @@ class TenantLifecycleMockMvcTests {
         willThrow(new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT))
                 .given(tenantService).create(any(), any(), any());
 
-        assertThat(mvc.post().uri("/api/tenants")
+        assertThat(mvc.post().uri("/tenants")
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -174,32 +173,32 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldDisableTenantWithTheDisablePermission() {
-        given(tenantService.updateTenant(TENANT_ID, null, true)).willReturn(tenant(true));
+        given(tenantService.updateTenant(TENANT_ID, "Acme HVAC", true)).willReturn(tenant(true));
 
-        assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"disabled": true}
+                        {"name": "Acme HVAC", "disabled": true}
                         """))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.disabled")
                 .isEqualTo(true);
 
-        verify(tenantService).updateTenant(TENANT_ID, null, true);
+        verify(tenantService).updateTenant(TENANT_ID, "Acme HVAC", true);
     }
 
     @Test
     void shouldRequireTheEnablePermissionToRestoreATenant() {
-        assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
                         this::systemToken,
                         new org.springframework.security.core.authority.SimpleGrantedAuthority(
                                 ActionCode.TENANT_DISABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"disabled": false}
+                        {"name": "Acme HVAC", "disabled": false}
                         """))
                 .hasStatus(HttpStatus.FORBIDDEN);
 
@@ -211,11 +210,11 @@ class TenantLifecycleMockMvcTests {
         willThrow(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND))
                 .given(tenantService).updateTenant(any(), any(), any());
 
-        assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"disabled": true}
+                        {"name": "Acme HVAC", "disabled": true}
                         """))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
@@ -225,7 +224,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldRejectRenamingWithoutTheLifecyclePermission() {
-        assertThat(mvc.patch().uri("/api/tenants/" + TENANT_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
                         this::systemToken,
                         new org.springframework.security.core.authority.SimpleGrantedAuthority(
@@ -234,7 +233,7 @@ class TenantLifecycleMockMvcTests {
                                 ActionCode.TENANT_ENABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"name": "Acme Climate"}
+                        {"name": "Acme Climate", "disabled": false}
                         """))
                 .hasStatus(HttpStatus.FORBIDDEN);
 
@@ -245,7 +244,6 @@ class TenantLifecycleMockMvcTests {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(ADMIN_ID.toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

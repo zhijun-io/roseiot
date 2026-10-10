@@ -1,5 +1,6 @@
 package io.roseiot.iam.infra.mybatis;
 
+import io.roseiot.shared.mybatis.UuidTypeHandler;
 import org.junit.jupiter.api.Test;
 
 import java.sql.CallableStatement;

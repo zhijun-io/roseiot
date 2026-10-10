@@ -58,7 +58,7 @@ class UserCredentialControllerWebMvcTest {
         user.setId(USER_ID);
         SecurityUser principal = new SecurityUser(user, List.of());
 
-        assertThat(mvc.patch().uri("/api/user-credentials/me/password")
+        assertThat(mvc.put().uri("/me/password")
                 .with(user(principal))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -71,7 +71,7 @@ class UserCredentialControllerWebMvcTest {
 
     @Test
     void shouldRejectAnonymousPasswordChange() {
-        assertThat(mvc.patch().uri("/api/user-credentials/me/password")
+        assertThat(mvc.put().uri("/me/password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"currentPassword": "old-Passw0rd!", "newPassword": "new-Passw0rd!"}
@@ -83,7 +83,7 @@ class UserCredentialControllerWebMvcTest {
 
     @Test
     void shouldAcceptResetPasswordByEmailWithOkAndNoBody() {
-        assertThat(mvc.post().uri("/noauth/user-credentials/password-resets")
+        assertThat(mvc.post().uri("/password-resets")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email": "nobody@roseiot.io"}
@@ -95,7 +95,7 @@ class UserCredentialControllerWebMvcTest {
 
     @Test
     void shouldRejectResetPasswordByEmailWithBlankEmail() {
-        assertThat(mvc.post().uri("/noauth/user-credentials/password-resets")
+        assertThat(mvc.post().uri("/password-resets")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"email": ""}
@@ -112,7 +112,7 @@ class UserCredentialControllerWebMvcTest {
     void shouldAnswerValidResetTokenWithOkAndStatus() {
         given(credentialService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
 
-        assertThat(mvc.get().uri("/noauth/user-credentials/password-resets?resetToken=plain-token"))
+        assertThat(mvc.get().uri("/password-resets/plain-token"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -124,7 +124,7 @@ class UserCredentialControllerWebMvcTest {
         given(credentialService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
 
         assertThat(mvc.get()
-                        .uri("/noauth/user-credentials/password-resets?resetToken=plain-token")
+                        .uri("/password-resets/plain-token")
                         .header("Authorization", "Bearer not-a-valid-jwt"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
@@ -136,7 +136,7 @@ class UserCredentialControllerWebMvcTest {
     void shouldAnswerInvalidResetTokenWithStatusInvalid() {
         given(credentialService.checkResetToken("bad")).willReturn(ResetTokenState.INVALID);
 
-        assertThat(mvc.get().uri("/noauth/user-credentials/password-resets?resetToken=bad"))
+        assertThat(mvc.get().uri("/password-resets/bad"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -147,7 +147,7 @@ class UserCredentialControllerWebMvcTest {
     void shouldAnswerExpiredResetTokenWithStatusExpired() {
         given(credentialService.checkResetToken("old")).willReturn(ResetTokenState.EXPIRED);
 
-        assertThat(mvc.get().uri("/noauth/user-credentials/password-resets?resetToken=old"))
+        assertThat(mvc.get().uri("/password-resets/old"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -156,10 +156,10 @@ class UserCredentialControllerWebMvcTest {
 
     @Test
     void shouldResetPasswordWithTbShapedBody() {
-        assertThat(mvc.put().uri("/noauth/user-credentials/password-resets")
+        assertThat(mvc.put().uri("/password-resets/reset-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"resetToken": "reset-token", "password": "Passw0rd!"}
+                        {"password": "Passw0rd!"}
                         """))
                 .hasStatus(HttpStatus.NO_CONTENT);
 
@@ -172,10 +172,10 @@ class UserCredentialControllerWebMvcTest {
                 .given(credentialService)
                 .confirmPasswordReset(any(), any());
 
-        assertThat(mvc.put().uri("/noauth/user-credentials/password-resets")
+        assertThat(mvc.put().uri("/password-resets/used-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"resetToken": "used-token", "password": "Passw0rd!"}
+                        {"password": "Passw0rd!"}
                         """))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
@@ -183,19 +183,4 @@ class UserCredentialControllerWebMvcTest {
                 .isEqualTo("invalid_reset_token");
     }
 
-    @Test
-    void shouldAnswerActivateEndpointsWithNotImplemented() {
-        assertThat(mvc.get().uri("/noauth/users/activation?activateToken=t"))
-                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("not_implemented");
-
-        assertThat(mvc.post().uri("/noauth/users/activation")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"activateToken": "t", "password": "Passw0rd!"}
-                        """))
-                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR);
-    }
 }

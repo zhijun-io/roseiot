@@ -31,7 +31,6 @@ class UserControllerWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
     private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
-    private static final long AUTHORIZATION_VERSION = 3L;
 
     @Autowired
     private MockMvcTester mvc;
@@ -49,7 +48,7 @@ class UserControllerWebMvcTest {
     void shouldAnswerProfileWithIdAndEmailOfTheTokenSubject() {
         given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io"));
 
-        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
+        assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
@@ -64,7 +63,7 @@ class UserControllerWebMvcTest {
     void shouldAnswerProfileForTenantContextWhenTidMatchesSubject() {
         given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "tenant@roseiot.io"));
 
-        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
+        assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.email")
@@ -75,7 +74,7 @@ class UserControllerWebMvcTest {
     void shouldAnswerProfileForAuthenticatedUserWithoutAnyAuthorities() {
         given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "plain@roseiot.io"));
 
-        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::systemToken)))
+        assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.email")
@@ -84,7 +83,7 @@ class UserControllerWebMvcTest {
 
     @Test
     void shouldRejectAnonymousProfileCallers() {
-        assertThat(mvc.get().uri("/api/users/me"))
+        assertThat(mvc.get().uri("/me"))
                 .hasStatus(HttpStatus.UNAUTHORIZED);
 
         verifyNoInteractions(userService);
@@ -94,7 +93,6 @@ class UserControllerWebMvcTest {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }
@@ -104,7 +102,6 @@ class UserControllerWebMvcTest {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("tid", TENANT_ID.toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

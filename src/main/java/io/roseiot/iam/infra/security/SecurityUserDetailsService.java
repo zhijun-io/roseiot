@@ -53,7 +53,7 @@ public class SecurityUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException(notFoundKey);
         }
         UserCredential credential = credentialMapper.selectById(user.getId());
-        if (credential == null || credential.getPasswordHash() == null) {
+        if (credential == null || credential.getPassword() == null) {
             throw new UsernameNotFoundException(notFoundKey);
         }
         var tenant = user.getTenantId() == null ? null : tenantMapper.selectById(user.getTenantId());

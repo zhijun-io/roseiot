@@ -1,6 +1,6 @@
 package io.roseiot.shared.ratelimit;
 
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.WriteListener;
@@ -65,7 +65,7 @@ class RateLimitFilterTest {
 
     private RateLimitFilter cut(SlidingWindowRateLimiter rateLimiter) {
         return new RateLimitFilter(rateLimiter, properties, JsonMapper.builder().build(),
-                new ApiErrorBodyWriter(JsonMapper.builder().build()));
+                new ApiJson(JsonMapper.builder().build()));
     }
 
     private void stubLoginRequest() throws IOException {
@@ -82,7 +82,7 @@ class RateLimitFilterTest {
     @Test
     void shouldPassRequestThroughWhenNoRuleMatches() throws Exception {
         when(request.getMethod()).thenReturn("GET");
-        when(request.getRequestURI()).thenReturn("/api/users/me");
+        when(request.getRequestURI()).thenReturn("/me");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
 
         cut.doFilterInternal(request, response, filterChain);

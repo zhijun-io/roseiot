@@ -2,7 +2,7 @@ package io.roseiot.tenant.application;
 
 import io.roseiot.iam.application.RoleService;
 import io.roseiot.iam.domain.UserStatus;
-import io.roseiot.iam.application.UserSessionService;
+import io.roseiot.iam.infra.security.JwtTokenFactory;
 import io.roseiot.iam.domain.TokenDigests;
 import io.roseiot.iam.persistence.Role;
 import io.roseiot.iam.persistence.RoleMapper;
@@ -12,7 +12,7 @@ import io.roseiot.iam.persistence.UserMapper;
 import io.roseiot.iam.persistence.UserCredential;
 import io.roseiot.iam.persistence.UserRoleMapper;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
 import io.roseiot.tenant.persistence.TenantInvitation;
@@ -60,7 +60,7 @@ class TenantInvitationServiceTest {
     @Mock
     private UserRoleMapper userRoleMapper;
     @Mock
-    private UserSessionService userSessionService;
+    private JwtTokenFactory jwtTokenFactory;
     @Mock
     private RoleService roles;
     @InjectMocks
@@ -108,19 +108,18 @@ class TenantInvitationServiceTest {
     }
 
     @Test
-    void accept_shouldCreateUserAssignRoleAndIssueSession() {
+    void accept_shouldCreateUserAssignRoleAndIssueAccessToken() {
         TenantInvitation stored = pendingInvitation("token");
         when(invitationMapper.selectByToken(TokenDigests.sha256Hex("token"))).thenReturn(stored);
         when(invitationMapper.selectById(stored.getId())).thenReturn(stored);
         when(roles.requireAssignable(TENANT_ID, ROLE_ID)).thenReturn(operatorRole());
         when(userMapper.selectCount(any())).thenReturn(0L);
         when(passwordEncoder.encode("newSecurePass9012")).thenReturn("hash");
-        UserSessionService.SessionTokens tokens = new UserSessionService.SessionTokens("access", "refresh");
-        when(userSessionService.openSessionForUser(any())).thenReturn(tokens);
+        when(jwtTokenFactory.createAccessToken(any(), eq(TENANT_ID), any())).thenReturn("access");
 
-        UserSessionService.SessionTokens result = cut.acceptInvitation("token", "newSecurePass9012");
+        String result = cut.acceptInvitation("token", "newSecurePass9012");
 
-        assertThat(result).isSameAs(tokens);
+        assertThat(result).isEqualTo("access");
         ArgumentCaptor<User> inserted = ArgumentCaptor.forClass(User.class);
         verify(userMapper).insert(inserted.capture());
         assertThat(inserted.getValue().getEmail()).isEqualTo(stored.getEmail());
@@ -129,7 +128,7 @@ class TenantInvitationServiceTest {
         ArgumentCaptor<UserCredential> credential = ArgumentCaptor.forClass(UserCredential.class);
         verify(userCredentialMapper).insert(credential.capture());
         assertThat(credential.getValue().getUserId()).isEqualTo(inserted.getValue().getId());
-        assertThat(credential.getValue().getPasswordHash()).isEqualTo("hash");
+        assertThat(credential.getValue().getPassword()).isEqualTo("hash");
         assertThat(credential.getValue().getCreatedAt()).isNotNull();
         verify(userRoleMapper).insertAssignment(any(), eq(inserted.getValue().getId()), eq(ROLE_ID), eq(TENANT_ID));
         verify(invitationMapper).updateById(stored);

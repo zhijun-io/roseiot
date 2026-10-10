@@ -1,14 +1,16 @@
 package io.roseiot.iam.infra.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import io.roseiot.iam.infra.passwordreset.LoggingPasswordResetNotifier;
-import io.roseiot.iam.infra.passwordreset.PasswordResetNotifier;
+import io.roseiot.iam.infra.notifier.LoggingPasswordResetNotifier;
+import io.roseiot.iam.infra.notifier.PasswordResetNotifier;
 import io.roseiot.system.application.SystemSettingService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -20,6 +22,11 @@ import java.nio.charset.StandardCharsets;
 
 @Configuration
 public class IdentityAuthConfig {
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     JwtDecoder identityJwtDecoder(@Value("${roseiot.auth.jwt.secret}") String hmacSecret) {

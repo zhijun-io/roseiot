@@ -18,12 +18,13 @@ public class User {
 
     private String email;
 
-    private int authorizationVersion;
+    private String name;
 
     private UserStatus status;
 
     private Instant createdAt;
 
+    private Instant updatedAt;
 
     public UUID getId() {
         return id;
@@ -49,12 +50,12 @@ public class User {
         this.email = email;
     }
 
-    public int getAuthorizationVersion() {
-        return authorizationVersion;
+    public String getName() {
+        return name;
     }
 
-    public void setAuthorizationVersion(int authorizationVersion) {
-        this.authorizationVersion = authorizationVersion;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public UserStatus getStatus() {
@@ -71,6 +72,14 @@ public class User {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
 }

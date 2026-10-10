@@ -5,7 +5,7 @@
 
 ## 决策
 
-- 全局系统设置由 `io.roseiot.system` 能力拥有，不归属于某个租户。`SystemSetting` 使用 UUID 主键，字段结构为枚举 `type` 加 JSON 对象 `setting`，并保留创建和更新时间。
+- 全局系统设置由 `io.roseiot.system` 能力拥有，不归属于某个租户。`SystemSetting` 使用 UUID 主键，字段结构为枚举 `type` 加 JSON 对象 `setting`（Java 类型为 Jackson `JsonNode`），并保留创建和更新时间。
 - 当前设置类型为 `SETUP`（系统初始化相关设置）和 `GENERAL`（通用设置）。不为未来尚无用例的用户或租户设置预建空实体/抽象。
 - `GENERAL.setting.baseUrl` 是发送邮件时拼接绝对链接的系统基址。邮件链接生成逻辑从系统设置读取该值，不依赖重复的专用配置项。
 - 数据库 schema 和静态初始设置使用普通 Flyway SQL；迁移脚本不创建函数或触发器，避免数据库专有程序逻辑。

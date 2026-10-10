@@ -108,7 +108,6 @@ class SecurityUserDetailsServiceTest {
         user.setId(USER_ID);
         user.setTenantId(TENANT_ID);
         user.setEmail("ops@roseiot.io");
-        user.setAuthorizationVersion(1);
         user.setStatus(UserStatus.ACTIVE);
         return user;
     }
@@ -116,7 +115,7 @@ class SecurityUserDetailsServiceTest {
     private UserCredential activeCredential() {
         UserCredential credential = new UserCredential();
         credential.setUserId(USER_ID);
-        credential.setPasswordHash("hash");
+        credential.setPassword("hash");
                 return credential;
     }
 

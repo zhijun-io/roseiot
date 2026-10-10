@@ -13,7 +13,6 @@ import io.roseiot.tenant.persistence.TenantInvitationMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -27,20 +26,16 @@ public class RoleService {
     private final ResourceService resources;
     private final TenantMapper tenants;
     private final UserRoleMapper assignments;
-    private final UserMapper users;
-    private final UserSessionMapper sessions;
     private final TenantInvitationMapper invitations;
 
     public RoleService(RoleMapper roles, RoleResourceMapper actions, ResourceService resources, TenantMapper tenants,
-                       UserRoleMapper assignments, UserMapper users,
-                       UserSessionMapper sessions, TenantInvitationMapper invitations) {
+                       UserRoleMapper assignments,
+                       TenantInvitationMapper invitations) {
         this.roles = roles;
         this.actions = actions;
         this.resources = resources;
         this.tenants = tenants;
         this.assignments = assignments;
-        this.users = users;
-        this.sessions = sessions;
         this.invitations = invitations;
     }
 
@@ -114,7 +109,6 @@ public class RoleService {
         roles.updateById(r);
         replaceActions(r, actionCodes);
         ensureAdministrator(tenantId);
-        invalidateMembers(r);
         return view(r);
     }
 
@@ -158,16 +152,6 @@ public class RoleService {
             link.setRoleId(role.getId());
             link.setResourceId(byCode.get(code).getId());
             actions.insert(link);
-        }
-    }
-
-    private void invalidateMembers(Role role) {
-        var members = assignments.selectList(Wrappers.lambdaQuery(UserRole.class).eq(UserRole::getRoleId, role.getId()));
-        for (var member : members) {
-            users.update(null, Wrappers.lambdaUpdate(User.class).eq(User::getId, member.getUserId())
-                    .eq(User::getTenantId, role.getTenantId()).setSql("authorization_version = authorization_version + 1"));
-            sessions.update(null, Wrappers.lambdaUpdate(UserSession.class).eq(UserSession::getUserId, member.getUserId())
-                    .isNull(UserSession::getRevokedAt).set(UserSession::getRevokedAt, Instant.now()));
         }
     }
 

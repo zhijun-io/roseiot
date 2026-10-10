@@ -13,9 +13,9 @@ public class UserCredential {
     @TableId(type = IdType.INPUT)
     private UUID userId;
 
-    private String passwordHash;
+    private String password;
 
-    private String resetTokenHash;
+    private String resetToken;
 
     private Instant resetExpiresAt;
 
@@ -27,10 +27,10 @@ public class UserCredential {
 
     public UUID getUserId() { return userId; }
     public void setUserId(UUID userId) { this.userId = userId; }
-    public String getPasswordHash() { return passwordHash; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
-    public String getResetTokenHash() { return resetTokenHash; }
-    public void setResetTokenHash(String resetTokenHash) { this.resetTokenHash = resetTokenHash; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+    public String getResetToken() { return resetToken; }
+    public void setResetToken(String resetToken) { this.resetToken = resetToken; }
     public Instant getResetExpiresAt() { return resetExpiresAt; }
     public void setResetExpiresAt(Instant resetExpiresAt) { this.resetExpiresAt = resetExpiresAt; }
     public Instant getResetAt() { return resetAt; }

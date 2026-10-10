@@ -2,7 +2,6 @@ package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.iam.application.RoleService;
-import io.roseiot.iam.application.UserSessionService;
 import io.roseiot.iam.persistence.User;
 import io.roseiot.iam.persistence.UserMapper;
 import io.roseiot.iam.persistence.UserRole;
@@ -25,15 +24,13 @@ public class TenantUserService {
     private final UserMapper users;
     private final UserRoleMapper assignments;
     private final RoleService roles;
-    private final UserSessionService sessions;
 
     public TenantUserService(TenantMapper tenants, UserMapper users, UserRoleMapper assignments,
-                             RoleService roles, UserSessionService sessions) {
+                             RoleService roles) {
         this.tenants = tenants;
         this.users = users;
         this.assignments = assignments;
         this.roles = roles;
-        this.sessions = sessions;
     }
     public List<TenantUserSummary> listUsers(UUID tenantId) {
         tenants.requireCustomerTenant(tenantId);
@@ -55,12 +52,14 @@ public class TenantUserService {
             assignments.insertAssignment(UuidV7.generate(), userId, roleId, tenantId);
         }
         if (disabled != null) user.setStatus(disabled ? UserStatus.DISABLED : UserStatus.ACTIVE);
-        user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);
-        users.update(null, Wrappers.lambdaUpdate(User.class).eq(User::getId, userId).eq(User::getTenantId, tenantId)
-                .set(disabled != null, User::getStatus, user.getStatus())
-                .setSql("authorization_version = authorization_version + 1"));
+        if (disabled != null) {
+            user.setUpdatedAt(Instant.now());
+            users.update(null, Wrappers.lambdaUpdate(User.class).eq(User::getId, userId)
+                    .eq(User::getTenantId, tenantId)
+                    .set(User::getStatus, user.getStatus())
+                    .set(User::getUpdatedAt, user.getUpdatedAt()));
+        }
         roles.ensureAdministrator(tenantId);
-        sessions.logoutAllSessions(userId);
     }
 
     public record TenantUserSummary(UUID id, String email, UUID roleId, boolean disabled) {

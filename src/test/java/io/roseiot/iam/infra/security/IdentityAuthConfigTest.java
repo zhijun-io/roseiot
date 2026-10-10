@@ -1,9 +1,9 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.iam.infra.passwordreset.PasswordResetNotifier;
+import io.roseiot.iam.infra.notifier.PasswordResetNotifier;
 import io.roseiot.system.application.SystemSettingService;
 import io.roseiot.tenant.config.TenantConfig;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -16,8 +16,7 @@ class IdentityAuthConfigTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(IdentityAuthConfig.class, TenantConfig.class)
-            .withBean(SystemSettingService.class, () -> mock(SystemSettingService.class))
-            .withPropertyValues("roseiot.auth.tenant-invitation.link-base-url=http://localhost:8080");
+            .withBean(SystemSettingService.class, () -> mock(SystemSettingService.class));
 
     @Test
     void shouldFailWhenJwtSecretIsMissing() {

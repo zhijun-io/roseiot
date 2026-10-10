@@ -2,7 +2,6 @@ package io.roseiot.tenant.web;
 
 import io.roseiot.iam.infra.security.IdentityJwtAuthenticationConverter;
 import io.roseiot.iam.infra.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.application.UserSessionService;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationTokenState;
 import org.junit.jupiter.api.Test;
@@ -40,7 +39,7 @@ class TenantInvitationNoauthControllerWebMvcTest {
         given(invitationService.checkInvitationToken("plain-token"))
                 .willReturn(InvitationTokenState.VALID);
 
-        assertThat(mvc.get().uri("/noauth/tenants/invitations?invitationToken=plain-token"))
+        assertThat(mvc.get().uri("/tenant-invitations/plain-token"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -48,16 +47,16 @@ class TenantInvitationNoauthControllerWebMvcTest {
     }
 
     @Test
-    void shouldAcceptInvitationAndReturnSessionTokens() {
+    void shouldAcceptInvitationAndReturnAccessToken() {
         given(invitationService.acceptInvitation("invite-token", "Passw0rd!"))
-                .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
+                .willReturn("access-token");
 
-        assertThat(mvc.post().uri("/noauth/tenants/invitations")
+        assertThat(mvc.put().uri("/tenant-invitations/invite-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"invitationToken": "invite-token", "password": "Passw0rd!"}
+                                {"password": "Passw0rd!"}
                                 """))
-                .hasStatus(HttpStatus.CREATED)
+                .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.accessToken")
                 .isEqualTo("access-token");

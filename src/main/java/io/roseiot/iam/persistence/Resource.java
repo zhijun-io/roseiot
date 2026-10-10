@@ -3,7 +3,7 @@ package io.roseiot.iam.persistence;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import io.roseiot.iam.domain.ResourceScope;
+import io.roseiot.iam.domain.ResourceStatus;
 import io.roseiot.iam.domain.ResourceType;
 
 import java.util.UUID;
@@ -18,8 +18,7 @@ public class Resource {
     private String name;
     private ResourceType type;
     private UUID parentId;
-    private ResourceScope scope;
-    private boolean active;
+    private ResourceStatus status;
     private String route;
     private String icon;
     private int sortOrder;
@@ -36,10 +35,8 @@ public class Resource {
     public void setType(ResourceType type) { this.type = type; }
     public UUID getParentId() { return parentId; }
     public void setParentId(UUID parentId) { this.parentId = parentId; }
-    public ResourceScope getScope() { return scope; }
-    public void setScope(ResourceScope scope) { this.scope = scope; }
-    public boolean getActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
+    public ResourceStatus getStatus() { return status; }
+    public void setStatus(ResourceStatus status) { this.status = status; }
     public String getRoute() { return route; }
     public void setRoute(String route) { this.route = route; }
     public String getIcon() { return icon; }

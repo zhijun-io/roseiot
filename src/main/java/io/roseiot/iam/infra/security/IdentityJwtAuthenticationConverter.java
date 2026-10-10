@@ -1,7 +1,5 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.iam.persistence.UserSession;
-import io.roseiot.iam.persistence.UserSessionMapper;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -11,19 +9,15 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Component
 public class IdentityJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final SecurityUserDetailsService userDetailsService;
-    private final UserSessionMapper refreshSessionMapper;
 
-    public IdentityJwtAuthenticationConverter(
-            SecurityUserDetailsService userDetailsService, UserSessionMapper refreshSessionMapper) {
+    public IdentityJwtAuthenticationConverter(SecurityUserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
-        this.refreshSessionMapper = refreshSessionMapper;
     }
 
     @Override
@@ -42,14 +36,6 @@ public class IdentityJwtAuthenticationConverter implements Converter<Jwt, Abstra
             throw invalidToken("User not active");
         }
 
-        Long tokenAzv = SecurityUser.authorizationVersion(jwt);
-        if (tokenAzv == null) {
-            throw invalidToken("Missing authorization version");
-        }
-        if (loaded.authorizationVersion() != tokenAzv) {
-            throw invalidToken("Authorization version mismatch");
-        }
-
         try {
             String tokenTenant = jwt.getClaimAsString("tid");
             UUID userTenant = loaded.tenantId();
@@ -59,19 +45,7 @@ public class IdentityJwtAuthenticationConverter implements Converter<Jwt, Abstra
         } catch (IllegalArgumentException e) {
             throw invalidToken("Invalid tenant");
         }
-        UUID sessionId;
-        try {
-            sessionId = UUID.fromString(jwt.getClaimAsString("sid"));
-        } catch (IllegalArgumentException | NullPointerException | ClassCastException exception) {
-            throw invalidToken("Invalid session");
-        }
-        UserSession session = refreshSessionMapper.selectActiveById(sessionId, Instant.now());
-        if (session == null || !userId.equals(session.getUserId())) {
-            throw invalidToken("Session not active");
-        }
-
-        SecurityUser principal = loaded.withSessionId(jwt);
-        return UsernamePasswordAuthenticationToken.authenticated(principal, null, loaded.getAuthorities());
+        return UsernamePasswordAuthenticationToken.authenticated(loaded, null, loaded.getAuthorities());
     }
 
     private static OAuth2AuthenticationException invalidToken(String description) {

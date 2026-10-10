@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import org.apache.ibatis.annotations.Select;
 
 public interface TenantInvitationMapper extends BaseMapper<TenantInvitation> {
-    // The opaque token locates a specific invitation before a tenant principal exists.
+    // The opaque token locates a specific notifier before a tenant principal exists.
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
         SELECT i.* FROM tenant_invitation i

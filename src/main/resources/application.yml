@@ -2,12 +2,9 @@ spring:
   application:
     name: roseiot
   lifecycle:
-    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}
+    timeout-per-shutdown-phase: 30s
   config:
     import: optional:file:.env[.properties]
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   docker:
     compose:
       skip:
@@ -47,18 +44,16 @@ roseiot:
         key-prefix: "auth:login:"
         max-attempts: 10
       - method: POST
-        path: /noauth/user-credentials/password-resets
+        path: /password-resets
         body-field: email
         key-prefix: "noauth:reset-password:"
         max-attempts: 5
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}
-    tenant-invitation:
-      link-base-url: ${ROSEIOT_TENANT_INVITATION_LINK_BASE_URL:http://localhost:${server.port:8080}}
 
 mybatis-plus:
-  type-handlers-package: io.roseiot.iam.infra.mybatis
+  type-handlers-package: io.roseiot.shared.mybatis
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler

@@ -5,12 +5,10 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：IAM 认证与 RBAC、固定多租户模型及全局系统设置（Flyway **V1–V7**
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：IAM 认证与 RBAC、固定多租户模型及全局系统设置（Flyway **V1–V12**
 ）。数据库迁移创建 `default` 平台租户、资源目录、平台角色和系统设置表；客户租户由 `TenantService` 在创建事务中初始化内置角色与授权。SQL
-迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续 Spec。HTTP 路由按认证边界划分：需 access-token
-登录态的接口统一位于 **`/api/**`**；无需 access-token 登录态的身份接口位于 **`/noauth/**`**
-，包括登录、refresh、密码重置、用户激活和租户邀请；refresh 仍须提供有效 refresh token；未来内部接口使用 **`/internal/**`**
-。Access JWT 含 **`sub`/`sid`/`tid`/`azv`**，refresh JWT 使用签名且有类型标识；授权只依据主体被授予的活动 **ACTION**
+迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续设计。HTTP 路由使用资源路径，不添加 `/api`、`/noauth` 或 `/internal` 前缀；登录保留 `/login`，当前用户操作位于 `/me`，认证边界由 Spring Security 按接口配置。
+。Access JWT 含 **`sub`/`sid`/`tid`**，refresh JWT 使用签名且有类型标识；授权只依据主体被授予的活动 **ACTION**
 code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可按树结构渲染）。用户密码和重置状态存于 IAM `UserCredential`；系统级
 `GENERAL.setting.baseUrl` 用于生成邮件绝对链接。 **Spec #3**（租户生命周期、邀请、成员管理）已交付 —
 见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
@@ -78,14 +76,14 @@ code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可
 
 **写集成测试当**：
 
-- **HTTP 契约（MockMvc 切片）**：`SessionAuthWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
+- **HTTP 契约（MockMvc 切片）**：`LoginAuthenticationWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
 - **Security + Controller 组合**：`SecurityConfigWebMvcTest`（匿名 recovery、JWT 入口等与过滤器链一致的行为）。
 - **持久化 / Flyway / 事务**：如 `TenantLifecyclePostgresTest`——在 PostgreSQL 上验证表、Mapper 与跨表原子性（不必走 HTTP）。
 
 **不写集成测试当**：
 
 - 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
-- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/api/users/me` 即可）。
+- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/me` 即可）。
 
 ### 公共夹具
 
@@ -97,8 +95,8 @@ code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可
 
 | 类型        | 示例类                                                                                         |
 |-------------|------------------------------------------------------------------------------------------------|
-| 单元        | `UserServiceTest`、`UserCredentialServiceTest`、`UserSessionServiceTest`、`TenantServiceTests` |
-| WebMvc 切片 | `SessionAuthWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests`      |
+| 单元        | `UserServiceTest`、`UserCredentialServiceTest`、`TenantServiceTests` |
+| WebMvc 切片 | `LoginAuthenticationWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests`      |
 | 真库集成    | `TenantLifecyclePostgresTest`                                                                  |
 
 **原则**：能写单元测试的不要 `@SpringBootTest`；`@WebMvcTest` 只承担 HTTP 契约，Flyway 与持久化证据用真库集成测试。
@@ -159,31 +157,17 @@ API；首管理员初始化页面及其后端能力待后续 Spec。空库可以
 `.env` 设置 `SPRING_PROFILES_ACTIVE=local`，日志 notifier 会输出可用的重置/邀请链接；其它环境必须接入不记录明文 token
 的通知实现，否则应用无法启动。
 
-业务 API 前缀为 **`/api`**（URL 中无 `/v1`）。错误体为稳定 JSON：`{"code":"...","message":"..."}`。
+API 路径和方法见 [api.md](api.md)。错误体为稳定 JSON：`{"code":"...","message":"..."}`。成功创建与更新使用 **200**，无响应体的变更可使用 **204**；不使用 `PATCH`、`201` 或 `202`。
 
-| 方法     | 路径                                       | 认证                                             |
-|----------|--------------------------------------------|--------------------------------------------------|
-| POST     | `/login`                                   | 匿名                                             |
-| POST     | `/token`                                   | 匿名（body 含 refresh）                          |
-| DELETE   | `/logout`                                  | Bearer（退出当前会话）                           |
-| DELETE   | `/logout?all=true`                         | Bearer（退出全部会话）                           |
-| POST     | `/noauth/user-credentials/password-resets` | 匿名                                             |
-| GET      | `/noauth/user-credentials/password-resets` | 匿名（校验 token，**200** + `{ "status": "valid" |"expired"|"invalid" }`） |
-| PUT      | `/noauth/user-credentials/password-resets` | 匿名（成功 **204**）                             |
-| GET/POST | `/noauth/users/activation`                 | 匿名（激活流程 **501** 占位）                    |
-| GET      | `/api/users/me`                            | Bearer                                           |
-| PATCH    | `/api/user-credentials/me/password`        | Bearer                                           |
+Access JWT（HS256）有效期 15 分钟，包含 `sub`（用户 id）和 `tid`（用户所属租户）。每个请求都会检查当前用户和租户状态并加载最新权限。过期后重新登录；客户端退出时清除本地令牌。改密和权限变化不会撤销已签发令牌，令牌最长仍可使用至过期。
 
-Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`tid`**（用户所属租户）与 **`azv`**（整数，对应
-`users.authorization_version`）。改密或密码重置成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
-
-Flyway 从 **V1–V7** 创建当前 schema、平台资源/角色 seed 和 `system_setting`。V7 将 `users` 中的密码字段迁入一对一
+Flyway 从 **V1–V12** 创建当前 schema、平台资源/角色 seed 和 `system_setting`。V7 将 `users` 中的密码字段迁入一对一
 `user_credential`，并把每用户最新的重置状态迁入凭证行。客户租户内置角色在应用创建租户时由同一事务初始化。其它 schema
-变更仍须清空重建或按迁移脚本升级。
+变更仍须清空重建或按迁移脚本升级。V8 移除用户授权版本，V9 扩展用户资料时间字段并简化凭据列名，V10 删除资源 scope，V11 将资源启用标志改为枚举状态，V12 删除服务端用户会话表。
 
 验证：`./mvnw -q verify`（含 Testcontainers 空库基线测试）。
 
-生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、`POST /noauth/user-credentials/password-resets` **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
+生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、`POST /password-resets` **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
 
 ### 手动验证（AC-2：登录与 profile）
 
@@ -194,59 +178,35 @@ LOGIN=$(curl -sS -X POST "$BASE/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"your-password-at-least-12-chars"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
-REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
 
-curl -sS "$BASE/api/users/me" -H "Authorization: Bearer $ACCESS" | jq .
+curl -sS "$BASE/me" -H "Authorization: Bearer $ACCESS" | jq .
 ```
 
-### 手动验证（AC-4：注销后会话失效）
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE "$BASE/logout" \
-  -H "Authorization: Bearer $ACCESS"
-
-curl -sS -X POST "$BASE/token" \
-  -H 'Content-Type: application/json' \
-  -d "{\"refreshToken\":\"$REFRESH\"}"
-# 期望 401，body 含 invalid_refresh_token
-```
+退出时客户端应清除本地 `ACCESS`；access token 最长存活 15 分钟。
 
 ### 手动验证（AC-6：密码重置）
 
 启用 `local` profile 时，`LoggingPasswordResetNotifier` 在 WARN 日志中打印 **
-`/noauth/user-credentials/password-resets?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见
+`/password-resets/{token}`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见
 `UserCredentialServiceTest` 与 `IdentityNoauthControllerWebMvcTest`。
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/noauth/user-credentials/password-resets" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/password-resets" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com"}'
 # 期望 200，无 body（与未注册邮箱请求相同）
 
 # 校验令牌（邮件/日志里的链接应对 API，不是 /auth/…）：
-curl -sS "$BASE/noauth/user-credentials/password-resets?resetToken=$RESET_TOKEN"
+curl -sS "$BASE/password-resets/$RESET_TOKEN"
 # 期望 200，例如 {"status":"valid"}
 
 # 无前端时可直接 PUT 确认重置：
-curl -sS -o /dev/null -w '%{http_code}\n' -X PUT "$BASE/noauth/user-credentials/password-resets" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT "$BASE/password-resets/$RESET_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d "{\"resetToken\":\"$RESET_TOKEN\",\"password\":\"newSecurePass9012\"}"
-# 期望 204；随后用新密码 login，旧 refresh 不可再用
+  -d "{\"password\":\"newSecurePass9012\"}"
+# 期望 204；随后用新密码 login
 ```
 
-## 租户与用户（Spec #3）
+## 租户与用户
 
-| 方法            | 路径                                | 说明                                         |
-|-----------------|-------------------------------------|----------------------------------------------|
-| POST            | `/api/tenants`                      | 平台管理员：创建客户租户并发送首个管理员邀请 |
-| PATCH           | `/api/tenants/{tenantId}`           | 平台管理员：更新客户租户名称或状态           |
-| GET             | `/api/members`                      | 当前租户：列出成员                           |
-| PATCH           | `/api/members/{userId}`             | 当前租户：修改成员角色或状态                 |
-| GET/POST/DELETE | `/api/invitations`…                 | 当前租户：邀请管理                           |
-| GET/POST        | `/noauth/tenants/invitations`       | 无需 access-token：校验/接受邀请             |
-| GET             | `/api/users/me`                     | 当前认证用户：个人资料                       |
-| PATCH           | `/api/user-credentials/me/password` | 当前认证用户：修改密码                       |
-| GET             | `/api/tenants/users`                | 当前租户：列出成员                           |
-| PATCH           | `/api/tenants/users/{userId}`       | 当前租户：修改成员                           |
-| GET/POST/DELETE | `/api/tenants/invitations`…         | 当前租户：邀请管理                           |
-完整契约见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
+当前路径设计见 [api.md](api.md)。租户管理、成员管理和邀请操作均在服务端校验租户上下文与资源授权。

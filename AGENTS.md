@@ -24,11 +24,10 @@
 | 路径 | 用途 |
 | --- | --- |
 | `README.md` | 项目定位、当前状态以及真实可用的启动和验证入口 |
-| `docs/roadmap.md` | 阶段方向和待验证假设，不是已批准的实现规格 |
+| `docs/roadmap.md` | 阶段方向和待验证假设，不作为当前需求或实现依据 |
 | `docs/product/prd.md` | 当前有效的产品需求总览和稳定需求 ID |
 | `docs/product/interview-decisions.md` | 已确认的访谈建议和历史决策，只追加不改写 |
 | `docs/agents/` | Issue tracker、triage 标签和领域文档规则 |
-| `docs/sdd/` | 需要正式门禁的 Spec、Plan 和交付证据，按需创建 |
 | `docs/adr/` | 重要且长期有效的架构决策，按需创建 |
 | `GLOSSARY.md` | 已确认的领域词汇，按需创建 |
 | `ui/` | 未来前端目录；当前任务未要求时不要创建 |
@@ -43,7 +42,7 @@
 
 1. 运行 `git status --short --branch`，识别用户已有修改。
 2. 阅读与任务直接相关的代码和文档。
-3. 涉及产品功能、范围或业务规则时读取 `docs/product/prd.md`；有对应 Issue、Spec、Plan、ADR 或 `GLOSSARY.md` 时一并读取。
+3. 涉及产品功能、范围或业务规则时读取 `docs/product/prd.md`；有对应 Issue、ADR 或 `GLOSSARY.md` 时一并读取。
 4. 检查仓库中的实际构建清单、Wrapper 和 CI，再决定可用命令。
 5. 发现需求、文档和实现相互冲突时，先指出冲突，不要自行选择对用户影响较大的解释。
 
@@ -53,20 +52,11 @@
 
 - 默认按可独立验证的垂直切片交付。
 - 每次改动都说明范围，并运行与风险相称的验证。
-- 涉及以下内容时，先在 `docs/sdd/` 编写 Spec：
-  - 公开行为或外部契约；
-  - 数据模型或持久化语义；
-  - 身份、权限、安全或租户边界；
-  - HTTP、MQTT、WebSocket、gRPC 或消息协议；
-  - 跨模块依赖或模块边界；
-  - 重大基础设施和架构变化。
-- Spec 经用户明确批准后再编写 Plan；Plan 经用户明确批准后再实现。
 - 小型缺陷修复、文档调整和低风险维护可以直接执行，但不得借机扩大范围。
-- 当变更已有 Spec 或 Plan 时，以对应文档定义的行为和验收标准为准。
 - 提议与现有 ADR 冲突时，必须明确指出，不得静默覆盖。
-- 不把单个任务的临时要求写入长期规范；将其保留在对应 Issue、Spec 或 Plan 中。
+- 不把单个任务的临时要求写入长期规范；将其保留在对应 Issue 或交付记录中。
 - 用户确认新的访谈建议后，追加到 `docs/product/interview-decisions.md`；若改变当前有效需求，同步更新 `docs/product/prd.md`。
-- 新增或改变领域术语时同步更新 `GLOSSARY.md`；历史决策、当前需求、可执行 Spec 和 ADR 不相互混写。
+- 新增或改变领域术语时同步更新 `GLOSSARY.md`；历史决策、当前需求和 ADR 不相互混写。
 
 ## 构建与验证
 
@@ -83,7 +73,7 @@
 
 - 默认采用模块化单体，不提前拆分微服务。
 - **能力分包 + 技术分层**（模块化单体内的默认布局）：
-  - **多能力根包**：Roseiot 在 **`io.roseiot.<能力名>`** 下按业务闭环分包（如 **`iam`**、**`device`**、**`tenant`**、**`product`** 等，以 Spec 为准 **并列** 于同一模块化单体，**不**再用 `io.roseiot.platform` 中间层）。当前身份与访问管理能力位于 `io.roseiot.iam`；其它能力在 Spec 批准前 **不建空包**。
+  - **多能力根包**：Roseiot 在 **`io.roseiot.<能力名>`** 下按业务闭环分包（如 **`iam`**、**`device`**、**`tenant`**、**`product`** 等，**并列** 于同一模块化单体，**不**再用 `io.roseiot.platform` 中间层）。当前身份与访问管理能力位于 `io.roseiot.iam`；其它能力在有实际用例前 **不建空包**。
   - **主应用类**：`io.roseiot.RoseiotApplication` 留在根包；**禁止**在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`，也 **禁止** 根级 `io.roseiot.config`。
   - **能力内分层**（按需创建子包，无调用方不建空包）：
     - `web` — HTTP：`@RestController`、请求/响应 DTO、能力内 `@RestControllerAdvice`；
@@ -94,8 +84,8 @@
     - `persistence` — 该能力拥有的表与 MyBatis Mapper（能力独占表默认在此；见下条扫描）。
   - **`iam` 能力**（人类身份与访问管理）：实现位于 `iam.application`（`*Service`）、`iam.web`（Controller / `@RestControllerAdvice`）、`iam.domain`、`iam.infra.*`（如 `security`、`mybatis`、`passwordreset`）和 `iam.persistence`；会话、RBAC、`users` 表归属 `iam`。
   - **`shared`**：跨能力、无单一业务所有权 — **`shared.api`**、 **`shared.util`**、 **`shared.ratelimit`** 等；Security 过滤器链在 **`iam.infra.security`**（`SecurityConfig`、`SecurityExceptionHandler`）。
-  - **MyBatis `@MapperScan`**：`io.roseiot.iam.infra.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.iam.persistence`**；UUID 类型处理器在 `iam.infra.mybatis`（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
-  - **能力间调用**：允许 `device.application` 依赖 `iam` 提供的授权 API；禁止循环依赖；跨能力 HTTP 契约以外部/Spec 为准。
+  - **MyBatis `@MapperScan`**：`io.roseiot.shared.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.iam.persistence`**；UUID 类型处理器在 `iam.infra.mybatis`（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
+  - **能力间调用**：允许 `device.application` 依赖 `iam` 提供的授权 API；禁止循环依赖；跨能力 HTTP 契约以实际需求和现行文档为准。
   - **测试**：路径镜像主代码（如 `iam.web.*Tests`、`iam.application.*Tests`）。
 - **不采用六边形架构**：不用 Port/Adapter 命名与「入站/出站端口」目录；分层是 **技术职责**，不是第二套架构词汇。
 - 只有真实用例证明数据所有权、稳定契约和独立测试边界后，才新增模块。
@@ -103,7 +93,7 @@
 - 引入依赖前，先确认 JDK、Spring 或已有依赖不能合理解决当前问题。
 - 数据库、缓存、消息队列、gRPC、分布式协调、时序数据库和独立 Starter 均由实际需求和测量结果驱动。
 - 不为了展示技术栈而引入基础设施，不为未经证明的规模提前建设分布式方案。
-- 具体架构以已批准的 Spec 和 `docs/adr/` 为准，不以路线图中的候选方案为准。
+- 具体架构以 `docs/adr/` 和实际需求为准，不以路线图中的候选方案为准。
 
 ## Spring Boot 编程约束
 

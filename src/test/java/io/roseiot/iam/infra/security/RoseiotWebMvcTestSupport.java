@@ -68,8 +68,6 @@ public final class RoseiotWebMvcTestSupport {
 
             User user = new User();
             user.setId(UUID.fromString(jwt.getSubject()));
-            user.setAuthorizationVersion(Math.toIntExact(
-                    ((Number) jwt.getClaim(JwtTokenFactory.AUTHORIZATION_VERSION)).longValue()));
             String tenantId = jwt.getClaimAsString("tid");
             if (tenantId != null && !tenantId.isBlank()) {
                 user.setTenantId(UUID.fromString(tenantId));

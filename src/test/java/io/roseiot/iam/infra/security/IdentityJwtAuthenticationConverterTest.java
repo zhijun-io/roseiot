@@ -1,9 +1,7 @@
 package io.roseiot.iam.infra.security;
 
 import io.roseiot.iam.domain.ActionCode;
-import io.roseiot.iam.infra.security.JwtTokenFactory;
-import io.roseiot.iam.persistence.UserSession;
-import io.roseiot.iam.persistence.UserSessionMapper;
+import io.roseiot.iam.persistence.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -14,7 +12,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,161 +20,61 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 class IdentityJwtAuthenticationConverterTest {
-
-    private static final UUID USER_ID = UUID.fromString("019a0000-0000-7000-8000-000000000004");
-    private static final UUID SESSION_ID = UUID.fromString("019a0000-0000-7000-8000-000000000014");
-    private static final UUID TENANT_ID = UUID.fromString("019a0000-0000-7000-8000-0000000000f1");
-
-    private SecurityUserDetailsService userDetailsService;
-    private UserSessionMapper refreshSessionMapper;
+    private static final UUID USER_ID = UUID.randomUUID();
+    private static final UUID TENANT_ID = UUID.randomUUID();
+    private SecurityUserDetailsService details;
     private IdentityJwtAuthenticationConverter cut;
 
     @BeforeEach
     void setUp() {
-        userDetailsService = mock(SecurityUserDetailsService.class);
-        refreshSessionMapper = mock(UserSessionMapper.class);
-        cut = new IdentityJwtAuthenticationConverter(userDetailsService, refreshSessionMapper);
-        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any()))
-                .thenReturn(activeSession(USER_ID));
+        details = mock(SecurityUserDetailsService.class);
+        cut = new IdentityJwtAuthenticationConverter(details);
     }
 
-    private static Jwt token(String subject, Object authorizationVersion) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("sub", subject);
-        claims.put("sid", SESSION_ID.toString());
-        claims.put("tid", TENANT_ID.toString());
-        if (authorizationVersion != null) {
-            claims.put(JwtTokenFactory.AUTHORIZATION_VERSION, authorizationVersion);
-        }
-        Instant issuedAt = Instant.now();
-        return new Jwt("raw-token-value", issuedAt, issuedAt.plus(15, ChronoUnit.MINUTES),
-                Map.of("alg", "HS256"), claims);
+    private static Jwt token(String subject, String tenant) {
+        Instant now = Instant.now();
+        return new Jwt("raw", now, now.plus(15, ChronoUnit.MINUTES), Map.of("alg", "HS256"),
+                Map.of("sub", subject, "tid", tenant));
     }
 
-    private static UserSession activeSession(UUID userId) {
-        UserSession session = new UserSession();
-        session.setId(SESSION_ID);
-        session.setUserId(userId);
-        session.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
-        return session;
-    }
-
-    private SecurityUser loadedUser(long authorizationVersion) {
-        return new SecurityUser(
-                userEntity(authorizationVersion),
-                List.of(new SimpleGrantedAuthority(ActionCode.DEVICE_READ)));
-    }
-
-    private static io.roseiot.iam.persistence.User userEntity(long authorizationVersion) {
-        io.roseiot.iam.persistence.User user = new io.roseiot.iam.persistence.User();
+    private static SecurityUser user(UUID tenantId) {
+        User user = new User();
         user.setId(USER_ID);
-        user.setTenantId(TENANT_ID);
-        user.setAuthorizationVersion(Math.toIntExact(authorizationVersion));
+        user.setTenantId(tenantId);
         user.setEmail("ops@roseiot.io");
-        return user;
-    }
-
-    private void assertInvalidToken(Runnable action, String description) {
-        assertThatThrownBy(action::run)
-                .isInstanceOf(OAuth2AuthenticationException.class)
-                .extracting(exception -> ((OAuth2AuthenticationException) exception).getError().getErrorCode())
-                .isEqualTo("invalid_token");
-        assertThatThrownBy(action::run)
-                .hasMessageContaining(description);
+        return new SecurityUser(user, List.of(new SimpleGrantedAuthority(ActionCode.DEVICE_READ)));
     }
 
     @Test
-    void shouldAuthenticateActiveUserWithMatchingAuthorizationVersion() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(7L));
-
-        Authentication authentication = cut.convert(token(USER_ID.toString(), 7L));
-
-        assertThat(authentication.isAuthenticated()).isTrue();
-        assertThat(authentication.getName()).isEqualTo("ops@roseiot.io");
-        assertThat(authentication.getPrincipal()).isInstanceOf(SecurityUser.class);
-        SecurityUser user = (SecurityUser) authentication.getPrincipal();
-        assertThat(user.userId()).isEqualTo(USER_ID);
-        assertThat(user.authorizationVersion()).isEqualTo(7L);
-        assertThat(authentication.getAuthorities())
-                .extracting(Object::toString)
-                .contains(ActionCode.DEVICE_READ);
+    void authenticatesAnActiveUserAndLoadsCurrentAuthorities() {
+        when(details.loadByUserId(USER_ID)).thenReturn(user(TENANT_ID));
+        Authentication result = cut.convert(token(USER_ID.toString(), TENANT_ID.toString()));
+        assertThat(result.isAuthenticated()).isTrue();
+        assertThat(result.getPrincipal()).isInstanceOf(SecurityUser.class);
+        assertThat(result.getAuthorities()).extracting(Object::toString).contains(ActionCode.DEVICE_READ);
     }
 
     @Test
-    void shouldAcceptAuthorizationVersionDeliveredAsInteger() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(3L));
-
-        assertThat(cut.convert(token(USER_ID.toString(), 3))).isNotNull();
+    void rejectsUnknownUser() {
+        when(details.loadByUserId(USER_ID)).thenThrow(new UsernameNotFoundException("missing"));
+        assertThatThrownBy(() -> cut.convert(token(USER_ID.toString(), TENANT_ID.toString())))
+                .isInstanceOf(OAuth2AuthenticationException.class).hasMessageContaining("User not active");
     }
 
     @Test
-    void shouldRejectTokenMintedBeforeAuthorizationChanged() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(8L));
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 7L)),
-                "Authorization version mismatch");
+    void rejectsInvalidSubjectWithoutLookingUpUser() {
+        assertThatThrownBy(() -> cut.convert(token("not-a-user-id", TENANT_ID.toString())))
+                .isInstanceOf(OAuth2AuthenticationException.class).hasMessageContaining("Invalid subject");
+        verifyNoInteractions(details);
     }
 
     @Test
-    void shouldRejectTokenForUnknownUser() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenThrow(new UsernameNotFoundException("missing"));
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "User not active");
-    }
-
-    @Test
-    void shouldRejectTokenWithoutAuthorizationVersionClaim() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1L));
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), null)),
-                "Missing authorization version");
-    }
-
-    @Test
-    void shouldRejectAuthorizationVersionThatIsNotANumber() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1L));
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), "1")),
-                "Missing authorization version");
-    }
-
-    @Test
-    void shouldRejectSubjectThatIsNotAUserId() {
-        assertInvalidToken(() -> cut.convert(token("session-scoped-principal", 1L)), "Invalid subject");
-        verifyNoInteractions(userDetailsService);
-    }
-
-    @Test
-    void shouldRejectTokenWithoutSessionClaim() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
-        Jwt token = token(USER_ID.toString(), 1L);
-        Map<String, Object> claims = new HashMap<>(token.getClaims());
-        claims.remove("sid");
-        Jwt withoutSession = new Jwt(token.getTokenValue(), token.getIssuedAt(), token.getExpiresAt(),
-                token.getHeaders(), claims);
-
-        assertInvalidToken(() -> cut.convert(withoutSession), "Invalid session");
-    }
-
-    @Test
-    void shouldRejectTokenForMissingOrInactiveSession() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
-        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any())).thenReturn(null);
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "Session not active");
-    }
-
-    @Test
-    void shouldRejectSessionOwnedByAnotherUser() {
-        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
-        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any()))
-                .thenReturn(activeSession(UUID.randomUUID()));
-
-        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "Session not active");
+    void rejectsTenantMismatch() {
+        when(details.loadByUserId(USER_ID)).thenReturn(user(TENANT_ID));
+        assertThatThrownBy(() -> cut.convert(token(USER_ID.toString(), UUID.randomUUID().toString())))
+                .isInstanceOf(OAuth2AuthenticationException.class).hasMessageContaining("Tenant mismatch");
     }
 }

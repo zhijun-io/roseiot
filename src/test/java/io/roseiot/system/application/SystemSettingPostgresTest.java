@@ -7,8 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,22 +17,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class SystemSettingPostgresTest {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Autowired
     private SystemSettingService settings;
 
     @Test
     void storesAndReplacesJsonSettingsWithoutTenantContext() {
-        settings.replace(SystemSettingType.GENERAL, Map.of("baseUrl", "https://roseiot.example", "locale", "en"));
-        settings.replace(SystemSettingType.SETUP, Map.of("complete", false));
+        settings.replace(SystemSettingType.GENERAL, json("""
+                {"baseUrl":"https://roseiot.example","locale":"en"}
+                """));
+        settings.replace(SystemSettingType.SETUP, json("""
+                {"complete":false}
+                """));
 
-        assertThat(settings.find(SystemSettingType.GENERAL).orElseThrow().getSetting())
-                .containsEntry("baseUrl", "https://roseiot.example")
-                .containsEntry("locale", "en");
+        assertThat(settings.find(SystemSettingType.GENERAL).orElseThrow().getSetting().path("baseUrl").textValue())
+                .isEqualTo("https://roseiot.example");
         assertThat(settings.find(SystemSettingType.SETUP).orElseThrow().getSetting())
-                .containsEntry("complete", false);
+                .isEqualTo(json("{\"complete\":false}"));
 
-        settings.replace(SystemSettingType.GENERAL, Map.of("baseUrl", "https://new.example"));
+        settings.replace(SystemSettingType.GENERAL, json("{\"baseUrl\":\"https://new.example\"}"));
         assertThat(settings.requireGeneralBaseUrl()).isEqualTo("https://new.example");
-        assertThat(settings.find(SystemSettingType.GENERAL).orElseThrow().getSetting()).hasSize(1);
+        assertThat(settings.find(SystemSettingType.GENERAL).orElseThrow().getSetting().size()).isEqualTo(1);
+    }
+
+    private static JsonNode json(String value) {
+        return JSON.readTree(value);
     }
 }

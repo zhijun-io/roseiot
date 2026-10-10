@@ -2,9 +2,8 @@ package io.roseiot.tenant.application;
 
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.iam.application.RoleService;
-import io.roseiot.iam.application.UserSessionService;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
-import io.roseiot.tenant.infra.mybatis.TenantContext;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
+import io.roseiot.shared.mybatis.TenantContext;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,11 +53,9 @@ class TenantInvitationPostgresTest {
         verify(tenantInvitationNotifier)
                 .sendInvitation(eq("admin@roseiot.io"), eq("Administrator"), plainToken.capture());
 
-        UserSessionService.SessionTokens tokens =
-                invitationService.acceptInvitation(plainToken.getValue(), "Passw0rd9012");
+        String accessToken = invitationService.acceptInvitation(plainToken.getValue(), "Passw0rd9012");
 
-        assertThat(tokens.accessToken()).isNotBlank();
-        assertThat(tokens.refreshToken()).isNotBlank();
+        assertThat(accessToken).isNotBlank();
 
         Map<String, Object> userRow = jdbcTemplate.queryForMap(
                 "SELECT tenant_id, email FROM users WHERE email = ?", "admin@roseiot.io");
@@ -69,10 +66,10 @@ class TenantInvitationPostgresTest {
         UUID userId = jdbcTemplate.queryForObject(
                 "SELECT id FROM users WHERE email = ?", UUID.class, "admin@roseiot.io");
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT password_hash IS NOT NULL FROM user_credential WHERE user_id = ?", Boolean.class, userId))
+                "SELECT password IS NOT NULL FROM user_credential WHERE user_id = ?", Boolean.class, userId))
                 .isTrue();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT password_hash IS NOT NULL FROM user_credential WHERE user_id = ?", Boolean.class, userId))
+                "SELECT password IS NOT NULL FROM user_credential WHERE user_id = ?", Boolean.class, userId))
                 .isTrue();
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM user_role WHERE user_id = ? AND tenant_id = ?",

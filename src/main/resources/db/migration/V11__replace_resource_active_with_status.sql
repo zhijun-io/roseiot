@@ -1,0 +1,8 @@
+ALTER TABLE resource
+    ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'
+        CHECK (status IN ('ACTIVE', 'DISABLED'));
+
+UPDATE resource
+SET status = CASE WHEN active THEN 'ACTIVE' ELSE 'DISABLED' END;
+
+ALTER TABLE resource DROP COLUMN active;

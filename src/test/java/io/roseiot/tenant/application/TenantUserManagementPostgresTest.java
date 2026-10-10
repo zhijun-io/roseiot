@@ -3,13 +3,12 @@ package io.roseiot.tenant.application;
 import io.roseiot.iam.domain.ActionCode;
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.iam.application.RoleService;
-import io.roseiot.iam.application.UserSessionService;
 import io.roseiot.iam.infra.security.SecurityUser;
 import io.roseiot.iam.infra.security.SecurityUserDetailsService;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
-import io.roseiot.tenant.infra.mybatis.TenantContext;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
+import io.roseiot.shared.mybatis.TenantContext;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantInvitationMapper;
 import org.junit.jupiter.api.Test;
@@ -46,9 +45,6 @@ class TenantUserManagementPostgresTest {
 
     @Autowired
     private TenantUserService userManagementService;
-
-    @Autowired
-    private UserSessionService userSessionService;
 
     @Autowired
     private SecurityUserDetailsService securityUserDetailsService;

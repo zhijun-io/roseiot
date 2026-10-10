@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @WebMvcTest(controllers = TenantUserController.class)
@@ -59,7 +60,7 @@ class TenantUsersMockMvcTests {
                 .willReturn(List.of(new TenantUserSummary(
                         MANAGED_USER_ID, "member@roseiot.io", ROLE_ID, false)));
 
-        assertThat(mvc.get().uri("/api/tenants/users").with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
+        assertThat(mvc.get().uri("/tenants/" + TENANT_ID + "/users").with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
@@ -76,39 +77,49 @@ class TenantUsersMockMvcTests {
 
     @Test
     void shouldRejectPlatformJwtWithoutMemberManagement() {
-        assertThat(mvc.get().uri("/api/tenants/users").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
+        assertThat(mvc.get().uri("/tenants/" + TENANT_ID + "/users").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     @Test
+    void shouldRejectTenantPathThatDoesNotMatchTheAuthenticatedTenant() {
+        UUID otherTenantId = UUID.randomUUID();
+
+        assertThat(mvc.get().uri("/tenants/" + otherTenantId + "/users")
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
+                .hasStatus(HttpStatus.FORBIDDEN);
+
+        verifyNoInteractions(userManagementService);
+    }
+
+    @Test
     void shouldPatchMemberRole() {
-        assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID + "/users/" + MANAGED_USER_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"roleId": "019f0000-0000-7000-8000-0000000000a2"}
+                                {"disabled": false, "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
                 .hasStatus(HttpStatus.NO_CONTENT);
 
-        verify(userManagementService).updateUser(TENANT_ID, MANAGED_USER_ID, null, ROLE_ID);
+        verify(userManagementService).updateUser(TENANT_ID, MANAGED_USER_ID, false, ROLE_ID);
     }
 
     @Test
     void shouldPatchMemberDisabledState() {
-        assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID + "/users/" + MANAGED_USER_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"disabled": true}
+                                {"disabled": true, "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
                 .hasStatus(HttpStatus.NO_CONTENT);
-
-        verify(userManagementService).updateUser(TENANT_ID, MANAGED_USER_ID, true, null);
+        verify(userManagementService).updateUser(TENANT_ID, MANAGED_USER_ID, true, ROLE_ID);
     }
 
     @Test
     void shouldRejectPatchWithoutAnyChange() {
-        assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID + "/users/" + MANAGED_USER_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -122,13 +133,13 @@ class TenantUsersMockMvcTests {
     void shouldMapLastTenantAdminConflict() {
         willThrow(new BusinessException(ApiErrorCode.LAST_TENANT_ADMIN))
                 .given(userManagementService)
-                .updateUser(eq(TENANT_ID), eq(MANAGED_USER_ID), eq(true), any());
+                .updateUser(eq(TENANT_ID), eq(MANAGED_USER_ID), eq(true), eq(ROLE_ID));
 
-        assertThat(mvc.patch().uri("/api/tenants/users/" + MANAGED_USER_ID)
+        assertThat(mvc.put().uri("/tenants/" + TENANT_ID + "/users/" + MANAGED_USER_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"disabled": true}
+                                {"disabled": true, "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
@@ -142,7 +153,6 @@ class TenantUsersMockMvcTests {
                 .subject(ADMIN_USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
                 .claim("tid", TENANT_ID.toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }
@@ -152,7 +162,6 @@ class TenantUsersMockMvcTests {
         return builder.header("alg", "none")
                 .subject(ADMIN_USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

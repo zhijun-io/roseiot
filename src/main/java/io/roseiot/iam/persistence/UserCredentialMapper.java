@@ -13,7 +13,7 @@ public interface UserCredentialMapper extends BaseMapper<UserCredential> {
                 .set(UserCredential::getResetAt, now)
                 .set(UserCredential::getUpdatedAt, now)
                 .eq(UserCredential::getUserId, userId)
-                .eq(UserCredential::getResetTokenHash, tokenHash)
+                .eq(UserCredential::getResetToken, tokenHash)
                 .isNull(UserCredential::getResetAt)
                 .gt(UserCredential::getResetExpiresAt, now));
     }

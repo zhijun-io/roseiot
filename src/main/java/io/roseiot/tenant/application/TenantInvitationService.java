@@ -1,12 +1,11 @@
 package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import io.roseiot.iam.application.UserSessionService;
 import io.roseiot.iam.domain.LoginEmails;
 import io.roseiot.iam.domain.PasswordPolicy;
 import io.roseiot.iam.domain.TokenDigests;
 import io.roseiot.iam.domain.UserStatus;
-import io.roseiot.iam.persistence.RoleMapper;
+import io.roseiot.iam.infra.security.JwtTokenFactory;
 import io.roseiot.iam.persistence.User;
 import io.roseiot.iam.persistence.UserMapper;
 import io.roseiot.iam.persistence.UserCredential;
@@ -14,13 +13,13 @@ import io.roseiot.iam.persistence.UserCredentialMapper;
 import io.roseiot.iam.persistence.UserRoleMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.shared.mybatis.TenantContext;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
 import io.roseiot.tenant.persistence.TenantInvitation;
 import io.roseiot.tenant.persistence.TenantInvitationMapper;
 import io.roseiot.shared.util.UuidV7;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,7 +42,7 @@ public class TenantInvitationService {
     private final UserMapper userMapper;
     private final UserCredentialMapper userCredentialMapper;
     private final TenantInvitationNotifier invitationNotifier;
-    private final UserSessionService userSessionService;
+    private final JwtTokenFactory jwtTokenFactory;
     private final PasswordEncoder passwordEncoder;
     private final UserRoleMapper userRoleMapper;
 
@@ -53,8 +52,8 @@ public class TenantInvitationService {
             UserMapper userMapper,
             UserCredentialMapper userCredentialMapper,
             TenantInvitationNotifier invitationNotifier,
-            UserSessionService userSessionService,
-            @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder,
+            JwtTokenFactory jwtTokenFactory,
+            PasswordEncoder passwordEncoder,
             UserRoleMapper userRoleMapper, io.roseiot.iam.application.RoleService roles) {
         this.tenantMapper = tenantMapper;
         this.roles = roles;
@@ -62,7 +61,7 @@ public class TenantInvitationService {
         this.userMapper = userMapper;
         this.userCredentialMapper = userCredentialMapper;
         this.invitationNotifier = invitationNotifier;
-        this.userSessionService = userSessionService;
+        this.jwtTokenFactory = jwtTokenFactory;
         this.passwordEncoder = passwordEncoder;
         this.userRoleMapper = userRoleMapper;
     }
@@ -146,7 +145,7 @@ public class TenantInvitationService {
     }
 
     @Transactional
-    public UserSessionService.SessionTokens acceptInvitation(String rawToken, String rawPassword) {
+    public String acceptInvitation(String rawToken, String rawPassword) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BusinessException(ApiErrorCode.INVALID_INVITATION_TOKEN);
         }
@@ -157,7 +156,7 @@ public class TenantInvitationService {
 
         TenantInvitation found = invitationMapper.selectByToken(tokenHash);
         if (found == null) throw new BusinessException(ApiErrorCode.INVALID_INVITATION_TOKEN);
-        return io.roseiot.tenant.infra.mybatis.TenantContext.call(found.getTenantId(), () -> {
+        return TenantContext.call(found.getTenantId(), () -> {
         tenantMapper.requireActiveForUpdate(found.getTenantId());
         TenantInvitation invitation = invitationMapper.selectById(found.getId());
         if (invitation == null || invitation.getAcceptedAt() != null || invitation.getRevokedAt() != null
@@ -173,13 +172,13 @@ public class TenantInvitationService {
         user.setTenantId(invitation.getTenantId());
         user.setEmail(invitation.getEmail());
         user.setStatus(UserStatus.ACTIVE);
-        user.setAuthorizationVersion(1);
         user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         userMapper.insert(user);
 
         UserCredential credential = new UserCredential();
         credential.setUserId(userId);
-        credential.setPasswordHash(passwordEncoder.encode(rawPassword));
+        credential.setPassword(passwordEncoder.encode(rawPassword));
         credential.setCreatedAt(now);
         credential.setUpdatedAt(now);
         userCredentialMapper.insert(credential);
@@ -193,7 +192,7 @@ public class TenantInvitationService {
         invitation.setAcceptedAt(now);
         invitationMapper.updateById(invitation);
 
-        return userSessionService.openSessionForUser(userId);
+        return jwtTokenFactory.createAccessToken(userId, invitation.getTenantId(), now);
         });
     }
 

@@ -8,11 +8,8 @@ package io.roseiot.shared.domain;
 public enum ApiErrorCode {
     /** Spring Security {@link org.springframework.security.authentication.BadCredentialsException}. */
     INVALID_CREDENTIALS("invalid_credentials"),
-    /** {@link io.roseiot.iam.infra.security.InvalidRefreshTokenAuthenticationException}. */
-    INVALID_REFRESH_TOKEN("invalid_refresh_token"),
     INVALID_RESET_TOKEN("invalid_reset_token"),
     INVALID_INVITATION_TOKEN("invalid_invitation_token"),
-    NOT_IMPLEMENTED("not_implemented"),
     VALIDATION_ERROR("validation_error"),
     TENANT_NOT_FOUND("tenant_not_found"),
     TENANT_SLUG_CONFLICT("tenant_slug_conflict"),

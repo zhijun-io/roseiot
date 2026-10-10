@@ -1,6 +1,6 @@
 package io.roseiot.shared.ratelimit;
 
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import io.roseiot.shared.domain.ApiErrorCode;
 import org.springframework.http.HttpStatus;
 import jakarta.servlet.FilterChain;
@@ -27,17 +27,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final SlidingWindowRateLimiter rateLimiter;
     private final List<RateLimitProperties.Rule> rules;
     private final JsonMapper jsonMapper;
-    private final ApiErrorBodyWriter apiErrorBodyWriter;
+    private final ApiJson apiJson;
 
     public RateLimitFilter(
             SlidingWindowRateLimiter rateLimiter,
             RateLimitProperties rateLimitProperties,
             JsonMapper jsonMapper,
-            ApiErrorBodyWriter apiErrorBodyWriter) {
+            ApiJson apiJson) {
         this.rateLimiter = rateLimiter;
         this.rules = rateLimitProperties.getRules();
         this.jsonMapper = jsonMapper;
-        this.apiErrorBodyWriter = apiErrorBodyWriter;
+        this.apiJson = apiJson;
     }
 
     @Override
@@ -64,7 +64,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 rateLimiter.checkAllowed(key.get(), rule.getMaxAttempts());
             } catch (RateLimitExceededException exception) {
                 String code = ApiErrorCode.RATE_LIMITED.code();
-                apiErrorBodyWriter.write(response, HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
+                apiJson.writeError(response, HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
                 return;
             }
         }

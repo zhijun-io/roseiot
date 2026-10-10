@@ -48,12 +48,18 @@ class UserCredentialMigrationPostgresTest {
                     .migrate();
 
             assertThat(jdbc.queryForMap("SELECT * FROM user_credential WHERE user_id = ?", userId))
-                    .containsEntry("password_hash", "existing-bcrypt-hash")
-                    .containsEntry("reset_token_hash", "b".repeat(64))
+                    .containsEntry("password", "existing-bcrypt-hash")
+                    .containsEntry("reset_token", "b".repeat(64))
                     .containsEntry("reset_at", null);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
                             + " WHERE table_name = 'users' AND column_name IN ('password_hash','password_algorithm')",
                     Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+                            + " WHERE table_name = 'users' AND column_name = 'authorization_version'",
+                    Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+                            + " WHERE table_name = 'users' AND column_name IN ('name','updated_at')",
+                    Integer.class)).isEqualTo(2);
             assertThat(jdbc.queryForObject("SELECT to_regclass('password_reset_request') IS NULL", Boolean.class)).isTrue();
         }
     }

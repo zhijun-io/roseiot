@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApiExceptionHandlerTest {
 
     private final ApiExceptionHandler cut =
-            new ApiExceptionHandler(new ApiErrorBodyWriter(JsonMapper.builder().build()));
+            new ApiExceptionHandler(new ApiJson(JsonMapper.builder().build()));
 
     private void assertBody(ResponseEntity<ApiErrorResponse> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);

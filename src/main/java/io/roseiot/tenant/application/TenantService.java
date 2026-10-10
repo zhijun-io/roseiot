@@ -7,6 +7,7 @@ import io.roseiot.iam.application.RoleService;
 import io.roseiot.iam.persistence.RoleMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
+import io.roseiot.shared.mybatis.TenantContext;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
 import io.roseiot.shared.util.UuidV7;
@@ -55,7 +56,7 @@ public class TenantService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT);
         }
-        io.roseiot.tenant.infra.mybatis.TenantContext.call(tenant.getId(), () -> {
+        TenantContext.call(tenant.getId(), () -> {
             roleService.initializeBuiltInRoles(tenant.getId());
             invitationService.issueInvitation(tenant.getId(), email,
                     roleMapper.requireIdByCode(tenant.getId(), io.roseiot.iam.application.RoleService.TENANT_ADMIN));

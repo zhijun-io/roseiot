@@ -59,13 +59,13 @@ class TenantInvitationsMockMvcTests {
                 .willReturn(new InvitationSummary(
                         INVITATION_ID, "new@roseiot.io", ROLE_ID, now.plusSeconds(3600), now, null, null));
 
-        assertThat(mvc.post().uri("/api/tenants/invitations")
+        assertThat(mvc.post().uri("/tenants/" + TENANT_ID + "/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email": "new@roseiot.io", "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
-                .hasStatus(HttpStatus.CREATED)
+                .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
                         {
@@ -82,7 +82,7 @@ class TenantInvitationsMockMvcTests {
 
     @Test
     void shouldRejectPlatformJwtForInvitations() {
-        assertThat(mvc.post().uri("/api/tenants/invitations")
+        assertThat(mvc.post().uri("/tenants/" + TENANT_ID + "/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -98,7 +98,7 @@ class TenantInvitationsMockMvcTests {
                 .willReturn(List.of(new InvitationSummary(
                         INVITATION_ID, "new@roseiot.io", ROLE_ID, now.plusSeconds(3600), now, null, null)));
 
-        assertThat(mvc.get().uri("/api/tenants/invitations")
+        assertThat(mvc.get().uri("/tenants/" + TENANT_ID + "/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
@@ -108,7 +108,7 @@ class TenantInvitationsMockMvcTests {
 
     @Test
     void shouldRevokeInvitation() {
-        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID)
+        assertThat(mvc.delete().uri("/tenants/" + TENANT_ID + "/invitations/" + INVITATION_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.NO_CONTENT);
 
@@ -121,7 +121,7 @@ class TenantInvitationsMockMvcTests {
                 .given(invitationService)
                 .revoke(TENANT_ID, INVITATION_ID);
 
-        assertThat(mvc.delete().uri("/api/tenants/invitations/" + INVITATION_ID)
+        assertThat(mvc.delete().uri("/tenants/" + TENANT_ID + "/invitations/" + INVITATION_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
@@ -135,7 +135,6 @@ class TenantInvitationsMockMvcTests {
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
                 .claim("tid", TENANT_ID.toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }
@@ -145,7 +144,6 @@ class TenantInvitationsMockMvcTests {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

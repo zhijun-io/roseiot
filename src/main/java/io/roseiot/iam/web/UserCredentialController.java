@@ -9,12 +9,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,7 +27,7 @@ public class UserCredentialController {
         this.credentialService = credentialService;
     }
 
-    @PatchMapping("/api/user-credentials/me/password")
+    @PutMapping("/me/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("isAuthenticated()")
     void changePassword(
@@ -37,25 +35,28 @@ public class UserCredentialController {
         credentialService.changePassword(user.userId(), request.currentPassword(), request.newPassword());
     }
 
-    @PostMapping("/noauth/user-credentials/password-resets")
+    @PostMapping("/password-resets")
     @ResponseStatus(HttpStatus.OK)
     void requestPasswordReset(@Valid @RequestBody ResetPasswordEmailRequest request) {
         credentialService.requestResetByEmail(request.email());
     }
 
-    @GetMapping("/noauth/user-credentials/password-resets")
-    TokenCheckResponse checkResetToken(@RequestParam("resetToken") String resetToken) {
-        return new TokenCheckResponse(credentialService.checkResetToken(resetToken).name().toLowerCase(Locale.ROOT));
+    @GetMapping("/password-resets/{token}")
+    TokenCheckResponse checkResetToken(@PathVariable("token") String resetToken) {
+        return new TokenCheckResponse(
+                credentialService.checkResetToken(resetToken).name().toLowerCase(Locale.ROOT));
     }
 
-    @PutMapping("/noauth/user-credentials/password-resets")
+    @PutMapping("/password-resets/{token}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void confirmPasswordReset(@Valid @RequestBody ResetPasswordRequest request) {
-        credentialService.confirmPasswordReset(request.resetToken(), request.password());
+    void confirmPasswordReset(
+            @PathVariable("token") String resetToken,
+            @Valid @RequestBody ResetPasswordRequest request) {
+        credentialService.confirmPasswordReset(resetToken, request.password());
     }
 
     public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {}
     public record ResetPasswordEmailRequest(@NotBlank String email) {}
-    public record ResetPasswordRequest(@NotBlank String resetToken, @NotBlank String password) {}
+    public record ResetPasswordRequest(@NotBlank String password) {}
     public record TokenCheckResponse(String status) {}
 }

@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.roseiot.iam.domain.LoginEmails;
 import io.roseiot.iam.domain.PasswordPolicy;
 import io.roseiot.iam.domain.TokenDigests;
-import io.roseiot.iam.infra.passwordreset.PasswordResetNotifier;
+import io.roseiot.iam.infra.notifier.PasswordResetNotifier;
 import io.roseiot.iam.infra.security.AuthenticationExceptionMapping;
 import io.roseiot.iam.persistence.User;
 import io.roseiot.iam.persistence.UserCredential;
@@ -12,8 +12,6 @@ import io.roseiot.iam.persistence.UserCredentialMapper;
 import io.roseiot.iam.persistence.UserMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.shared.util.UuidV7;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,19 +26,16 @@ public class UserCredentialService {
     private final UserMapper userMapper;
     private final UserCredentialMapper credentialMapper;
     private final PasswordResetNotifier passwordResetNotifier;
-    private final UserSessionService userSessionService;
     private final PasswordEncoder passwordEncoder;
 
     public UserCredentialService(
             UserMapper userMapper,
             UserCredentialMapper credentialMapper,
             PasswordResetNotifier passwordResetNotifier,
-            UserSessionService userSessionService,
-            @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.credentialMapper = credentialMapper;
         this.passwordResetNotifier = passwordResetNotifier;
-        this.userSessionService = userSessionService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -49,17 +44,14 @@ public class UserCredentialService {
         User user = userMapper.selectById(userId);
         UserCredential credential = credentialMapper.selectById(userId);
         if (user == null || credential == null || currentPassword == null
-                || !passwordEncoder.matches(currentPassword, credential.getPasswordHash())) {
+                || !passwordEncoder.matches(currentPassword, credential.getPassword())) {
             throw AuthenticationExceptionMapping.invalidCredentials();
         }
         PasswordPolicy.ensureValid(newPassword, ApiErrorCode.VALIDATION_ERROR);
 
-        credential.setPasswordHash(passwordEncoder.encode(newPassword));
+        credential.setPassword(passwordEncoder.encode(newPassword));
         credential.setUpdatedAt(Instant.now());
         credentialMapper.updateById(credential);
-        user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);
-        userMapper.updateById(user);
-        userSessionService.logoutAllSessions(userId);
     }
 
     @Transactional
@@ -72,7 +64,7 @@ public class UserCredentialService {
 
         String plainToken = TokenDigests.generateUrlSafe256Bit();
         Instant now = Instant.now();
-        credential.setResetTokenHash(TokenDigests.sha256Hex(plainToken));
+        credential.setResetToken(TokenDigests.sha256Hex(plainToken));
         credential.setResetExpiresAt(now.plus(1, ChronoUnit.HOURS));
         credential.setResetAt(null);
         credential.setUpdatedAt(now);
@@ -84,7 +76,7 @@ public class UserCredentialService {
         if (rawToken == null || rawToken.isBlank()) return ResetTokenState.INVALID;
         String tokenHash = TokenDigests.sha256Hex(rawToken);
         UserCredential credential = credentialMapper.selectOne(new LambdaQueryWrapper<UserCredential>()
-                .eq(UserCredential::getResetTokenHash, tokenHash));
+                .eq(UserCredential::getResetToken, tokenHash));
         if (credential == null || credential.getResetAt() != null) return ResetTokenState.INVALID;
         if (credential.getResetExpiresAt() == null || !credential.getResetExpiresAt().isAfter(Instant.now())) {
             return ResetTokenState.EXPIRED;
@@ -102,7 +94,7 @@ public class UserCredentialService {
         String tokenHash = TokenDigests.sha256Hex(rawToken);
         Instant now = Instant.now();
         UserCredential credential = credentialMapper.selectOne(new LambdaQueryWrapper<UserCredential>()
-                .eq(UserCredential::getResetTokenHash, tokenHash)
+                .eq(UserCredential::getResetToken, tokenHash)
                 .isNull(UserCredential::getResetAt)
                 .gt(UserCredential::getResetExpiresAt, now));
         if (credential == null || credentialMapper.consumeResetTokenIfActive(credential.getUserId(), tokenHash, now) != 1) {
@@ -110,14 +102,11 @@ public class UserCredentialService {
         }
 
         credential.setResetAt(now);
-        credential.setPasswordHash(passwordEncoder.encode(newPassword));
+        credential.setPassword(passwordEncoder.encode(newPassword));
         credential.setUpdatedAt(now);
         credentialMapper.updateById(credential);
         User user = userMapper.selectById(credential.getUserId());
         if (user == null) throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
-        user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);
-        userMapper.updateById(user);
-        userSessionService.logoutAllSessions(credential.getUserId());
     }
 
     public enum ResetTokenState { VALID, EXPIRED, INVALID }

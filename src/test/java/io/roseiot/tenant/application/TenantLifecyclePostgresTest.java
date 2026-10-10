@@ -3,7 +3,7 @@ package io.roseiot.tenant.application;
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.iam.domain.TokenDigests;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 
 /**
  * Real wiring for slice 1: Flyway-created tenant tables, MyBatis persistence and transactional
- * atomicity of tenant plus initial TenantAdmin invitation against PostgreSQL.
+ * atomicity of tenant plus initial TenantAdmin notifier against PostgreSQL.
  */
 @SpringBootTest
 @Import(TestcontainersConfig.class)

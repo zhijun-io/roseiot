@@ -1,6 +1,6 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.iam.infra.security.MethodSecuritySpel;
+import io.roseiot.iam.domain.ActionCode;
 import io.roseiot.iam.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/tenants/invitations")
+@RequestMapping("/tenants/{tenantId}/invitations")
 public class TenantInvitationController {
 
     private final TenantInvitationService invitationService;
@@ -37,35 +37,54 @@ public class TenantInvitationController {
     }
 
     @GetMapping
-    @PreAuthorize(MethodSecuritySpel.TENANT_INVITE_OR_MANAGE)
+    @PreAuthorize("hasAnyAuthority('" + ActionCode.TENANT_USER_INVITE + "', '"
+            + ActionCode.TENANT_USER_MANAGE + "')")
     List<InvitationResponse> list(
             @AuthenticationPrincipal SecurityUser user,
+            @PathVariable UUID tenantId,
             @RequestParam(value = "status", required = false) String status) {
-        return invitationService.list(user.requireTenantId(), status).stream()
+        requireCurrentTenant(user, tenantId);
+        return invitationService.list(tenantId, status).stream()
                 .map(InvitationResponse::from)
                 .toList();
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize(MethodSecuritySpel.TENANT_USER_INVITE)
+    @PreAuthorize("hasAuthority('" + ActionCode.TENANT_USER_INVITE + "')")
+    @ResponseStatus(HttpStatus.OK)
     InvitationResponse create(
-            @AuthenticationPrincipal SecurityUser user, @Valid @RequestBody CreateInvitationRequest request) {
+            @AuthenticationPrincipal SecurityUser user,
+            @PathVariable UUID tenantId,
+            @Valid @RequestBody CreateInvitationRequest request) {
         return InvitationResponse.from(invitationService.create(
-                user.requireTenantId(), request.email(), request.roleId()));
+                requireCurrentTenant(user, tenantId), request.email(), request.roleId()));
     }
 
     @GetMapping("/{invitationId}")
-    @PreAuthorize(MethodSecuritySpel.TENANT_INVITE_OR_MANAGE)
-    InvitationResponse get(@AuthenticationPrincipal SecurityUser user, @PathVariable UUID invitationId) {
-        return InvitationResponse.from(invitationService.get(user.requireTenantId(), invitationId));
+    @PreAuthorize("hasAnyAuthority('" + ActionCode.TENANT_USER_INVITE + "', '"
+            + ActionCode.TENANT_USER_MANAGE + "')")
+    InvitationResponse get(
+            @AuthenticationPrincipal SecurityUser user,
+            @PathVariable UUID tenantId,
+            @PathVariable UUID invitationId) {
+        return InvitationResponse.from(invitationService.get(requireCurrentTenant(user, tenantId), invitationId));
     }
 
     @DeleteMapping("/{invitationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize(MethodSecuritySpel.TENANT_USER_INVITE)
-    void revoke(@AuthenticationPrincipal SecurityUser user, @PathVariable UUID invitationId) {
-        invitationService.revoke(user.requireTenantId(), invitationId);
+    @PreAuthorize("hasAuthority('" + ActionCode.TENANT_USER_INVITE + "')")
+    void revoke(
+            @AuthenticationPrincipal SecurityUser user,
+            @PathVariable UUID tenantId,
+            @PathVariable UUID invitationId) {
+        invitationService.revoke(requireCurrentTenant(user, tenantId), invitationId);
+    }
+
+    private static UUID requireCurrentTenant(SecurityUser user, UUID tenantId) {
+        if (!tenantId.equals(user.requireTenantId())) {
+            throw new org.springframework.security.access.AccessDeniedException("Tenant mismatch");
+        }
+        return tenantId;
     }
 
     public record CreateInvitationRequest(

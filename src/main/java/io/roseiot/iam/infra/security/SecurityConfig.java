@@ -1,10 +1,6 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.iam.application.UserSessionService;
-import io.roseiot.iam.infra.security.session.RefreshTokenAuthenticationFilter;
-import io.roseiot.iam.infra.security.session.RestLoginAuthenticationFilter;
-import io.roseiot.iam.infra.security.session.RestLogoutFilter;
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -16,15 +12,13 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import tools.jackson.databind.json.JsonMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -35,7 +29,7 @@ public class SecurityConfig {
     @ConditionalOnMissingBean(name = "identityAuthenticationManager")
     AuthenticationManager identityAuthenticationManager(
             SecurityUserDetailsService userDetailsService,
-            @Qualifier("identityPasswordEncoder") PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
         return new ProviderManager(provider);
@@ -44,43 +38,16 @@ public class SecurityConfig {
     @Bean
     RestLoginAuthenticationFilter restLoginAuthenticationFilter(
             @Qualifier("identityAuthenticationManager") AuthenticationManager authenticationManager,
-            UserSessionService sessionService,
+            JwtTokenFactory jwtTokenFactory,
             SecurityExceptionHandler securityExceptionHandler,
-            JsonMapper jsonMapper,
-            ApiErrorBodyWriter apiErrorBodyWriter) {
+            ApiJson apiJson) {
         return new RestLoginAuthenticationFilter(
-                authenticationManager, sessionService, securityExceptionHandler, jsonMapper, apiErrorBodyWriter);
-    }
-
-    @Bean
-    RefreshTokenAuthenticationFilter refreshTokenAuthenticationFilter(
-            UserSessionService sessionService,
-            SecurityExceptionHandler securityExceptionHandler,
-            JsonMapper jsonMapper,
-            ApiErrorBodyWriter apiErrorBodyWriter) {
-        return new RefreshTokenAuthenticationFilter(
-                sessionService, securityExceptionHandler, jsonMapper, apiErrorBodyWriter);
-    }
-
-    @Bean
-    RestLogoutFilter restLogoutFilter(UserSessionService sessionService) {
-        return new RestLogoutFilter(sessionService);
+                authenticationManager, jwtTokenFactory, securityExceptionHandler, apiJson);
     }
 
     @Bean
     FilterRegistrationBean<RestLoginAuthenticationFilter> restLoginFilterRegistration(
             RestLoginAuthenticationFilter filter) {
-        return disabledServletRegistration(filter);
-    }
-
-    @Bean
-    FilterRegistrationBean<RefreshTokenAuthenticationFilter> refreshFilterRegistration(
-            RefreshTokenAuthenticationFilter filter) {
-        return disabledServletRegistration(filter);
-    }
-
-    @Bean
-    FilterRegistrationBean<RestLogoutFilter> restLogoutFilterRegistration(RestLogoutFilter filter) {
         return disabledServletRegistration(filter);
     }
 
@@ -91,35 +58,31 @@ public class SecurityConfig {
     }
 
     /**
-     * Public namespace: no access-token parsing so login, refresh and other noauth requests remain reachable.
+     * Public resources do not require an access token.
      */
     @Bean
     @Order(1)
-    SecurityFilterChain publicSecurityFilterChain(
-            HttpSecurity http,
-            RestLoginAuthenticationFilter restLoginAuthenticationFilter,
-            RefreshTokenAuthenticationFilter refreshTokenAuthenticationFilter)
+    SecurityFilterChain publicSecurityFilterChain(HttpSecurity http, RestLoginAuthenticationFilter restLoginAuthenticationFilter)
             throws Exception {
         http.securityMatcher(
                         "/actuator/health",
                         "/actuator/health/**",
                         "/login",
-                        "/token",
-                        "/noauth/**")
+                        "/password-resets/**",
+                        "/tenant-invitations/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/login", "/token")
+                        .requestMatchers(HttpMethod.POST, "/login")
                         .permitAll()
-                        .requestMatchers("/noauth/**")
+                        .requestMatchers("/password-resets/**", "/tenant-invitations/**")
                         .permitAll()
                         .anyRequest()
                         .denyAll())
-                .addFilterBefore(restLoginAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(refreshTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(restLoginAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
@@ -128,22 +91,17 @@ public class SecurityConfig {
     SecurityFilterChain authenticatedSecurityFilterChain(
             HttpSecurity http,
             SecurityExceptionHandler securityExceptionHandler,
-            IdentityJwtAuthenticationConverter identityJwtAuthenticationConverter,
-            RestLogoutFilter restLogoutFilter)
+            IdentityJwtAuthenticationConverter identityJwtAuthenticationConverter)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/**", "/logout")
-                        .authenticated()
-                        .anyRequest()
-                        .denyAll())
+                        .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(
                         jwt -> jwt.jwtAuthenticationConverter(identityJwtAuthenticationConverter)))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(securityExceptionHandler)
-                        .accessDeniedHandler(securityExceptionHandler))
-                .addFilterAfter(restLogoutFilter, BearerTokenAuthenticationFilter.class);
+                        .accessDeniedHandler(securityExceptionHandler));
         return http.build();
     }
 }

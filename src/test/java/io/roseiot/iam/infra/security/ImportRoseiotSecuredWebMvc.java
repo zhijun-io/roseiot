@@ -1,6 +1,6 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import io.roseiot.shared.api.ApiExceptionHandler;
 import org.springframework.context.annotation.Import;
 
@@ -13,10 +13,10 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Import({
-    SessionAuthWebMvcTestConfiguration.class,
+    AuthenticationWebMvcTestConfiguration.class,
     SecurityConfig.class,
     SecurityExceptionHandler.class,
-    ApiErrorBodyWriter.class,
+    ApiJson.class,
     ApiExceptionHandler.class
 })
 public @interface ImportRoseiotSecuredWebMvc {}

@@ -1,6 +1,5 @@
 package io.roseiot.system.application;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.system.persistence.SystemSetting;
 import io.roseiot.system.persistence.SystemSettingMapper;
 import io.roseiot.system.persistence.SystemSettingType;
@@ -9,8 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Optional;
+import tools.jackson.databind.JsonNode;
 
 @Service
 public class SystemSettingService {
@@ -26,31 +25,33 @@ public class SystemSettingService {
     }
 
     public String requireGeneralBaseUrl() {
-        Object baseUrl = find(SystemSettingType.GENERAL)
+        JsonNode generalSetting = find(SystemSettingType.GENERAL)
                 .map(SystemSetting::getSetting)
-                .map(setting -> setting.get("baseUrl"))
                 .orElse(null);
-        if (!(baseUrl instanceof String value) || value.isBlank()) {
+        JsonNode baseUrl = generalSetting == null ? null : generalSetting.get("baseUrl");
+        if (baseUrl == null || !baseUrl.isTextual() || baseUrl.textValue().isBlank()) {
             throw new IllegalStateException("GENERAL setting baseUrl is required");
         }
-        return value;
+        return baseUrl.textValue();
     }
 
     @Transactional
-    public void replace(SystemSettingType type, Map<String, Object> setting) {
-        if (type == null || setting == null) throw new IllegalArgumentException("type and setting are required");
+    public void replace(SystemSettingType type, JsonNode setting) {
+        if (type == null || setting == null || !setting.isObject()) {
+            throw new IllegalArgumentException("type and object setting are required");
+        }
         Instant now = Instant.now();
         SystemSetting current = settings.selectByType(type);
         if (current == null) {
             SystemSetting created = new SystemSetting();
             created.setId(UuidV7.generate());
             created.setType(type);
-            created.setSetting(Map.copyOf(setting));
+            created.setSetting(setting.deepCopy());
             created.setCreatedAt(now);
             created.setUpdatedAt(now);
             settings.insert(created);
         } else {
-            current.setSetting(Map.copyOf(setting));
+            current.setSetting(setting.deepCopy());
             current.setUpdatedAt(now);
             settings.updateById(current);
         }

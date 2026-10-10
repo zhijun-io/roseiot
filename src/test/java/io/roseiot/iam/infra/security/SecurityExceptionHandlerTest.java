@@ -1,6 +1,6 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import io.roseiot.shared.api.ApiErrorResponse;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ import static org.mockito.Mockito.mock;
 class SecurityExceptionHandlerTest {
 
     private final SecurityExceptionHandler cut =
-            new SecurityExceptionHandler(new ApiErrorBodyWriter(JsonMapper.builder().build()));
+            new SecurityExceptionHandler(new ApiJson(JsonMapper.builder().build()));
 
     private void assertBody(ResponseEntity<ApiErrorResponse> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);

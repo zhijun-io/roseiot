@@ -1,6 +1,6 @@
 package io.roseiot.iam.infra.security;
 
-import io.roseiot.shared.api.ApiErrorBodyWriter;
+import io.roseiot.shared.api.ApiJson;
 import io.roseiot.shared.api.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,10 +19,10 @@ import java.io.IOException;
 @RestControllerAdvice(basePackages = "io.roseiot")
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private final ApiErrorBodyWriter apiErrorBodyWriter;
+    private final ApiJson apiJson;
 
-    public SecurityExceptionHandler(ApiErrorBodyWriter apiErrorBodyWriter) {
-        this.apiErrorBodyWriter = apiErrorBodyWriter;
+    public SecurityExceptionHandler(ApiJson apiJson) {
+        this.apiJson = apiJson;
     }
 
     @Override
@@ -43,24 +43,28 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
         writeAccessDenied(response);
     }
 
+    public void handleMalformedRequest(HttpServletResponse response) throws IOException {
+        apiJson.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "bad_request", "Malformed request body");
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     ResponseEntity<ApiErrorResponse> handleAuthentication(AuthenticationException exception) {
         AuthenticationExceptionMapping.Mapped mapped = AuthenticationExceptionMapping.map(exception);
-        return apiErrorBodyWriter.responseEntity(mapped.httpStatus(), mapped.code(), mapped.message());
+        return apiJson.errorResponse(mapped.httpStatus(), mapped.code(), mapped.message());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException exception) {
-        return apiErrorBodyWriter.responseEntity(HttpStatus.FORBIDDEN.value(), "forbidden", "Forbidden");
+        return apiJson.errorResponse(HttpStatus.FORBIDDEN.value(), "forbidden", "Forbidden");
     }
 
     private void writeAuthenticationFailure(HttpServletResponse response, AuthenticationException exception)
             throws IOException {
         AuthenticationExceptionMapping.Mapped mapped = AuthenticationExceptionMapping.map(exception);
-        apiErrorBodyWriter.write(response, mapped.httpStatus(), mapped.code(), mapped.message());
+        apiJson.writeError(response, mapped.httpStatus(), mapped.code(), mapped.message());
     }
 
     private void writeAccessDenied(HttpServletResponse response) throws IOException {
-        apiErrorBodyWriter.write(response, HttpServletResponse.SC_FORBIDDEN, "forbidden", "Forbidden");
+        apiJson.writeError(response, HttpServletResponse.SC_FORBIDDEN, "forbidden", "Forbidden");
     }
 }

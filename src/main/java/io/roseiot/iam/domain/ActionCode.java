@@ -1,5 +1,7 @@
 package io.roseiot.iam.domain;
 
+import java.util.Set;
+
 /** Stable codes for ACTION resources used by role assignment and API authorization. */
 public final class ActionCode {
 
@@ -13,6 +15,10 @@ public final class ActionCode {
     public static final String DEVICE_COMMAND_ISSUE = "device.command.issue";
     public static final String DEVICE_CREDENTIAL_READ = "device.credential.read";
     public static final String ALARM_ACK = "alarm.ack";
+
+    public static final Set<String> PLATFORM_ONLY = Set.of(TENANT_CREATE, TENANT_DISABLE, TENANT_ENABLE);
+    public static final String PLATFORM_ONLY_SQL_CODES = "'" + TENANT_CREATE + "', '" + TENANT_DISABLE
+            + "', '" + TENANT_ENABLE + "'";
 
     private ActionCode() {}
 }

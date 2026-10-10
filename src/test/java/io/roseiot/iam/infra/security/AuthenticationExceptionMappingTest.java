@@ -20,15 +20,6 @@ class AuthenticationExceptionMappingTest {
     }
 
     @Test
-    void shouldMapInvalidRefreshTokenAuthenticationFailure() {
-        AuthenticationExceptionMapping.Mapped mapped =
-                AuthenticationExceptionMapping.map(AuthenticationExceptionMapping.invalidRefreshToken());
-
-        assertThat(mapped.httpStatus()).isEqualTo(401);
-        assertThat(mapped.code()).isEqualTo("invalid_refresh_token");
-    }
-
-    @Test
     void shouldMapUnknownAuthenticationFailuresToUnauthorized() {
         AuthenticationExceptionMapping.Mapped mapped =
                 AuthenticationExceptionMapping.map(mock(AuthenticationException.class));

@@ -19,9 +19,10 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
                 AND ur.tenant_id = u.tenant_id
             JOIN role r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
             JOIN role_resource rp ON rp.role_id = ur.role_id AND rp.tenant_id = u.tenant_id
-            JOIN resource p ON p.id = rp.resource_id AND p.type = 'ACTION' AND p.active
+            JOIN resource p ON p.id = rp.resource_id AND p.type = 'ACTION' AND p.status = 'ACTIVE'
             JOIN tenant default_tenant ON default_tenant.id = p.tenant_id AND default_tenant.slug = 'default'
-              AND (p.scope <> 'PLATFORM' OR (r.tenant_id = default_tenant.id
+              AND (p.code NOT IN (""" + ActionCode.PLATFORM_ONLY_SQL_CODES + """
+              ) OR (r.tenant_id = default_tenant.id
                   AND r.code = 'TENANT_ADMIN' AND r.built_in))
             WHERE ur.user_id = #{userId}
             """)
@@ -35,11 +36,11 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
             WHERE u.tenant_id = #{tenantId}
               AND u.status = 'ACTIVE'
               AND EXISTS (SELECT 1 FROM role_resource ra JOIN resource a ON a.id = ra.resource_id
-                WHERE ra.role_id = r.id AND ra.tenant_id = u.tenant_id AND a.active AND a.code = '
+                WHERE ra.role_id = r.id AND ra.tenant_id = u.tenant_id AND a.status = 'ACTIVE' AND a.code = '
             """ + ActionCode.TENANT_USER_MANAGE + """
             ')
               AND EXISTS (SELECT 1 FROM role_resource ra JOIN resource a ON a.id = ra.resource_id
-                WHERE ra.role_id = r.id AND ra.tenant_id = u.tenant_id AND a.active AND a.code = '
+                WHERE ra.role_id = r.id AND ra.tenant_id = u.tenant_id AND a.status = 'ACTIVE' AND a.code = '
             """ + ActionCode.TENANT_USER_INVITE + """
             ')
             """)
@@ -55,12 +56,12 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
             """)
     List<TenantUserRow> listTenantUsers(UUID tenantId);
 
-    default void insertAssignment(UUID id, UUID userId, UUID roleId, UUID scopeTenantId) {
+    default void insertAssignment(UUID id, UUID userId, UUID roleId, UUID tenantId) {
         UserRole assignment = new UserRole();
         assignment.setId(id);
         assignment.setUserId(userId);
         assignment.setRoleId(roleId);
-        assignment.setTenantId(scopeTenantId);
+        assignment.setTenantId(tenantId);
         insert(assignment);
     }
 }

@@ -2,7 +2,11 @@ package io.roseiot.tenant.application;
 
 import io.roseiot.TestcontainersConfig;
 import io.roseiot.iam.domain.ActionCode;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.iam.application.RoleService;
+import io.roseiot.iam.persistence.UserRoleMapper;
+import io.roseiot.shared.domain.BusinessException;
+import io.roseiot.shared.mybatis.TenantContext;
+import io.roseiot.tenant.infra.notifier.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +21,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
+import java.sql.Timestamp;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -34,6 +42,12 @@ class SqlSeedInitializationPostgresTest {
     @Autowired
     private TenantService tenantService;
 
+    @Autowired
+    private RoleService roleService;
+
+    @Autowired
+    private UserRoleMapper userRoleMapper;
+
     @MockitoBean
     private TenantInvitationNotifier tenantInvitationNotifier;
 
@@ -46,6 +60,11 @@ class SqlSeedInitializationPostgresTest {
                 Integer.class, defaultTenantId)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM resource WHERE tenant_id = ? AND type = 'ACTION'",
                 Integer.class, defaultTenantId)).isEqualTo(10);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM resource WHERE status = 'ACTIVE'",
+                Integer.class)).isEqualTo(13);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
+                        + " WHERE table_name = 'resource' AND column_name IN ('scope','active')",
+                Integer.class)).isZero();
 
         List<String> adminActions = jdbc.queryForList("""
                 SELECT a.code FROM role_resource rr
@@ -55,6 +74,30 @@ class SqlSeedInitializationPostgresTest {
                 """, String.class, defaultTenantId);
         assertThat(adminActions).containsExactlyInAnyOrder(
                 ActionCode.TENANT_CREATE, ActionCode.TENANT_DISABLE, ActionCode.TENANT_ENABLE);
+    }
+
+    @Test
+    void tenantRolesCannotReceivePlatformOnlyActions() {
+        Tenant tenant = tenantService.create("Platform Guard Test", "platform-guard-test", "admin@platform-guard.test");
+        assertThatThrownBy(() -> TenantContext.call(tenant.getId(), () -> roleService.create(tenant.getId(),
+                "PLATFORM_ESCALATION", "Escalation", Set.of(ActionCode.TENANT_CREATE))))
+                .isInstanceOf(BusinessException.class);
+
+        UUID roleId = jdbc.queryForObject("SELECT id FROM \"role\" WHERE tenant_id = ? AND code = 'TENANT_ADMIN'",
+                UUID.class, tenant.getId());
+        UUID userId = UUID.randomUUID();
+        UUID defaultTenantId = jdbc.queryForObject("SELECT id FROM tenant WHERE slug = 'default'", UUID.class);
+        UUID platformActionId = jdbc.queryForObject("SELECT id FROM resource WHERE tenant_id = ? AND code = ?",
+                UUID.class, defaultTenantId, ActionCode.TENANT_CREATE);
+        Instant now = Instant.now();
+        jdbc.update("INSERT INTO users (id,tenant_id,email,status,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+                userId, tenant.getId(), "platform-guard-user@roseiot.io", "ACTIVE",
+                Timestamp.from(now), Timestamp.from(now));
+        userRoleMapper.insertAssignment(UUID.randomUUID(), userId, roleId, tenant.getId());
+        jdbc.update("INSERT INTO role_resource (tenant_id,role_id,resource_id) VALUES (?,?,?)",
+                tenant.getId(), roleId, platformActionId);
+
+        assertThat(userRoleMapper.listPermissionCodesForUser(userId)).doesNotContain(ActionCode.TENANT_CREATE);
     }
 
     @Test

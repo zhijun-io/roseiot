@@ -17,41 +17,41 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
-    private final ApiErrorBodyWriter apiErrorBodyWriter;
+    private final ApiJson apiJson;
 
-    public ApiExceptionHandler(ApiErrorBodyWriter apiErrorBodyWriter) {
-        this.apiErrorBodyWriter = apiErrorBodyWriter;
+    public ApiExceptionHandler(ApiJson apiJson) {
+        this.apiJson = apiJson;
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ApiErrorResponse> handleRateLimit(RateLimitExceededException exception) {
         String code = ApiErrorCode.RATE_LIMITED.code();
-        return apiErrorBodyWriter.responseEntity(HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
+        return apiJson.errorResponse(HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
     }
 
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<ApiErrorResponse> handleBusiness(BusinessException exception) {
         ApiErrorCode code = exception.errorCode();
-        return apiErrorBodyWriter.responseEntity(
+        return apiJson.errorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(), code.code(), exception.apiMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException exception) {
-        return apiErrorBodyWriter.responseEntity(
+        return apiJson.errorResponse(
                 HttpStatus.BAD_REQUEST.value(), "validation_error", "Validation failed");
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiErrorResponse> handleUnreadable(HttpMessageNotReadableException exception) {
-        return apiErrorBodyWriter.responseEntity(
+        return apiJson.errorResponse(
                 HttpStatus.BAD_REQUEST.value(), "bad_request", "Malformed request body");
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiErrorResponse> handleUnexpected(Exception exception) {
         log.error("Unhandled API exception", exception);
-        return apiErrorBodyWriter.responseEntity(
+        return apiJson.errorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "internal_error",
                 "An unexpected error occurred");
