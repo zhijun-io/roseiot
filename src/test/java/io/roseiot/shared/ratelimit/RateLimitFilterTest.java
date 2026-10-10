@@ -63,6 +63,15 @@ class RateLimitFilterTest {
         return rule;
     }
 
+    private RateLimitProperties.Rule tokenRule(String method, String path, int maxAttempts) {
+        RateLimitProperties.Rule rule = new RateLimitProperties.Rule();
+        rule.setMethod(method);
+        rule.setPath(path);
+        rule.setKeyPrefix("auth:token:");
+        rule.setMaxAttempts(maxAttempts);
+        return rule;
+    }
+
     private RateLimitFilter cut(SlidingWindowRateLimiter rateLimiter) {
         return new RateLimitFilter(rateLimiter, properties, JsonMapper.builder().build(),
                 new ApiJson(JsonMapper.builder().build()));
@@ -148,6 +157,22 @@ class RateLimitFilterTest {
         verify(filterChain, times(2))
                 .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
         assertThat(responseBody.asText()).isEmpty();
+    }
+
+    @Test
+    void shouldRateLimitTokenPathByClientAddressWithoutReadingRequestBody() throws Exception {
+        properties.setRules(List.of(tokenRule("GET", "/password-resets/{token}", 1)));
+        stubRequest("GET", "/password-resets/one-time-token", new byte[0]);
+        when(request.getRemoteAddr()).thenReturn("192.0.2.10");
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+
+        cut.doFilterInternal(request, response, filterChain);
+        clearInvocations(filterChain, response);
+        cut.doFilterInternal(request, response, filterChain);
+
+        verify(request, never()).getInputStream();
+        verify(response).setStatus(429);
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     private static final class StubInputStream extends ServletInputStream {

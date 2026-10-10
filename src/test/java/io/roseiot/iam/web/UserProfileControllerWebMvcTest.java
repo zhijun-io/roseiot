@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
@@ -46,7 +47,7 @@ class UserControllerWebMvcTest {
 
     @Test
     void shouldAnswerProfileWithIdAndEmailOfTheTokenSubject() {
-        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io"));
+        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io", "Ops"));
 
         assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
@@ -54,14 +55,15 @@ class UserControllerWebMvcTest {
                 .isLenientlyEqualTo("""
                         {
                           "id": "019f0000-0000-7000-8000-000000000001",
-                          "email": "ops@roseiot.io"
+                          "email": "ops@roseiot.io",
+                          "name": "Ops"
                         }
                         """);
     }
 
     @Test
     void shouldAnswerProfileForTenantContextWhenTidMatchesSubject() {
-        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "tenant@roseiot.io"));
+        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "tenant@roseiot.io", null));
 
         assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
@@ -72,7 +74,7 @@ class UserControllerWebMvcTest {
 
     @Test
     void shouldAnswerProfileForAuthenticatedUserWithoutAnyAuthorities() {
-        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "plain@roseiot.io"));
+        given(userService.getProfile(USER_ID)).willReturn(new UserService.UserProfile(USER_ID, "plain@roseiot.io", null));
 
         assertThat(mvc.get().uri("/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
@@ -87,6 +89,23 @@ class UserControllerWebMvcTest {
                 .hasStatus(HttpStatus.UNAUTHORIZED);
 
         verifyNoInteractions(userService);
+    }
+
+    @Test
+    void shouldUpdateOnlyTheAuthenticatedUsersName() {
+        given(userService.updateProfile(USER_ID, "Ada Lovelace"))
+                .willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io", "Ada Lovelace"));
+
+        assertThat(mvc.put().uri("/me")
+                        .with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Ada Lovelace\"}"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.name")
+                .isEqualTo("Ada Lovelace");
+
+        verify(userService).updateProfile(USER_ID, "Ada Lovelace");
     }
 
     private Jwt.Builder systemToken(Jwt.Builder builder) {

@@ -7,11 +7,9 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：IAM 认证与 RBAC、固定多租户模型及全局系统设置（Flyway **V1–V12**
 ）。数据库迁移创建 `default` 平台租户、资源目录、平台角色和系统设置表；客户租户由 `TenantService` 在创建事务中初始化内置角色与授权。SQL
-迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续设计。HTTP 路由使用资源路径，不添加 `/api`、`/noauth` 或 `/internal` 前缀；登录保留 `/login`，当前用户操作位于 `/me`，认证边界由 Spring Security 按接口配置。
-。Access JWT 含 **`sub`/`sid`/`tid`**，refresh JWT 使用签名且有类型标识；授权只依据主体被授予的活动 **ACTION**
+迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续设计。HTTP 路由使用资源路径，不添加 `/api`、`/noauth` 或 `/internal` 前缀；登录保留 `/login`，当前用户操作位于 `/me`，认证边界由 Spring Security 按接口配置。Access JWT 含 **`sub`/`tid`**，不使用 refresh token；授权只依据主体被授予的活动 **ACTION**
 code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可按树结构渲染）。用户密码和重置状态存于 IAM `UserCredential`；系统级
-`GENERAL.setting.baseUrl` 用于生成邮件绝对链接。 **Spec #3**（租户生命周期、邀请、成员管理）已交付 —
-见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
+`GENERAL.setting.baseUrl` 用于生成邮件绝对链接。当前路径设计见 [API 路径](api.md)。
 
 ## 建设原则
 
@@ -107,23 +105,14 @@ code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可
 - [产品需求（PRD）](docs/product/prd.md)
 - [产品访谈决策日志](docs/product/interview-decisions.md)
 - [项目路线](docs/roadmap.md)
-- [领域词汇](GLOSSARY.md)
 - [Agent 规则](AGENTS.md)
+- [API 路径](api.md)
 
 ### 架构决策（ADR）
 
 - [IAM 身份认证与授权](docs/adr/2026-10-10-iam.md)
 - [租户模型与生命周期](docs/adr/2026-10-10-tenant.md)
 - [系统设置与全局配置](docs/adr/2026-10-10-system-settings.md)
-
-### 阶段 1 规格（SDD）
-
-| Spec                | 文档                                                                                    | 状态         |
-|---------------------|-----------------------------------------------------------------------------------------|--------------|
-| IAM 初始化简化      | [IAM 初始化与多租户简化 Spec](docs/sdd/2026-10-10-iam-bootstrap-simplification-spec.md) | 已批准并实施 |
-| #2 系统用户认证     | [system-user-auth-spec.md](docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md)        | 已交付       |
-| 旧 Identity 与 RBAC | [Identity/RBAC Spec](docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md)                 | 已替代       |
-| #3 租户与用户       | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)        | 已交付       |
 
 ## 验证与运行
 

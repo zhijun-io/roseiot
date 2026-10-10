@@ -18,6 +18,7 @@
 | --- | --- | --- |
 | `POST` | `/login` | 使用邮箱和密码登录 |
 | `GET` | `/me` | 获取当前用户资料 |
+| `PUT` | `/me` | 更新当前用户名称 |
 | `PUT` | `/me/password` | 修改当前用户密码 |
 | `POST` | `/password-resets` | 请求密码重置邮件 |
 | `GET` | `/password-resets/{token}` | 校验重置 token 并获取状态 |
@@ -39,7 +40,6 @@
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| `PUT` | `/me` | 更新当前用户资料 |
 | `GET` | `/me/tenants` | 列出当前用户可访问的租户 |
 | `GET` | `/users` | 查询用户列表 |
 | `POST` | `/users` | 创建用户 |

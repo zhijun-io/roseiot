@@ -57,7 +57,7 @@ class SecurityConfigWebMvcTest {
         given(jwtTokenFactory.createAccessToken(any(), any(), any())).willReturn("access-token");
         given(credentialService.checkResetToken(any())).willReturn(UserCredentialService.ResetTokenState.VALID);
         given(tenantInvitationService.acceptInvitation(any(), any())).willReturn("access-token");
-        given(userService.getProfile(any())).willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io"));
+        given(userService.getProfile(any())).willReturn(new UserService.UserProfile(USER_ID, "ops@roseiot.io", null));
     }
 
     @Test
