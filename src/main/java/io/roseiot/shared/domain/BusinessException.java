@@ -1,7 +1,5 @@
 package io.roseiot.shared.domain;
 
-import java.util.Optional;
-
 /** Domain failure identified by {@link ApiErrorCode}; must not carry HTTP semantics. */
 public class BusinessException extends RuntimeException {
 
@@ -22,14 +20,10 @@ public class BusinessException extends RuntimeException {
         return errorCode;
     }
 
-    public Optional<String> detail() {
-        return Optional.ofNullable(detail);
-    }
-
     /** JSON {@code message}; {@link ApiErrorCode#VALIDATION_ERROR} may carry a safe rule detail. */
     public String apiMessage() {
         if (errorCode == ApiErrorCode.VALIDATION_ERROR) {
-            return detail().orElse(errorCode.code());
+            return detail != null ? detail : errorCode.code();
         }
         return errorCode.code();
     }

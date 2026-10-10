@@ -44,7 +44,7 @@ public class RoseiotApplication {
             root = root.getCause();
         }
         if (root instanceof BusinessException business) {
-            return business.detail().orElseGet(business::apiMessage);
+            return business.getMessage();
         }
         String message = root.getMessage();
         if (message == null || message.isBlank()) {
