@@ -64,7 +64,7 @@ public class TenantUserService {
             throw new BusinessException(ApiErrorCode.TENANT_USER_NOT_FOUND);
         }
 
-        String currentRole = requireRoleCode(userId);
+        String currentRole = requireRoleCode(userId, tenantId);
         if (newRole != null) {
             TenantRoles.requireAssigneeRole(newRole);
         }
@@ -96,8 +96,8 @@ public class TenantUserService {
         }
     }
 
-    private String requireRoleCode(UUID userId) {
-        UserRole assignment = userRoleMapper.selectFirstByUserId(userId);
+    private String requireRoleCode(UUID userId, UUID tenantId) {
+        UserRole assignment = userRoleMapper.selectTenantAssignment(userId, tenantId);
         if (assignment == null) {
             throw new BusinessException(ApiErrorCode.TENANT_USER_NOT_FOUND);
         }

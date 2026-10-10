@@ -13,6 +13,8 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     @Select("""
             SELECT COUNT(*)
             FROM user_role ur
+            JOIN users u ON u.id = ur.user_id
+                AND ur.scope_tenant_id IS NOT DISTINCT FROM u.tenant_id
             JOIN role_permission rp ON rp.role_id = ur.role_id
             JOIN permission p ON p.id = rp.permission_id
             WHERE ur.user_id = #{userId} AND p.code = #{permissionKey}
@@ -27,6 +29,8 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     @Select("""
             SELECT DISTINCT p.code
             FROM user_role ur
+            JOIN users u ON u.id = ur.user_id
+                AND ur.scope_tenant_id IS NOT DISTINCT FROM u.tenant_id
             JOIN role_permission rp ON rp.role_id = ur.role_id
             JOIN permission p ON p.id = rp.permission_id
             WHERE ur.user_id = #{userId}
@@ -36,6 +40,8 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     @Select("""
             SELECT DISTINCT r.code
             FROM user_role ur
+            JOIN users u ON u.id = ur.user_id
+                AND ur.scope_tenant_id IS NOT DISTINCT FROM u.tenant_id
             JOIN "role" r ON r.id = ur.role_id
             WHERE ur.user_id = #{userId}
             """)
@@ -62,9 +68,10 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
             """)
     List<TenantUserRow> listTenantUsers(UUID tenantId);
 
-    default UserRole selectFirstByUserId(UUID userId) {
+    default UserRole selectTenantAssignment(UUID userId, UUID tenantId) {
         return selectOne(Wrappers.lambdaQuery(UserRole.class)
                 .eq(UserRole::getUserId, userId)
+                .eq(UserRole::getScopeTenantId, tenantId)
                 .last("LIMIT 1"));
     }
 
