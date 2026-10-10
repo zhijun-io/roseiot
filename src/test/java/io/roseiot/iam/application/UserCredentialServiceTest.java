@@ -56,7 +56,7 @@ class UserCredentialServiceTest {
         UserCredential credential = new UserCredential();
         credential.setUserId(USER_ID);
         credential.setPassword("old-hash");
-                return credential;
+        return credential;
     }
 
     @Test
@@ -143,7 +143,6 @@ class UserCredentialServiceTest {
         when(credentialMapper.selectOne(any())).thenReturn(credential);
         when(credentialMapper.consumeResetTokenIfActive(eq(USER_ID), eq(credential.getResetToken()), any()))
                 .thenReturn(1);
-        when(userMapper.selectById(USER_ID)).thenReturn(user());
         when(passwordEncoder.encode("new passphrase 77")).thenReturn("new-hash");
 
         cut.confirmPasswordReset("reset-token", "new passphrase 77");

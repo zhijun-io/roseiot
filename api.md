@@ -49,4 +49,3 @@
 | `GET` | `/tenants/current` | 获取当前租户 |
 | `GET` | `/tenants` | 查询租户列表 |
 | `GET` | `/tenants/{tenantId}` | 获取指定租户 |
-

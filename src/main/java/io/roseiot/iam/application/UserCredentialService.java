@@ -84,7 +84,7 @@ public class UserCredentialService {
         return ResetTokenState.VALID;
     }
 
-    @Transactional(noRollbackFor = BusinessException.class)
+    @Transactional
     public void confirmPasswordReset(String rawToken, String newPassword) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
@@ -105,8 +105,6 @@ public class UserCredentialService {
         credential.setPassword(passwordEncoder.encode(newPassword));
         credential.setUpdatedAt(now);
         credentialMapper.updateById(credential);
-        User user = userMapper.selectById(credential.getUserId());
-        if (user == null) throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
     }
 
     public enum ResetTokenState { VALID, EXPIRED, INVALID }
