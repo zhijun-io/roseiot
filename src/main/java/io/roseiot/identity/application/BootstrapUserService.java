@@ -1,5 +1,6 @@
 package io.roseiot.identity.application;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.roseiot.identity.domain.PasswordPolicy;
 import io.roseiot.identity.persistence.RoleMapper;
 import io.roseiot.identity.persistence.User;
@@ -47,6 +48,9 @@ public class BootstrapUserService {
 
         String email = normalizeEmail(rawEmail);
         validateEmail(email);
+        if (userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0) {
+            throw new BusinessException(ApiErrorCode.BOOTSTRAP_VALIDATION, "Email already exists");
+        }
         PasswordPolicy.ensureValid(rawPassword, ApiErrorCode.BOOTSTRAP_VALIDATION);
 
         UUID userId = UuidV7.generate();
