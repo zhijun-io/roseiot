@@ -9,24 +9,37 @@ Roseiot 是一个多租户 IoT 管理平台。本词汇表定义产品、设备�
 _避免使用_：账号、客户、组织（用于表达同一概念时）
 
 **用户（User）**：
-可登录平台的**人类主体**（单一持久化模型）。`tenant_id` 为空时为**系统用户**；非空时为**租户用户**，且首版只绑定一个租户。设备不是 User。
+可登录平台的**人类主体**（单一持久化模型）。`tenant_id` 必填，且每个 User 只绑定一个租户；平台管理员 User 属于保留租户 `default`，客户 User 属于各自客户租户。设备不是 User。
 _避免使用_：设备用户；把 User 仅理解为「租户内成员」；平台作用域用户（旧称）
 
-**系统用户（System User）**：
-`tenant_id` 为空的 User，通过 **SYSTEM** 作用域的内置 **Role**（如 `SystemAdmin`）获得系统级 API 权限；不归属任何租户。Access JWT 的 `ctx` 为 **`system`**。
-_避免使用_：超级租户；SYS_ADMIN（实现层不采用 Authority 枚举）；Platform-scoped User
+**用户凭证（User Credential）**：
+属于一个 User 的认证秘密及其密码恢复状态。当前保存密码哈希、算法和至多一条当前密码重置状态；密码明文和重置 token 明文不持久化。设备凭证由 Device 能力独立拥有。
+_避免使用_：用户身份；设备凭证；将短期重置流程状态误称为独立长期凭证
 
-**系统管理员（System Administrator）**：
-承担租户生命周期等系统运维能力的**系统用户**（通常持有 `SystemAdmin` 等内置角色）。产品语义上不等于租户内用户；默认不具租户设备数据读取权限（Q38）。
-_避免使用_：超级租户、租户管理员、平台管理员（旧称）
+**默认租户（Default Tenant）**：
+固定多租户部署中的保留平台租户，slug 固定为 `default`，承载平台角色和平台资源目录；客户业务数据归属各自租户。
+_避免使用_：系统租户（含义易混）；超级租户
 
-**权限（Permission）**：
-RBAC 中最小授权单元，稳定字符串键（如 `device.read`），在 API 与审计中一致引用。
-_避免使用_：Authority、scope（OAuth scope，易混淆）
+**平台管理员（Platform Administrator）**：
+属于 `default` 租户的 User，通过受保护的内置 `TENANT_ADMIN` 角色获得显式的平台管理 ACTION；此角色不会自动获得客户业务数据访问权。
+_避免使用_：`SYSTEM_ADMIN` 角色；空 tenant_id 用户
+
+**ACTION**：
+资源目录中表示可授权业务操作的资源类型。其稳定 `code`（如 `device.read`）是 RBAC 的最小授权键，可关联到角色，并由受保护 API 上的 Spring Security 注解检查。一个 ACTION 可以保护多个 API。
+_避免使用_：Permission（旧模型名称）；Authority；scope（OAuth scope，易混淆）
 
 **角色（Role）**：
-命名的一组 Permission；作用域为 **SYSTEM** 或 **TENANT**。首版仅为内置角色；自定义角色属后续候选。
+属于一个且仅一个租户的 ACTION 集合。Role code 标识角色自身，不直接授权 API；如 `TENANT_ADMIN`。每租户可有同 code 的系统预置角色，租户内唯一。
 _避免使用_：Authority、Spring `ROLE_*` 作为产品术语
+
+**MENU**：
+资源目录中描述导航层级与展示元数据的资源类型。MENU 可有自己的稳定 code，但该 code 不是授权键；菜单是否可见由用户已获准的 ACTION 及其菜单归属推导，父子关系不隐含授权继承。
+
+**资源 code（Resource Code）**：
+标识对应资源对象的稳定字符串。MENU、ACTION 等资源各自有 code；角色 code 与租户 slug 也分别标识角色和租户。只有 ACTION code 用作 API 授权键。
+
+**个人操作（Authenticated Self-service）**：
+有效登录用户对自身资料与密码的操作能力，无需角色或 ACTION。目标由认证主体确定，不能指定其他用户；仍受账户、租户、会话状态与密码校验约束。
 
 ## 设备模型
 
@@ -49,11 +62,11 @@ _避免使用_：已删除设备、已迁移设备
 ## 租户角色
 
 **租户管理员（Tenant Administrator）**：
-租户用户（`tenant_id` 非空）且被分配内置角色 **TenantAdmin**（或等价 RBAC assignment）的主体。不具有平台级管理 permission。
-_避免使用_：系统管理员、超级管理员（用于表达租户内角色时）
+属于客户租户且被分配该租户内置角色 `TENANT_ADMIN` 的主体；其权限由该角色关联的 ACTION 决定。与 `default` 租户中同 code 的受保护角色分属不同租户，客户租户角色不具有平台管理 ACTION。
+_避免使用_：`SYSTEM_ADMIN`（不存在的角色）；超级管理员
 
 **租户用户（Tenant User）**：
-租户用户且被分配内置角色 **TenantUser** 的主体；在 permission 允许范围内使用资源，不管理成员关系。
+属于租户且按需分配业务角色的主体；角色决定可执行的 ACTION。
 _避免使用_：普通用户、客户用户
 
 ## 生命周期

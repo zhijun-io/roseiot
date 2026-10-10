@@ -1,14 +1,13 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.infra.security.MethodSecuritySpel;
-import io.roseiot.identity.infra.security.SecurityUser;
+import io.roseiot.iam.infra.security.MethodSecuritySpel;
+import io.roseiot.iam.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantUserService;
 import io.roseiot.tenant.application.TenantUserService.TenantUserSummary;
-import io.roseiot.identity.application.RoleService;
+import io.roseiot.iam.application.RoleService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Pattern;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/tenants/users")
 public class TenantUserController {
 
@@ -50,23 +48,23 @@ public class TenantUserController {
             @PathVariable UUID userId,
             @Valid @RequestBody UpdateTenantUserRequest request) {
         userManagementService.updateUser(
-                user.requireTenantId(), userId, request.disabled(), request.targetRole());
+                user.requireTenantId(), userId, request.disabled(), request.roleId());
     }
 
     public record UpdateTenantUserRequest(
             Boolean disabled,
-            @Pattern(regexp = RoleService.TENANT_ADMIN + "|" + RoleService.TENANT_USER) String targetRole) {
+            UUID roleId) {
 
-        @AssertTrue(message = "At least one of disabled or targetRole must be provided")
+        @AssertTrue(message = "At least one of disabled or roleId must be provided")
         boolean isChangeRequested() {
-            return disabled != null || (targetRole != null && !targetRole.isBlank());
+            return disabled != null || roleId != null;
         }
     }
 
-    public record TenantUserResponse(UUID id, String email, String role, boolean disabled) {
+    public record TenantUserResponse(UUID id, String email, UUID roleId, boolean disabled) {
 
         static TenantUserResponse from(TenantUserSummary summary) {
-            return new TenantUserResponse(summary.id(), summary.email(), summary.role(), summary.disabled());
+            return new TenantUserResponse(summary.id(), summary.email(), summary.roleId(), summary.disabled());
         }
     }
 }

@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 class RateLimitFilterTest {
 
-    private static final String LOGIN_PATH = "/api/login";
+    private static final String LOGIN_PATH = "/login";
     private static final byte[] LOGIN_BODY = """
             {"email":"ops@roseiot.io","password":"correct horse 42"}
             """.getBytes(StandardCharsets.UTF_8);
@@ -82,7 +82,7 @@ class RateLimitFilterTest {
     @Test
     void shouldPassRequestThroughWhenNoRuleMatches() throws Exception {
         when(request.getMethod()).thenReturn("GET");
-        when(request.getRequestURI()).thenReturn("/api/identity/me");
+        when(request.getRequestURI()).thenReturn("/api/users/me");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
 
         cut.doFilterInternal(request, response, filterChain);

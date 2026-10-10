@@ -1,9 +1,9 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
-import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
+import io.roseiot.iam.infra.security.RoseiotWebMvcTestSupport;
+import io.roseiot.iam.infra.security.JwtTokenFactory;
+import io.roseiot.iam.infra.security.IdentityJwtAuthenticationConverter;
+import io.roseiot.iam.infra.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
 import io.roseiot.shared.domain.ApiErrorCode;
@@ -38,6 +38,7 @@ class TenantInvitationsMockMvcTests {
     private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
     private static final UUID INVITATION_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000c1");
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000d1");
+    private static final UUID ROLE_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000a2");
 
     @Autowired
     private MockMvcTester mvc;
@@ -54,29 +55,38 @@ class TenantInvitationsMockMvcTests {
     @Test
     void shouldCreateInvitationWithTenantJwt() {
         Instant now = Instant.parse("2026-10-09T00:00:00Z");
-        given(invitationService.create(eq(TENANT_ID), eq("new@roseiot.io"), eq("TenantUser")))
+        given(invitationService.create(eq(TENANT_ID), eq("new@roseiot.io"), eq(ROLE_ID)))
                 .willReturn(new InvitationSummary(
-                        INVITATION_ID, "new@roseiot.io", "TenantUser", now.plusSeconds(3600), now, null, null));
+                        INVITATION_ID, "new@roseiot.io", ROLE_ID, now.plusSeconds(3600), now, null, null));
 
         assertThat(mvc.post().uri("/api/tenants/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "new@roseiot.io", "targetRole": "TenantUser"}
+                                {"email": "new@roseiot.io", "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
                 .hasStatus(HttpStatus.CREATED)
                 .bodyJson()
-                .extractingPath("$.email")
-                .isEqualTo("new@roseiot.io");
+                .isLenientlyEqualTo("""
+                        {
+                          "id": "019f0000-0000-7000-8000-0000000000c1",
+                          "email": "new@roseiot.io",
+                          "roleId": "019f0000-0000-7000-8000-0000000000a2",
+                          "expiresAt": "2026-10-09T01:00:00Z",
+                          "createdAt": "2026-10-09T00:00:00Z",
+                          "acceptedAt": null,
+                          "revokedAt": null
+                        }
+                        """);
     }
 
     @Test
-    void shouldRejectSystemJwtForInvitations() {
+    void shouldRejectPlatformJwtForInvitations() {
         assertThat(mvc.post().uri("/api/tenants/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email": "new@roseiot.io", "targetRole": "TenantUser"}
+                                {"email": "new@roseiot.io", "roleId": "019f0000-0000-7000-8000-0000000000a2"}
                                 """))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
@@ -86,7 +96,7 @@ class TenantInvitationsMockMvcTests {
         Instant now = Instant.parse("2026-10-09T00:00:00Z");
         given(invitationService.list(TENANT_ID, null))
                 .willReturn(List.of(new InvitationSummary(
-                        INVITATION_ID, "new@roseiot.io", "TenantUser", now.plusSeconds(3600), now, null, null)));
+                        INVITATION_ID, "new@roseiot.io", ROLE_ID, now.plusSeconds(3600), now, null, null)));
 
         assertThat(mvc.get().uri("/api/tenants/invitations")
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
@@ -125,7 +135,7 @@ class TenantInvitationsMockMvcTests {
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
                 .claim("tid", TENANT_ID.toString())
-                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
+                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }
@@ -135,7 +145,7 @@ class TenantInvitationsMockMvcTests {
         return builder.header("alg", "none")
                 .subject(USER_ID.toString())
                 .claim("sid", UUID.randomUUID().toString())
-                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
+                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, 1)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }

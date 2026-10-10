@@ -17,7 +17,7 @@ public class LoggingTenantInvitationNotifier implements TenantInvitationNotifier
     @Override
     public void sendInvitation(String email, String targetRole, String plainToken) {
         String link = UriComponentsBuilder.fromUriString(linkBaseUrl)
-                .path("/api/noauth/tenant-invitations")
+                .path("/noauth/tenants/invitations")
                 .queryParam("invitationToken", plainToken)
                 .build()
                 .toUriString();

@@ -1,0 +1,12 @@
+ALTER TABLE user_refresh_session RENAME TO user_session;
+ALTER INDEX user_refresh_session_token_hash_uq RENAME TO user_session_token_hash_uq;
+ALTER INDEX user_refresh_session_user_id_idx RENAME TO user_session_user_id_idx;
+
+ALTER TABLE tenant_user_invitation RENAME TO tenant_invitation;
+ALTER TABLE tenant_invitation
+    RENAME CONSTRAINT tenant_user_invitation_tenant_id_fk TO tenant_invitation_tenant_id_fk;
+ALTER TABLE tenant_invitation
+    RENAME CONSTRAINT invitation_role_fk TO tenant_invitation_role_fk;
+ALTER INDEX tenant_user_invitation_token_hash_uq RENAME TO tenant_invitation_token_hash_uq;
+ALTER INDEX tenant_user_invitation_pending_uq RENAME TO tenant_invitation_pending_uq;
+ALTER INDEX tenant_user_invitation_tenant_id_idx RENAME TO tenant_invitation_tenant_id_idx;

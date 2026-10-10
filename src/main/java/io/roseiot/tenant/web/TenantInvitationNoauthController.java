@@ -1,10 +1,9 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.application.UserSessionService;
+import io.roseiot.iam.application.UserSessionService;
 import io.roseiot.tenant.application.TenantInvitationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,8 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Locale;
 
 @RestController
-@ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-@RequestMapping("/api/noauth/tenant-invitations")
+@RequestMapping("/noauth/tenants/invitations")
 public class TenantInvitationNoauthController {
 
     private final TenantInvitationService invitationService;

@@ -1,6 +1,6 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.infra.security.MethodSecuritySpel;
+import io.roseiot.iam.infra.security.MethodSecuritySpel;
 import io.roseiot.tenant.application.TenantService;
 import io.roseiot.tenant.persistence.Tenant;
 import jakarta.validation.Valid;
@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/tenants")
 public class TenantController {
 

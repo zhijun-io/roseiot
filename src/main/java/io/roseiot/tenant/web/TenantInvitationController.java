@@ -1,15 +1,14 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.infra.security.MethodSecuritySpel;
-import io.roseiot.identity.infra.security.SecurityUser;
+import io.roseiot.iam.infra.security.MethodSecuritySpel;
+import io.roseiot.iam.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
-import io.roseiot.identity.application.RoleService;
+import io.roseiot.iam.application.RoleService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,7 +27,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/tenants/invitations")
 public class TenantInvitationController {
 
@@ -54,7 +52,7 @@ public class TenantInvitationController {
     InvitationResponse create(
             @AuthenticationPrincipal SecurityUser user, @Valid @RequestBody CreateInvitationRequest request) {
         return InvitationResponse.from(invitationService.create(
-                user.requireTenantId(), request.email(), request.targetRole()));
+                user.requireTenantId(), request.email(), request.roleId()));
     }
 
     @GetMapping("/{invitationId}")
@@ -72,13 +70,12 @@ public class TenantInvitationController {
 
     public record CreateInvitationRequest(
             @NotBlank @Email String email,
-            @NotBlank @Pattern(regexp = RoleService.TENANT_ADMIN + "|" + RoleService.TENANT_USER)
-                    String targetRole) {}
+            @jakarta.validation.constraints.NotNull UUID roleId) {}
 
     public record InvitationResponse(
             UUID id,
             String email,
-            String targetRole,
+            UUID roleId,
             Instant expiresAt,
             Instant createdAt,
             Instant acceptedAt,
@@ -88,7 +85,7 @@ public class TenantInvitationController {
             return new InvitationResponse(
                     summary.id(),
                     summary.email(),
-                    summary.targetRole(),
+                    summary.roleId(),
                     summary.expiresAt(),
                     summary.createdAt(),
                     summary.acceptedAt(),

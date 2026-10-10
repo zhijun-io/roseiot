@@ -1,7 +1,7 @@
 package io.roseiot.tenant.application;
 
 import io.roseiot.TestcontainersConfig;
-import io.roseiot.identity.domain.TokenDigests;
+import io.roseiot.iam.domain.TokenDigests;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 import io.roseiot.tenant.persistence.Tenant;
@@ -55,19 +55,20 @@ class TenantLifecyclePostgresTest {
                 .containsEntry("disabled_at", null);
 
         ArgumentCaptor<String> plainToken = ArgumentCaptor.forClass(String.class);
-        verify(tenantInvitationNotifier).sendInvitation(eq("ops@roseiot.io"), eq("TenantAdmin"), plainToken.capture());
+        verify(tenantInvitationNotifier).sendInvitation(eq("ops@roseiot.io"), eq("Administrator"), plainToken.capture());
 
         Map<String, Object> invitationRow = jdbcTemplate.queryForMap(
-                "SELECT email, target_role, token_hash, expires_at, accepted_at, revoked_at"
-                        + " FROM tenant_user_invitation WHERE tenant_id = ?", created.getId());
+                "SELECT i.email, r.code AS role_code, i.token_hash, i.expires_at, i.accepted_at, i.revoked_at"
+                        + " FROM tenant_invitation i JOIN \"role\" r ON r.id = i.role_id"
+                        + " WHERE i.tenant_id = ?", created.getId());
         assertThat(invitationRow)
                 .containsEntry("email", "ops@roseiot.io")
-                .containsEntry("target_role", "TenantAdmin")
+                .containsEntry("role_code", "TENANT_ADMIN")
                 .containsEntry("token_hash", TokenDigests.sha256Hex(plainToken.getValue()))
                 .containsEntry("accepted_at", null)
                 .containsEntry("revoked_at", null);
         Instant createdAt = jdbcTemplate.queryForObject(
-                "SELECT created_at FROM tenant_user_invitation WHERE tenant_id = ?",
+                "SELECT created_at FROM tenant_invitation WHERE tenant_id = ?",
                 Instant.class, created.getId());
         Instant expiresAt = ((Timestamp) invitationRow.get("expires_at")).toInstant();
         assertThat(expiresAt).isAfterOrEqualTo(createdAt.plusSeconds(7 * 24 * 3600 - 60));
@@ -83,7 +84,7 @@ class TenantLifecyclePostgresTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM tenant WHERE slug = ?", Integer.class, "acme-dup")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM tenant_user_invitation i JOIN tenant t ON t.id = i.tenant_id"
+                "SELECT COUNT(*) FROM tenant_invitation i JOIN tenant t ON t.id = i.tenant_id"
                         + " WHERE t.slug = ?", Integer.class, "acme-dup")).isEqualTo(1);
     }
 

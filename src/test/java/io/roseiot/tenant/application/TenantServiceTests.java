@@ -2,7 +2,8 @@ package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import io.roseiot.identity.application.RoleService;
+import io.roseiot.iam.application.RoleService;
+import io.roseiot.iam.persistence.RoleMapper;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
@@ -14,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,9 +34,13 @@ import static org.mockito.Mockito.when;
 class TenantServiceTests {
 
     private static final UUID TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000b1");
+    private static final UUID DEFAULT_TENANT_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000f1");
+    private static final UUID TENANT_ADMIN_ROLE_ID = UUID.fromString("019f0000-0000-7000-8000-0000000000a1");
 
     private TenantMapper tenantMapper;
     private TenantInvitationService invitationService;
+    private RoleMapper roleMapper;
+    private RoleService roleService;
     private TenantService cut;
 
     @BeforeEach
@@ -43,7 +49,10 @@ class TenantServiceTests {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), Tenant.class);
         tenantMapper = mock(TenantMapper.class);
         invitationService = mock(TenantInvitationService.class);
-        cut = new TenantService(tenantMapper, invitationService);
+        roleMapper = mock(RoleMapper.class);
+        roleService = mock(RoleService.class);
+        cut = new TenantService(tenantMapper, invitationService, roleMapper, roleService);
+        when(tenantMapper.requireDefaultTenantId()).thenReturn(DEFAULT_TENANT_ID);
     }
 
     private void noExistingSlug() {
@@ -61,8 +70,10 @@ class TenantServiceTests {
     }
 
     @Test
-    void shouldCreateTenantAndPendingTenantAdminInvitationAtomically() {
+    void shouldCreateTenantAndInviteInitialAdministrator() {
         noExistingSlug();
+        when(roleMapper.requireIdByCode(any(UUID.class), eq(RoleService.TENANT_ADMIN)))
+                .thenReturn(TENANT_ADMIN_ROLE_ID);
 
         Tenant created = cut.create("Acme HVAC", "acme-hvac", " Ops@RoseIoT.io ");
 
@@ -76,7 +87,15 @@ class TenantServiceTests {
         assertThat(stored.getCreatedAt()).isNotNull();
 
         verify(invitationService)
-                .issueInvitation(stored.getId(), "ops@roseiot.io", RoleService.TENANT_ADMIN);
+                .issueInvitation(stored.getId(), "ops@roseiot.io", TENANT_ADMIN_ROLE_ID);
+        verify(roleService).initializeBuiltInRoles(stored.getId());
+    }
+
+    @Test
+    void shouldRejectCreatingTheReservedDefaultSlug() {
+        assertThatThrownBy(() -> cut.create("Copy", "default", "ops@roseiot.io"))
+                .isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(invitationService, roleMapper, roleService);
     }
 
     @Test
@@ -91,7 +110,7 @@ class TenantServiceTests {
     }
 
     @Test
-    void shouldTranslateConcurrentSlugInsertIntoConflictWithoutNotifying() {
+    void shouldTranslateConcurrentSlugInsertIntoConflictWithoutInviting() {
         noExistingSlug();
         when(tenantMapper.insert(any(Tenant.class)))
                 .thenThrow(new DuplicateKeyException("tenant_slug_uq"));
@@ -104,11 +123,18 @@ class TenantServiceTests {
 
     @Test
     void shouldRejectUpdateOfUnknownTenant() {
-        when(tenantMapper.selectById(UUID.randomUUID())).thenReturn(null);
+        when(tenantMapper.selectById(any(UUID.class))).thenReturn(null);
 
         assertThatThrownBy(() -> cut.updateTenant(UUID.randomUUID(), "New name", null))
                 .isInstanceOf(BusinessException.class);
 
+        verify(tenantMapper, never()).update(isNull(), any());
+    }
+
+    @Test
+    void shouldRejectTouchingTheReservedDefaultTenant() {
+        assertThatThrownBy(() -> cut.updateTenant(DEFAULT_TENANT_ID, "Hijack", null))
+                .isInstanceOf(AccessDeniedException.class);
         verify(tenantMapper, never()).update(isNull(), any());
     }
 

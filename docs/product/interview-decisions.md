@@ -3987,4 +3987,47 @@ AND 凭证当前有效
 
 ❓ **Q520 — 固定租户部署模式**：部署是否必须在首次启动前显式选择单租户或多租户模式，模式写入数据库后不可由运行中的管理 API 或普通配置重启切换？单租户模式仍保留单一租户上下文、租户用户和资源隔离，只限制最多一个租户；多租户模式允许创建多个租户？
 
-➡️ **用户确认目标（2026-10-10）。** 应在实施/首次运行前确定租户模式，运行后不能手动切换。具体将单租户定义为保留租户身份、授权与数据隔离、但限制最多一个租户，是本次租户部署模式 Spec 的方案；获批后实施。模式切换与自动数据迁移不在当前范围。
+➡️ **用户确认约束（2026-10-10）。** 单租户模式不向普通用户暴露租户概念；模式只在首次 bootstrap 写入数据库，不由配置文件设置，初始化后不可修改。建议单租户内部使用固定 `default` slug，且多租户模式不创建系统租户；具体路径和数据约束见待评审 Spec，获批后实施。
+
+**补充澄清（2026-10-10）：** 两种模式均应有保留的默认租户 `default`；多租户模式下系统用户、平台角色、菜单、权限等平台级数据归属默认租户，`User.tenantId` 必填。该澄清取代本条此前关于多租户“不创建系统租户、系统用户全局归属”的建议。客户租户及其成员、业务资源仍各自隔离。具体授权与迁移约束见更新后的待评审 Spec。
+
+---
+
+❓ **Q521 — RBAC 资源目录与前端导航**：是否用统一的资源目录表达菜单和可执行操作，资源具有稳定 `code`、类型及父子关系；客户端按获准资源加载菜单和展示按钮，服务端仍按操作资源授权？
+
+➡️ **方向确认（2026-10-10）。** 资源可具有父子层级；前端按权限动态加载菜单并显示按钮。待评审租户部署模式 Spec 已记录资源目录归属和前后端职责。资源父子关系不应隐含授权继承，具体资源类型、树查询与角色关联契约须在 RBAC Spec 中定义。
+
+**补充澄清（2026-10-10）：** 首批资源类型为 `MENU` 与 `ACTION`。`MENU.code` 标识菜单；`Role.code` 标识角色；tenant slug 标识租户。它们各自标识各自对象，不都关联到 ACTION。只有 `ACTION.code` 是授权键：角色由 ACTION 集合构成，后端 API 通过 Spring Security 注解检查 ACTION code。一个 ACTION 可保护多个 API，API 不另建授权 code。按钮是 ACTION 的界面呈现。资源 code 稳定且不可变；退役 ACTION 不再可分配或形成有效权限。
+
+❓ **Q522 — 已有 RBAC 数据迁移**：是否按确认的角色模型迁移已有数据：旧 `SystemAdmin` 用户归入 `default` 并获 `TENANT_ADMIN`；单租户时把现有唯一租户改为 `default`，多租户时新建 `default` 并保留客户租户；客户 `TenantAdmin` 映射到本租户 `TENANT_ADMIN`，`TenantUser` 映射为 `DEVICE_OPERATOR`；旧自定义角色和分配按 ACTION code 保留；旧 `device.credential.read` 不自动授予新内置角色，需自定义角色显式配置？
+
+➡️ **用户确认（2026-10-10）。** 按上述迁移映射执行；归属、邮箱、角色或 ACTION code 映射存在冲突或歧义时，迁移整体失败，不静默合并或丢弃权限关联。旧系统角色移除；原 `permission` 目录迁移为 `ACTION` 资源目录。
+
+❓ **Q523 — Code 与 ACTION 的关系**：是否确认只有 `ACTION.code` 是授权键；`MENU.code`、`Role.code`、tenant slug 等分别标识自身对象，API 不另有授权 code，而是声明所需 ACTION？
+
+➡️ **用户确认（2026-10-10）。** 是。角色是 ACTION 的集合，角色 code 用于角色识别/管理，不直接参与 API 授权。多个 API 可以检查同一 ACTION code。
+
+❓ **Q524 — 各租户内置角色与职责**：是否每个租户预置 `TENANT_ADMIN`、`DEVICE_OPERATOR`、`DEVICE_VIEWER`，不创建 `SYSTEM_ADMIN`；只有 `default` 的系统管理流程创建的 `TENANT_ADMIN` 能关联平台 ACTION？
+
+➡️ **用户确认（2026-10-10）。** 是。客户租户内的同 code `TENANT_ADMIN` 只管理本租户。`TENANT_ADMIN` 管理成员、邀请、角色和用户资料/密码；`DEVICE_OPERATOR` 默认包含 `device.read`、`device.command.issue`、`alarm.ack`；`DEVICE_VIEWER` 默认只包含 `device.read`。`device.credential.read` 不默认授予上述角色，需自定义角色显式配置；审计能力交付前不预置 `AUDITOR`。内置角色系统维护，不能由租户管理员改名/删除；自定义角色 code 使用大写下划线格式，内置 code 可跨租户复用但须租户内唯一，客户不得创建保留 code。
+
+**关于 `device.credential.read` 的进一步澄清（2026-10-10）：** 这是现有权限目录中的 code，迁移后保留为 `ACTION`，只是默认不分配给内置角色。任何可授权权限都必须有对应 ACTION 定义；若目录中不存在该 ACTION，先由系统维护目录定义，租户角色 API 才可分配。未知或退役 ACTION code 一律拒绝。
+
+
+---
+
+**Q525 — Spec 批准与个人操作规则（2026-10-10）**
+
+用户批准租户部署模式与资源授权 Spec，并明确：每个用户均应具有自身个人资料与改密能力，无需额外授权；不能修改他人的资源和密码。此决定取代 Q524 中把个人资料/密码放入 TENANT_ADMIN ACTION 集合的描述。`user.profile.read`、`user.password.write` 不再迁移为可分配 ACTION；旧关联移除。有效认证、认证主体确定目标、资料字段白名单、当前密码校验及会话撤销仍必需。Spec 已批准；Implementation Plan 另行评审。
+
+---
+
+❓ **Q526 — 用户凭证与密码重置状态（2026-10-10）**：是否将密码哈希从 `User` 拆到 IAM `UserCredential`，并把密码重置状态合并到该凭证记录，使每个用户只保留最新一条有效重置链接；资料由 `UserService` 管理，凭证操作由 `UserCredentialService` 和 `UserCredentialController` 管理？
+
+➡️ **用户确认（2026-10-10）。** 是。`UserCredential` 与 `User` 一对一；新重置请求覆盖该用户旧状态，旧链接立即失效。设备凭证由设备能力独立拥有。
+
+---
+
+❓ **Q527 — HTTP 认证命名空间（2026-10-10）**：是否统一规定 `/api/**` 要求 access-token 登录态，`/noauth/**` 不要求 access-token 登录态，`/internal/**` 留作未来内部接口？登录、refresh、密码重置、激活和租户邀请等公开身份端点迁入 `/noauth/**`；refresh 仍须校验 refresh token 与服务端会话状态。
+
+➡️ **用户确认（2026-10-10）。** 是。旧 `/api/login`、`/api/token` 和 `/api/noauth/**` 不保留匿名兼容入口；公开端点不要求 access-token，但必须执行各自的凭证和业务校验。

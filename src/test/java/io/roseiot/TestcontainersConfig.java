@@ -14,9 +14,7 @@ public class TestcontainersConfig {
                     .withUsername("roseiot")
                     .withPassword("roseiot");
 
-    static {
-        POSTGRESQL.start();
-    }
+    static { POSTGRESQL.start(); }
 
     @Bean
     @ServiceConnection

@@ -1,7 +1,7 @@
 package io.roseiot.tenant.infra.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-import io.roseiot.identity.infra.security.SecurityUser;
+import io.roseiot.iam.infra.security.SecurityUser;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.StringValue;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,16 +16,15 @@ public final class RoseiotTenantLineHandler implements TenantLineHandler {
 
     private static final Set<String> GLOBAL_TABLES = Set.of(
             "users",
-            "permission",
-            "role",
-            "role_permission",
-            "user_role",
-            "user_refresh_session",
-            "password_reset_request",
+            "resource",
+            "user_session",
+            "user_credential",
+            "system_setting",
             "tenant");
 
     @Override
     public Expression getTenantId() {
+        if (TenantContext.current() != null) return new StringValue(TenantContext.current().toString());
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof SecurityUser user) {
             return new StringValue(user.requireTenantId().toString());
@@ -47,14 +46,6 @@ public final class RoseiotTenantLineHandler implements TenantLineHandler {
             return true;
         }
 
-        // Initial tenant creation and token-based invitation acceptance have their own explicit checks.
-        return "tenant_user_invitation".equals(normalized) && !hasAuthenticatedTenantUser();
-    }
-
-    private static boolean hasAuthenticatedTenantUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null
-                && authentication.getPrincipal() instanceof SecurityUser user
-                && user.isTenantUser();
+        return false;
     }
 }

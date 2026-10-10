@@ -83,8 +83,8 @@
 
 - 默认采用模块化单体，不提前拆分微服务。
 - **能力分包 + 技术分层**（模块化单体内的默认布局）：
-  - **多能力根包**：Roseiot 在 **`io.roseiot.<能力名>`** 下按业务闭环分包（如 **`identity`**、**`device`**、**`tenant`**、**`product`** 等，以 Spec 为准 **并列** 于同一模块化单体，**不**再用 `io.roseiot.platform` 中间层）。**当前仓库仅 `identity` 有实现**；其它能力在 Spec 批准前 **不建空包**。
-  - **主应用类**：`io.roseiot.RoseiotApplication` 留在根包；CLI 引导入口 `BootstrapApplicationRunner` 可同根包；**禁止**在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`，也 **禁止** 根级 `io.roseiot.config`。
+  - **多能力根包**：Roseiot 在 **`io.roseiot.<能力名>`** 下按业务闭环分包（如 **`iam`**、**`device`**、**`tenant`**、**`product`** 等，以 Spec 为准 **并列** 于同一模块化单体，**不**再用 `io.roseiot.platform` 中间层）。当前身份与访问管理能力位于 `io.roseiot.iam`；其它能力在 Spec 批准前 **不建空包**。
+  - **主应用类**：`io.roseiot.RoseiotApplication` 留在根包；**禁止**在 `io.roseiot` 下全局铺 `controller` / `service` / `repository`，也 **禁止** 根级 `io.roseiot.config`。
   - **能力内分层**（按需创建子包，无调用方不建空包）：
     - `web` — HTTP：`@RestController`、请求/响应 DTO、能力内 `@RestControllerAdvice`；
     - `application` — 应用服务：`@Service`（命名 `*Service`，**不用** `*UseCase`）、事务边界、编排 Mapper 与 `infra`；
@@ -92,11 +92,11 @@
     - `infra` — 技术实现：JWT、MQTT 适配、限速等可替换集成；
     - `config` — 该能力（或能力内子域）专属的 `@Configuration` / `@ConfigurationProperties`；
     - `persistence` — 该能力拥有的表与 MyBatis Mapper（能力独占表默认在此；见下条扫描）。
-  - **`identity` 能力**（人类 IAM）：当前实现为 **`identity.application`**（`*Service`）、**`identity.web`**（Controller / `@RestControllerAdvice`）、**`identity.domain`**、**`identity.infra.*`**（如 `security`、`mybatis`、`passwordreset`）、**`identity.persistence`**；会话、RBAC、`users` 表归属 **identity**。
-  - **`shared`**：跨能力、无单一业务所有权 — **`shared.api`**、 **`shared.util`**、 **`shared.ratelimit`** 等；平台 Security 过滤器链在 **`identity.infra.security`**（`SecurityConfig`、`SecurityExceptionHandler`）。
-  - **MyBatis `@MapperScan`**：当前 `io.roseiot.identity.infra.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.identity.persistence`**；UUID 类型处理器在 **`identity.infra.mybatis`**（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
-  - **能力间调用**：允许 `device.application` 依赖 `identity.rbac` 等 ** inward API**；禁止循环依赖；跨能力 HTTP 契约以外部/Spec 为准。
-  - **测试**：路径镜像主代码（如 `identity.web.*Tests`、`identity.application.*Tests`）。
+  - **`iam` 能力**（人类身份与访问管理）：实现位于 `iam.application`（`*Service`）、`iam.web`（Controller / `@RestControllerAdvice`）、`iam.domain`、`iam.infra.*`（如 `security`、`mybatis`、`passwordreset`）和 `iam.persistence`；会话、RBAC、`users` 表归属 `iam`。
+  - **`shared`**：跨能力、无单一业务所有权 — **`shared.api`**、 **`shared.util`**、 **`shared.ratelimit`** 等；Security 过滤器链在 **`iam.infra.security`**（`SecurityConfig`、`SecurityExceptionHandler`）。
+  - **MyBatis `@MapperScan`**：`io.roseiot.iam.infra.mybatis.MybatisPlusConfig` 扫描 **`io.roseiot.iam.persistence`**；UUID 类型处理器在 `iam.infra.mybatis`（见 `application.yml` 的 `mybatis-plus.type-handlers-package`）。
+  - **能力间调用**：允许 `device.application` 依赖 `iam` 提供的授权 API；禁止循环依赖；跨能力 HTTP 契约以外部/Spec 为准。
+  - **测试**：路径镜像主代码（如 `iam.web.*Tests`、`iam.application.*Tests`）。
 - **不采用六边形架构**：不用 Port/Adapter 命名与「入站/出站端口」目录；分层是 **技术职责**，不是第二套架构词汇。
 - 只有真实用例证明数据所有权、稳定契约和独立测试边界后，才新增模块。
 - 优先完成最小业务闭环，不创建空模块、占位接口或没有当前调用方的通用框架。

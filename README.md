@@ -5,7 +5,15 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ## 当前状态
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：系统引导、系统用户认证和 Identity/RBAC 基线（Flyway **V1**）。HTTP：会话 **`/api/login`**、**`/api/token`**、**`/api/logout`**、**`/api/logout-all`**；匿名 **`/api/noauth/**`**；系统当前用户 **`/api/users/me/**`**。系统用户 access JWT 含 **`ctx=system`**、**`azv`**；`/api/users/me/**` 需 **`user.profile.*`**。**Spec #3**（租户生命周期、邀请、租户用户管理、租户 **`ctx=tenant`** 会话与 **`/api/users/me/**`**）已交付 — 见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
+阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：IAM 认证与 RBAC、固定多租户模型及全局系统设置（Flyway **V1–V7**
+）。数据库迁移创建 `default` 平台租户、资源目录、平台角色和系统设置表；客户租户由 `TenantService` 在创建事务中初始化内置角色与授权。SQL
+迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续 Spec。HTTP 路由按认证边界划分：需 access-token
+登录态的接口统一位于 **`/api/**`**；无需 access-token 登录态的身份接口位于 **`/noauth/**`**
+，包括登录、refresh、密码重置、用户激活和租户邀请；refresh 仍须提供有效 refresh token；未来内部接口使用 **`/internal/**`**
+。Access JWT 含 **`sub`/`sid`/`tid`/`azv`**，refresh JWT 使用签名且有类型标识；授权只依据主体被授予的活动 **ACTION**
+code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可按树结构渲染）。用户密码和重置状态存于 IAM `UserCredential`；系统级
+`GENERAL.setting.baseUrl` 用于生成邮件绝对链接。 **Spec #3**（租户生命周期、邀请、成员管理）已交付 —
+见 [租户与用户 Spec](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。
 
 ## 建设原则
 
@@ -87,11 +95,11 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ### 示例
 
-| 类型 | 示例类 |
-| --- | --- |
-| 单元 | `UserProfileServiceTest`、`UserSessionServiceTest`、`TenantServiceTests` |
-| WebMvc 切片 | `SessionAuthWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests` |
-| 真库集成 | `TenantLifecyclePostgresTest` |
+| 类型        | 示例类                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------|
+| 单元        | `UserServiceTest`、`UserCredentialServiceTest`、`UserSessionServiceTest`、`TenantServiceTests` |
+| WebMvc 切片 | `SessionAuthWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests`      |
+| 真库集成    | `TenantLifecyclePostgresTest`                                                                  |
 
 **原则**：能写单元测试的不要 `@SpringBootTest`；`@WebMvcTest` 只承担 HTTP 契约，Flyway 与持久化证据用真库集成测试。
 
@@ -104,14 +112,20 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 - [领域词汇](GLOSSARY.md)
 - [Agent 规则](AGENTS.md)
 
+### 架构决策（ADR）
+
+- [IAM 身份认证与授权](docs/adr/2026-10-10-iam.md)
+- [租户模型与生命周期](docs/adr/2026-10-10-tenant.md)
+- [系统设置与全局配置](docs/adr/2026-10-10-system-settings.md)
+
 ### 阶段 1 规格（SDD）
 
-| Spec | 文档 | 状态 |
-| --- | --- | --- |
-| #1 系统引导 | [system-bootstrap-spec.md](docs/sdd/2026-10-08-stage-1-system-bootstrap-spec.md) | 已交付 |
-| #2 系统用户认证 | [system-user-auth-spec.md](docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md) | 已交付 |
-| Identity 与 RBAC | [identity-rbac-spec.md](docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md) | 已交付 |
-| #3 租户与用户 | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md) | 已交付 |
+| Spec                | 文档                                                                                    | 状态         |
+|---------------------|-----------------------------------------------------------------------------------------|--------------|
+| IAM 初始化简化      | [IAM 初始化与多租户简化 Spec](docs/sdd/2026-10-10-iam-bootstrap-simplification-spec.md) | 已批准并实施 |
+| #2 系统用户认证     | [system-user-auth-spec.md](docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md)        | 已交付       |
+| 旧 Identity 与 RBAC | [Identity/RBAC Spec](docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md)                 | 已替代       |
+| #3 租户与用户       | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)        | 已交付       |
 
 ## 验证与运行
 
@@ -134,82 +148,49 @@ curl -sS "http://localhost:8080/actuator/health/liveness"
 curl -sS "http://localhost:8080/actuator/health/readiness"
 ```
 
-## 系统引导（IAM-001）
+## 首个管理员初始化
 
-在 **`users` 中尚无 `tenant_id IS NULL` 的系统用户** 的数据库上，通过 **CLI** 创建**恰好一名**系统管理员（`users` + `SystemAdmin` 角色绑定）。
-凭证只来自环境变量，勿写入 Git。引导与长期运行的 Web 服务分开：使用 `--bootstrap` 启动后进程会退出，不会监听 HTTP。
-
-前置：PostgreSQL 已就绪（Compose 或 `.env` 中的 `SPRING_DATASOURCE_*`），且 `./mvnw -q verify` 通过。
-
-在 `.env` 中设置（参见 [`.env.example`](.env.example)）：
-
-```bash
-BOOTSTRAP_USER_EMAIL=admin@example.com
-BOOTSTRAP_USER_PASSWORD=your-password-at-least-12-chars
-```
-
-密码至少 12 位且同时包含字母与数字。邮箱会 trim 并转为小写入库。
-
-**首次引导（空库，期望退出码 0）：**
-
-```bash
-./mvnw -q spring-boot:run -Dspring-boot.run.arguments=--bootstrap
-echo $?   # 应为 0
-```
-
-**验证库中有一条记录**（示例：用 `psql` 或任意 SQL 客户端，勿在日志中打印密码）：
-
-```sql
-SELECT email FROM users WHERE tenant_id IS NULL;
--- 期望一行，email 与规范化后的 BOOTSTRAP_USER_EMAIL 一致
-```
-
-**重复引导（期望非零退出、仍为 1 条记录）：**
-
-```bash
-./mvnw -q spring-boot:run -Dspring-boot.run.arguments=--bootstrap
-echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
-```
-
-再次查询 `users`（`tenant_id IS NULL`）行数应仍为 1。正常运行应用时不要带 `--bootstrap`：
-
-```bash
-./mvnw spring-boot:run
-```
+Flyway 会创建保留 `default` 平台租户、资源目录和平台内置角色。应用目前不创建管理员用户，也不提供 CLI bootstrap 或匿名初始化
+API；首管理员初始化页面及其后端能力待后续 Spec。空库可以正常启动，但在管理员创建前无法登录。
 
 ## 系统用户认证（Spec #2）
 
-前置：已完成 [系统引导（IAM-001）](#系统引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。必须在环境中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字节）；应用没有内置密钥，缺失或过短时会拒绝启动。仅本地手动验证时，在 `.env` 设置 `SPRING_PROFILES_ACTIVE=local`，日志 notifier 会输出可用的重置/邀请链接；其它环境必须接入不记录明文 token 的通知实现，否则应用无法启动。
+前置：数据库迁移已执行。必须在环境中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字节）；应用没有内置密钥，缺失或过短时会拒绝启动。仅本地手动验证时，在
+`.env` 设置 `SPRING_PROFILES_ACTIVE=local`，日志 notifier 会输出可用的重置/邀请链接；其它环境必须接入不记录明文 token
+的通知实现，否则应用无法启动。
 
 业务 API 前缀为 **`/api`**（URL 中无 `/v1`）。错误体为稳定 JSON：`{"code":"...","message":"..."}`。
 
-| 方法 | 路径 | 认证 |
-| --- | --- | --- |
-| POST | `/api/login` | 匿名 |
-| POST | `/api/token` | 匿名（body 含 refresh） |
-| POST | `/api/logout` | Bearer |
-| POST | `/api/logout-all` | Bearer |
-| POST | `/api/noauth/password-reset/email` | 匿名 |
-| GET | `/api/noauth/password-reset` | 匿名（校验 token，**200** + `{ "status": "valid"|"expired"|"invalid" }`） |
-| POST | `/api/noauth/password-reset` | 匿名（成功 **204**） |
-| GET/POST | `/api/noauth/user-activation` | 匿名（激活流程 **501** 占位） |
-| GET | `/api/users/me` | Bearer |
-| PATCH | `/api/users/me/password` | Bearer |
+| 方法     | 路径                                       | 认证                                             |
+|----------|--------------------------------------------|--------------------------------------------------|
+| POST     | `/login`                                   | 匿名                                             |
+| POST     | `/token`                                   | 匿名（body 含 refresh）                          |
+| DELETE   | `/logout`                                  | Bearer（退出当前会话）                           |
+| DELETE   | `/logout?all=true`                         | Bearer（退出全部会话）                           |
+| POST     | `/noauth/user-credentials/password-resets` | 匿名                                             |
+| GET      | `/noauth/user-credentials/password-resets` | 匿名（校验 token，**200** + `{ "status": "valid" |"expired"|"invalid" }`） |
+| PUT      | `/noauth/user-credentials/password-resets` | 匿名（成功 **204**）                             |
+| GET/POST | `/noauth/users/activation`                 | 匿名（激活流程 **501** 占位）                    |
+| GET      | `/api/users/me`                            | Bearer                                           |
+| PATCH    | `/api/user-credentials/me/password`        | Bearer                                           |
 
-Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`ctx=system`**（系统用户）与 **`azv`**（整数，对应 `users.authorization_version`）。改密或密码重置成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
+Access JWT（HS256）除 `sub`（用户 id）、`sid`（会话 id）外，包含 **`tid`**（用户所属租户）与 **`azv`**（整数，对应
+`users.authorization_version`）。改密或密码重置成功后 `azv` 递增并撤销全部 refresh；旧 access/refresh 不可用。
 
-Flyway 基线直接创建当前 schema 与 RBAC seed。新库从 **V1** 起即含 `password_reset_request`；曾用旧 V1（`user_recovery_request`）的库由 **V2** 重命名。其它 schema 变更仍须清空重建或按迁移脚本升级。
+Flyway 从 **V1–V7** 创建当前 schema、平台资源/角色 seed 和 `system_setting`。V7 将 `users` 中的密码字段迁入一对一
+`user_credential`，并把每用户最新的重置状态迁入凭证行。客户租户内置角色在应用创建租户时由同一事务初始化。其它 schema
+变更仍须清空重建或按迁移脚本升级。
 
 验证：`./mvnw -q verify`（含 Testcontainers 空库基线测试）。
 
-生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、`POST …/password-reset/email` **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
+生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、`POST /noauth/user-credentials/password-resets` **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
 
 ### 手动验证（AC-2：登录与 profile）
 
 ```bash
 BASE=http://localhost:8080
 
-LOGIN=$(curl -sS -X POST "$BASE/api/login" \
+LOGIN=$(curl -sS -X POST "$BASE/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"your-password-at-least-12-chars"}')
 ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
@@ -221,10 +202,10 @@ curl -sS "$BASE/api/users/me" -H "Authorization: Bearer $ACCESS" | jq .
 ### 手动验证（AC-4：注销后会话失效）
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/logout" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X DELETE "$BASE/logout" \
   -H "Authorization: Bearer $ACCESS"
 
-curl -sS -X POST "$BASE/api/token" \
+curl -sS -X POST "$BASE/token" \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 # 期望 401，body 含 invalid_refresh_token
@@ -232,20 +213,22 @@ curl -sS -X POST "$BASE/api/token" \
 
 ### 手动验证（AC-6：密码重置）
 
-启用 `local` profile 时，`LoggingPasswordResetNotifier` 在 WARN 日志中打印 **`/api/noauth/password-reset?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见 `PasswordResetServiceTest` 与 `IdentityNoauthControllerWebMvcTest`。
+启用 `local` profile 时，`LoggingPasswordResetNotifier` 在 WARN 日志中打印 **
+`/noauth/user-credentials/password-resets?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见
+`UserCredentialServiceTest` 与 `IdentityNoauthControllerWebMvcTest`。
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-reset/email" \
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/noauth/user-credentials/password-resets" \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com"}'
 # 期望 200，无 body（与未注册邮箱请求相同）
 
 # 校验令牌（邮件/日志里的链接应对 API，不是 /auth/…）：
-curl -sS "$BASE/api/noauth/password-reset?resetToken=$RESET_TOKEN"
+curl -sS "$BASE/noauth/user-credentials/password-resets?resetToken=$RESET_TOKEN"
 # 期望 200，例如 {"status":"valid"}
 
-# 无前端时可直接 POST 改密：
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-reset" \
+# 无前端时可直接 PUT 确认重置：
+curl -sS -o /dev/null -w '%{http_code}\n' -X PUT "$BASE/noauth/user-credentials/password-resets" \
   -H 'Content-Type: application/json' \
   -d "{\"resetToken\":\"$RESET_TOKEN\",\"password\":\"newSecurePass9012\"}"
 # 期望 204；随后用新密码 login，旧 refresh 不可再用
@@ -253,14 +236,17 @@ curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-res
 
 ## 租户与用户（Spec #3）
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/tenants` | 系统：创建租户 |
-| PATCH | `/api/tenants/{tenantId}` | 系统：更新租户（含停用/启用） |
-| GET | `/api/tenants/users` | 租户 Admin：列用户 |
-| PATCH | `/api/tenants/users/{userId}` | 租户 Admin：角色/停用 |
-| GET/POST/DELETE | `/api/tenants/invitations`… | 租户 Admin：邀请 CRUD |
-| GET/POST | `/api/noauth/tenant-invitations` | 匿名：校验/接受邀请 |
-| GET/PATCH | `/api/users/me`… | 租户用户 profile（**`ctx=tenant`**） |
-
+| 方法            | 路径                                | 说明                                         |
+|-----------------|-------------------------------------|----------------------------------------------|
+| POST            | `/api/tenants`                      | 平台管理员：创建客户租户并发送首个管理员邀请 |
+| PATCH           | `/api/tenants/{tenantId}`           | 平台管理员：更新客户租户名称或状态           |
+| GET             | `/api/members`                      | 当前租户：列出成员                           |
+| PATCH           | `/api/members/{userId}`             | 当前租户：修改成员角色或状态                 |
+| GET/POST/DELETE | `/api/invitations`…                 | 当前租户：邀请管理                           |
+| GET/POST        | `/noauth/tenants/invitations`       | 无需 access-token：校验/接受邀请             |
+| GET             | `/api/users/me`                     | 当前认证用户：个人资料                       |
+| PATCH           | `/api/user-credentials/me/password` | 当前认证用户：修改密码                       |
+| GET             | `/api/tenants/users`                | 当前租户：列出成员                           |
+| PATCH           | `/api/tenants/users/{userId}`       | 当前租户：修改成员                           |
+| GET/POST/DELETE | `/api/tenants/invitations`…         | 当前租户：邀请管理                           |
 完整契约见 [Spec #3](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md)。

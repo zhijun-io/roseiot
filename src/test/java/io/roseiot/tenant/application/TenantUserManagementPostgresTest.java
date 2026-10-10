@@ -1,31 +1,32 @@
 package io.roseiot.tenant.application;
 
+import io.roseiot.iam.domain.ActionCode;
 import io.roseiot.TestcontainersConfig;
-import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.identity.application.RoleService;
-import io.roseiot.identity.infra.security.SecurityUser;
-import io.roseiot.identity.infra.security.SecurityUserDetailsService;
+import io.roseiot.iam.application.RoleService;
+import io.roseiot.iam.application.UserSessionService;
+import io.roseiot.iam.infra.security.SecurityUser;
+import io.roseiot.iam.infra.security.SecurityUserDetailsService;
+import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
+import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
+import io.roseiot.tenant.infra.mybatis.TenantContext;
 import io.roseiot.tenant.persistence.Tenant;
-import io.roseiot.tenant.persistence.TenantUserInvitationMapper;
+import io.roseiot.tenant.persistence.TenantInvitationMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import io.roseiot.tenant.infra.invitation.TenantInvitationNotifier;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -56,45 +57,55 @@ class TenantUserManagementPostgresTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private TenantUserInvitationMapper invitationMapper;
+    private TenantInvitationMapper invitationMapper;
 
     @MockitoBean
     private TenantInvitationNotifier tenantInvitationNotifier;
+
+    private UUID roleIdOf(Tenant tenant, String code) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM \"role\" WHERE tenant_id = ? AND code = ?", UUID.class, tenant.getId(), code);
+    }
+
+    private UUID userIdByEmail(String email) {
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", UUID.class, email);
+    }
 
     @Test
     void shouldListUsersAndProtectLastTenantAdmin() {
         Tenant tenant = tenantService.create("Acme", "acme-users", "admin@roseiot.io");
         ArgumentCaptor<String> adminToken = ArgumentCaptor.forClass(String.class);
-        verify(tenantInvitationNotifier).sendInvitation(eq("admin@roseiot.io"), eq("TenantAdmin"), adminToken.capture());
+        verify(tenantInvitationNotifier)
+                .sendInvitation(eq("admin@roseiot.io"), eq("Administrator"), adminToken.capture());
         invitationService.acceptInvitation(adminToken.getValue(), "newSecurePass9012");
 
-        invitationService.create(tenant.getId(), "member@roseiot.io", "TenantUser");
+        TenantContext.call(tenant.getId(), () ->
+                invitationService.create(tenant.getId(), "member@roseiot.io", roleIdOf(tenant, RoleService.DEVICE_OPERATOR)));
         ArgumentCaptor<String> tokens = ArgumentCaptor.forClass(String.class);
         verify(tenantInvitationNotifier, times(2)).sendInvitation(any(), any(), tokens.capture());
         invitationService.acceptInvitation(tokens.getAllValues().get(1), "newSecurePass9012");
 
-        assertThat(userManagementService.listUsers(tenant.getId())).hasSize(2);
-
-        UUID adminId = jdbcTemplate.queryForObject(
-                "SELECT id FROM users WHERE email = ?", UUID.class, "admin@roseiot.io");
-
-        assertThatThrownBy(() -> userManagementService.updateUser(tenant.getId(), adminId, true, null))
-                .isInstanceOf(BusinessException.class);
+        UUID adminId = userIdByEmail("admin@roseiot.io");
+        TenantContext.call(tenant.getId(), () -> {
+            assertThat(userManagementService.listUsers(tenant.getId())).hasSize(2);
+            assertThatThrownBy(() -> userManagementService.updateUser(tenant.getId(), adminId, true, null))
+                    .isInstanceOf(BusinessException.class);
+            return null;
+        });
     }
 
     @Test
     void shouldRejectLoginAfterTenantDisabled() {
         Tenant tenant = tenantService.create("Beta", "beta-off", "owner@roseiot.io");
         ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
-        verify(tenantInvitationNotifier).sendInvitation(eq("owner@roseiot.io"), eq("TenantAdmin"), token.capture());
+        verify(tenantInvitationNotifier)
+                .sendInvitation(eq("owner@roseiot.io"), eq("Administrator"), token.capture());
         invitationService.acceptInvitation(token.getValue(), "newSecurePass9012");
 
         tenantService.updateTenant(tenant.getId(), null, true);
 
-        SecurityUser owner =
-                (SecurityUser) securityUserDetailsService.loadUserByUsername("owner@roseiot.io");
-        assertThatThrownBy(() -> userSessionService.openSession(owner))
-                .isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class);
+        assertThatThrownBy(() -> securityUserDetailsService.loadUserByUsername("owner@roseiot.io"))
+                .isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class);
     }
 
     @Test
@@ -102,51 +113,55 @@ class TenantUserManagementPostgresTest {
         Tenant firstTenant = tenantService.create("First", "first-isolation", "first@roseiot.io");
         Tenant secondTenant = tenantService.create("Second", "second-isolation", "second@roseiot.io");
         TenantInvitationService.InvitationSummary otherTenantInvitation =
-                invitationService.list(secondTenant.getId(), "pending").getFirst();
+                TenantContext.call(secondTenant.getId(), () -> invitationService.list(secondTenant.getId(), "pending").getFirst());
         ArgumentCaptor<String> tokens = ArgumentCaptor.forClass(String.class);
         verify(tenantInvitationNotifier, times(2)).sendInvitation(any(), any(), tokens.capture());
         invitationService.acceptInvitation(tokens.getAllValues().get(0), "newSecurePass9012");
         invitationService.acceptInvitation(tokens.getAllValues().get(1), "newSecurePass9012");
-        UUID otherTenantUserId = jdbcTemplate.queryForObject(
-                "SELECT id FROM users WHERE email = ?", UUID.class, "second@roseiot.io");
+        UUID otherTenantUserId = userIdByEmail("second@roseiot.io");
 
-        assertThatThrownBy(() -> userManagementService.updateUser(firstTenant.getId(), otherTenantUserId, true, null))
-                .isInstanceOfSatisfying(BusinessException.class,
-                        exception -> assertThat(exception.errorCode())
-                                .isEqualTo(io.roseiot.shared.domain.ApiErrorCode.TENANT_USER_NOT_FOUND));
-        assertThatThrownBy(() -> invitationService.get(firstTenant.getId(), otherTenantInvitation.id()))
-                .isInstanceOfSatisfying(BusinessException.class,
-                        exception -> assertThat(exception.errorCode())
-                                .isEqualTo(io.roseiot.shared.domain.ApiErrorCode.INVITATION_NOT_FOUND));
+        TenantContext.call(firstTenant.getId(), () -> {
+            assertThatThrownBy(() -> userManagementService.updateUser(firstTenant.getId(), otherTenantUserId, true, null))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            exception -> assertThat(exception.errorCode())
+                                    .isEqualTo(ApiErrorCode.TENANT_USER_NOT_FOUND));
+            assertThatThrownBy(() -> invitationService.get(firstTenant.getId(), otherTenantInvitation.id()))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                            exception -> assertThat(exception.errorCode())
+                                    .isEqualTo(ApiErrorCode.INVITATION_NOT_FOUND));
+            return null;
+        });
 
         assertThat(jdbcTemplate.queryForObject(
-                        "SELECT disabled_at IS NULL FROM users WHERE id = ?", Boolean.class, otherTenantUserId))
+                        "SELECT status = 'ACTIVE' FROM users WHERE id = ?", Boolean.class, otherTenantUserId))
                 .isTrue();
     }
 
     @Test
-    void shouldIgnoreRoleAssignmentsOutsideUsersTenantScope() {
-        Tenant tenant = tenantService.create("Scoped", "scope-isolation", "owner-scope@roseiot.io");
-        invitationService.create(tenant.getId(), "member-scope@roseiot.io", RoleService.TENANT_USER);
+    void shouldKeepSameCodeRolesSeparatePerTenant() {
+        Tenant firstTenant = tenantService.create("Scope A", "scope-a", "scope-a@roseiot.io");
+        Tenant secondTenant = tenantService.create("Scope B", "scope-b", "scope-b@roseiot.io");
+        UUID adminRoleOfFirst = roleIdOf(firstTenant, RoleService.TENANT_ADMIN);
+        UUID adminRoleOfSecond = roleIdOf(secondTenant, RoleService.TENANT_ADMIN);
+        assertThat(adminRoleOfFirst).isNotEqualTo(adminRoleOfSecond);
+
         ArgumentCaptor<String> tokens = ArgumentCaptor.forClass(String.class);
         verify(tenantInvitationNotifier, times(2)).sendInvitation(any(), any(), tokens.capture());
+        invitationService.acceptInvitation(tokens.getAllValues().get(0), "newSecurePass9012");
         invitationService.acceptInvitation(tokens.getAllValues().get(1), "newSecurePass9012");
-        UUID userId = jdbcTemplate.queryForObject(
-                "SELECT id FROM users WHERE email = ?", UUID.class, "member-scope@roseiot.io");
-        UUID adminRoleId = jdbcTemplate.queryForObject(
-                "SELECT id FROM \"role\" WHERE code = ?", UUID.class, RoleService.TENANT_ADMIN);
-        UUID anotherTenantId = UUID.randomUUID();
-        jdbcTemplate.update(
-                "INSERT INTO user_role (id, user_id, role_id, scope_tenant_id) VALUES (?, ?, ?, ?)",
-                UUID.randomUUID(), userId, adminRoleId, anotherTenantId);
+        UUID firstUserId = userIdByEmail("scope-a@roseiot.io");
 
-        assertThat(securityUserDetailsService.loadByUserId(userId).getAuthorities())
+        SecurityUser firstUser = securityUserDetailsService.loadByUserId(firstUserId);
+        assertThat(firstUser.tenantId()).isEqualTo(firstTenant.getId());
+        assertThat(firstUser.getAuthorities())
                 .extracting(authority -> authority.getAuthority())
-                .contains("ROLE_" + RoleService.TENANT_USER)
-                .doesNotContain("ROLE_" + RoleService.TENANT_ADMIN, "tenant.user.manage");
-        assertThat(userManagementService.listUsers(tenant.getId()))
-                .extracting(TenantUserService.TenantUserSummary::id, TenantUserService.TenantUserSummary::role)
-                .contains(tuple(userId, RoleService.TENANT_USER));
+                .containsExactlyInAnyOrder(ActionCode.TENANT_USER_MANAGE, ActionCode.TENANT_USER_INVITE, ActionCode.TENANT_ROLE_MANAGE);
+
+        // The composite (tenant_id, role_id) key makes a cross-tenant assignment impossible.
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO user_role (id, tenant_id, user_id, role_id) VALUES (?, ?, ?, ?)",
+                UUID.randomUUID(), firstTenant.getId(), firstUserId, adminRoleOfSecond))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -154,24 +169,14 @@ class TenantUserManagementPostgresTest {
         Tenant firstTenant = tenantService.create("Plugin First", "plugin-first", "plugin-first@roseiot.io");
         Tenant secondTenant = tenantService.create("Plugin Second", "plugin-second", "plugin-second@roseiot.io");
         TenantInvitationService.InvitationSummary firstInvitation =
-                invitationService.list(firstTenant.getId(), "pending").getFirst();
+                TenantContext.call(firstTenant.getId(), () -> invitationService.list(firstTenant.getId(), "pending").getFirst());
         TenantInvitationService.InvitationSummary secondInvitation =
-                invitationService.list(secondTenant.getId(), "pending").getFirst();
-        ArgumentCaptor<String> tokens = ArgumentCaptor.forClass(String.class);
-        verify(tenantInvitationNotifier, times(2)).sendInvitation(any(), any(), tokens.capture());
-        invitationService.acceptInvitation(tokens.getAllValues().get(0), "newSecurePass9012");
-        invitationService.acceptInvitation(tokens.getAllValues().get(1), "newSecurePass9012");
-        UUID firstUserId = jdbcTemplate.queryForObject(
-                "SELECT id FROM users WHERE email = ?", UUID.class, "plugin-first@roseiot.io");
-        SecurityUser firstUser = securityUserDetailsService.loadByUserId(firstUserId);
-        SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
-                firstUser, null, firstUser.getAuthorities()));
+                TenantContext.call(secondTenant.getId(), () -> invitationService.list(secondTenant.getId(), "pending").getFirst());
 
-        try {
+        TenantContext.call(firstTenant.getId(), () -> {
             assertThat(invitationMapper.selectById(firstInvitation.id())).isNotNull();
             assertThat(invitationMapper.selectById(secondInvitation.id())).isNull();
-        } finally {
-            SecurityContextHolder.clearContext();
-        }
+            return null;
+        });
     }
 }

@@ -37,31 +37,28 @@ server:
   shutdown: graceful
 
 roseiot:
-  bootstrap:
-    enabled: false
   rate-limit:
     enabled: ${ROSEIOT_RATE_LIMIT_ENABLED:true}
     window-minutes: 15
     rules:
       - method: POST
-        path: /api/login
+        path: /login
         body-field: email
         key-prefix: "auth:login:"
         max-attempts: 10
       - method: POST
-        path: /api/noauth/password-reset/email
+        path: /noauth/user-credentials/password-resets
         body-field: email
         key-prefix: "noauth:reset-password:"
         max-attempts: 5
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}
-    password-reset:
-      link-base-url: ${ROSEIOT_PASSWORD_RESET_LINK_BASE_URL:http://localhost:${server.port:8080}}
     tenant-invitation:
       link-base-url: ${ROSEIOT_TENANT_INVITATION_LINK_BASE_URL:http://localhost:${server.port:8080}}
 
 mybatis-plus:
-  type-handlers-package: io.roseiot.identity.infra.mybatis
+  type-handlers-package: io.roseiot.iam.infra.mybatis
   configuration:
     map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler

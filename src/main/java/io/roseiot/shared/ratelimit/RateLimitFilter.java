@@ -21,7 +21,6 @@ import java.util.Locale;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
-@ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @ConditionalOnProperty(name = "roseiot.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimitFilter extends OncePerRequestFilter {
 

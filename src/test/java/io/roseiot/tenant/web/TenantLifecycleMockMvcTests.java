@@ -1,9 +1,10 @@
 package io.roseiot.tenant.web;
 
-import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.infra.security.RoseiotWebMvcTestSupport;
-import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
-import io.roseiot.identity.infra.security.ImportRoseiotSecuredWebMvc;
+import io.roseiot.iam.infra.security.JwtTokenFactory;
+import io.roseiot.iam.domain.ActionCode;
+import io.roseiot.iam.infra.security.RoseiotWebMvcTestSupport;
+import io.roseiot.iam.infra.security.IdentityJwtAuthenticationConverter;
+import io.roseiot.iam.infra.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.tenant.application.TenantService;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
@@ -195,7 +196,7 @@ class TenantLifecycleMockMvcTests {
                 .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
                         this::systemToken,
                         new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                                IdentityJwtClaims.PERMISSION_TENANT_DISABLE)))
+                                ActionCode.TENANT_DISABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"disabled": false}
@@ -228,9 +229,9 @@ class TenantLifecycleMockMvcTests {
                 .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
                         this::systemToken,
                         new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                                IdentityJwtClaims.PERMISSION_TENANT_DISABLE),
+                                ActionCode.TENANT_DISABLE),
                         new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                                IdentityJwtClaims.PERMISSION_TENANT_ENABLE)))
+                                ActionCode.TENANT_ENABLE)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"name": "Acme Climate"}
@@ -244,7 +245,7 @@ class TenantLifecycleMockMvcTests {
         Instant now = Instant.now();
         return builder.header("alg", "none")
                 .subject(ADMIN_ID.toString())
-                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
+                .claim(JwtTokenFactory.AUTHORIZATION_VERSION, Math.toIntExact(AUTHORIZATION_VERSION))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60));
     }
