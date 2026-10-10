@@ -17,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -25,7 +26,8 @@ import java.util.List;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final SlidingWindowRateLimiter rateLimiter;
-    private final List<RateLimitPolicy> policies;
+    private final List<RateLimitProperties.Rule> rules;
+    private final JsonMapper jsonMapper;
     private final ApiErrorBodyWriter apiErrorBodyWriter;
 
     public RateLimitFilter(
@@ -34,32 +36,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
             JsonMapper jsonMapper,
             ApiErrorBodyWriter apiErrorBodyWriter) {
         this.rateLimiter = rateLimiter;
-        this.policies = rateLimitProperties.getRules().stream()
-                .<RateLimitPolicy>map(rule -> new JsonBodyFieldRateLimitPolicy(rule, jsonMapper))
-                .toList();
+        this.rules = rateLimitProperties.getRules();
+        this.jsonMapper = jsonMapper;
         this.apiErrorBodyWriter = apiErrorBodyWriter;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        boolean needsBody = policies.stream().anyMatch(policy -> policy.matches(request));
-        if (!needsBody) {
+        List<RateLimitProperties.Rule> matchingRules = rules.stream()
+                .filter(rule -> matches(rule, request))
+                .toList();
+        if (matchingRules.isEmpty()) {
             filterChain.doFilter(request, response);
             return;
         }
 
         byte[] body = StreamUtils.copyToByteArray(request.getInputStream());
-        for (RateLimitPolicy policy : policies) {
-            if (!policy.matches(request)) {
-                continue;
-            }
-            var key = policy.rateLimitKey(request, body);
+        for (RateLimitProperties.Rule rule : matchingRules) {
+            var key = JsonRequestBodyFields.readTextField(body, rule.getBodyField(), jsonMapper)
+                    .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                    .filter(value -> !value.isEmpty())
+                    .map(value -> rule.getKeyPrefix() + value);
             if (key.isEmpty()) {
                 continue;
             }
             try {
-                rateLimiter.checkAllowed(key.get(), policy.maxAttempts());
+                rateLimiter.checkAllowed(key.get(), rule.getMaxAttempts());
             } catch (RateLimitExceededException exception) {
                 String code = ApiErrorCode.RATE_LIMITED.code();
                 apiErrorBodyWriter.write(response, HttpStatus.TOO_MANY_REQUESTS.value(), code, code);
@@ -68,5 +71,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(new CachedBodyHttpServletRequest(request, body), response);
+    }
+
+    private static boolean matches(RateLimitProperties.Rule rule, HttpServletRequest request) {
+        return rule.getMethod().equalsIgnoreCase(request.getMethod())
+                && rule.getPath().equals(request.getRequestURI());
     }
 }

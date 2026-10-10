@@ -150,21 +150,6 @@ class RateLimitFilterTest {
         assertThat(responseBody.asText()).isEmpty();
     }
 
-    @Test
-    void shouldNotLimitAnyAttemptWhenRateLimitingIsDisabled() throws Exception {
-        properties.setEnabled(false);
-        stubLoginRequest();
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
-
-        for (int attempt = 0; attempt < 3; attempt++) {
-            cut.doFilterInternal(request, response, filterChain);
-        }
-
-        verify(filterChain, times(3))
-                .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
-        assertThat(responseBody.asText()).isEmpty();
-    }
-
     private static final class StubInputStream extends ServletInputStream {
 
         private final ByteArrayInputStream delegate;

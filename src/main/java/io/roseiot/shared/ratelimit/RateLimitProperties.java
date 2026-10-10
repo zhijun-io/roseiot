@@ -8,17 +8,8 @@ import java.util.List;
 @ConfigurationProperties(prefix = "roseiot.rate-limit")
 public class RateLimitProperties {
 
-    private boolean enabled = true;
     private int windowMinutes = 15;
     private List<Rule> rules = new ArrayList<>();
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
 
     public int getWindowMinutes() {
         return windowMinutes;
@@ -43,7 +34,6 @@ public class RateLimitProperties {
         private String bodyField;
         private String keyPrefix;
         private int maxAttempts;
-        private boolean normalizeBodyField = true;
 
         public String getMethod() {
             return method;
@@ -85,12 +75,5 @@ public class RateLimitProperties {
             this.maxAttempts = maxAttempts;
         }
 
-        public boolean isNormalizeBodyField() {
-            return normalizeBodyField;
-        }
-
-        public void setNormalizeBodyField(boolean normalizeBodyField) {
-            this.normalizeBodyField = normalizeBodyField;
-        }
     }
 }
