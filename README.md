@@ -111,7 +111,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 | #1 系统引导 | [system-bootstrap-spec.md](docs/sdd/2026-10-08-stage-1-system-bootstrap-spec.md) | 已交付 |
 | #2 系统用户认证 | [system-user-auth-spec.md](docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md) | 已交付 |
 | Identity 与 RBAC | [identity-rbac-spec.md](docs/sdd/2026-10-08-stage-1-identity-rbac-spec.md) | 已交付 |
-| #3 租户与用户 | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md) | **待批准 / 未实现** |
+| #3 租户与用户 | [tenant-and-users-spec.md](docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md) | 已交付 |
 
 ## 验证与运行
 
