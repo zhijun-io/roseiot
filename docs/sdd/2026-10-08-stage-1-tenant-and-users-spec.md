@@ -69,3 +69,4 @@
 - 2026-10-09 | 取消 `/api/tenants/users/me`；租户 self profile/改密统一 `/api/users/me/**` | AC-2 | yes — Plan Slice 4 与 Identity/系统用户 Spec 边界同步修订
 - 2026-10-09 | 邀请 REST  redesign：`/api/tenants/invitations` + `/api/noauth/tenant-invitations`（GET/POST）；废弃 `user-invitations` 与 `user-invitation-acceptance` | AC-1 | yes — Plan Slice 2/3 与 Q518
 - 2026-10-10 | 明确并发成员变更下的最后管理员保护 | AC-1 | yes — 使用租户行锁串行化成员角色/启用状态变更
+- 2026-10-10 | 部署租户模式由独立 Spec 定义；单租户部署限制最多一个租户但保留租户身份和隔离 | Scope | yes — 见租户部署模式 Spec 草案
