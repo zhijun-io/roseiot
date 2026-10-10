@@ -1,6 +1,7 @@
 package io.roseiot.tenant.application;
 
 import io.roseiot.identity.application.RoleService;
+import io.roseiot.identity.application.UserSessionService;
 import io.roseiot.identity.persistence.Role;
 import io.roseiot.identity.persistence.RoleMapper;
 import io.roseiot.identity.persistence.TenantUserRow;
@@ -27,16 +28,19 @@ public class TenantUserService {
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
+    private final UserSessionService userSessionService;
 
     public TenantUserService(
             TenantMapper tenantMapper,
             UserMapper userMapper,
             RoleMapper roleMapper,
-            UserRoleMapper userRoleMapper) {
+            UserRoleMapper userRoleMapper,
+            UserSessionService userSessionService) {
         this.tenantMapper = tenantMapper;
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
+        this.userSessionService = userSessionService;
     }
 
     public List<TenantUserSummary> listUsers(UUID tenantId) {
@@ -75,13 +79,20 @@ public class TenantUserService {
             ensureNotLastActiveTenantAdmin(tenantId, userId);
         }
 
+        boolean changed = false;
         if (disabled != null && disabled != currentlyDisabled) {
             user.setDisabledAt(disabled ? Instant.now() : null);
-            userMapper.updateById(user);
+            changed = true;
         }
         if (newRole != null && !newRole.equals(currentRole)) {
             userRoleMapper.replaceRoleInTenantScope(
                     userId, tenantId, roleMapper.requireIdByCode(newRole));
+            changed = true;
+        }
+        if (changed) {
+            user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);
+            userMapper.updateById(user);
+            userSessionService.logoutAllSessions(userId);
         }
     }
 
