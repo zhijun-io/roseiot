@@ -30,3 +30,4 @@
 
 - 2026-10-09 | 租户 self profile 不再使用 `/api/tenants/users/me`，与 Spec #3 对齐为 `/api/users/me/**` | Verification | yes — Spec #3 Plan Slice 4
 - 2026-10-09 | JWT 移除 ctx；方法安全以 ROLE_ 与 permission 为准 | Constraints / Verification | yes — UserDetailsService 重构
+- 2026-10-10 | 产品决定允许租户从系统 permission 目录组合本租户角色；角色管理 API、数据迁移和验证由独立 Spec 定义，本阶段交付仍限于内置角色 | Scope | yes — Q519；见租户自定义角色 Spec 草案

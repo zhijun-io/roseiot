@@ -3976,3 +3976,9 @@ AND 凭证当前有效
 ❓ **Q518 — 租户邀请 REST 路径（修订 Q516 邀请接受段）**：租户 Admin 是否使用 **`/api/tenants/invitations`**（POST 创建、GET 列表/详情、DELETE 撤销）；匿名是否使用 **`GET|POST /api/noauth/tenant-invitations`**（query/body 字段 **`invitationToken`**），**不再**使用 **`user-invitations`** / **`user-invitation-acceptance`**？
 
 ➡️ **用户确认（2026-10-09）。** 以 [`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) HTTP Contract 为准；与 **`password-reset`** 同构的 noauth GET（303）+ POST（接受并发会话）。Q516 中 **`user-invitation-acceptance`** 路径由本决策 supersede。
+
+---
+
+❓ **Q519 — 租户自定义角色范围**：是否允许租户管理员从系统维护的 permission 目录组合权限，创建和管理仅属于本租户的角色；保留内置角色，不允许租户创建或修改 permission？
+
+➡️ **用户确认（2026-10-10）。** 租户角色与权限变更须立即影响有效授权；租户不能失去最后一名同时具备 `tenant.user.manage` 和 `tenant.user.invite` 的有效成员。数据归属、成员分配和并发保护见 RBAC ADR；具体 API 与验收契约由独立 Spec 定义，批准前不实施。
