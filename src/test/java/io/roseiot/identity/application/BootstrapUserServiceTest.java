@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
@@ -30,6 +31,7 @@ class BootstrapUserServiceTest {
     private static final UUID SYSTEM_ADMIN_ROLE_ID = UUID.fromString("019a0000-0000-7000-8000-0000000000a1");
 
     private UserMapper userMapper;
+    private JdbcTemplate jdbcTemplate;
     private RoleMapper roleMapper;
     private UserRoleMapper userRoleMapper;
     private PasswordEncoder passwordEncoder;
@@ -37,11 +39,12 @@ class BootstrapUserServiceTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate = mock(JdbcTemplate.class);
         userMapper = mock(UserMapper.class);
         roleMapper = mock(RoleMapper.class);
         userRoleMapper = mock(UserRoleMapper.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        cut = new BootstrapUserService(userMapper, roleMapper, userRoleMapper, passwordEncoder);
+        cut = new BootstrapUserService(jdbcTemplate, userMapper, roleMapper, userRoleMapper, passwordEncoder);
         when(userMapper.countUnscopedUsers()).thenReturn(0L);
     }
 

@@ -9,7 +9,7 @@ import io.roseiot.identity.persistence.UserRoleMapper;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.shared.util.UuidV7;
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,17 +22,21 @@ import java.util.regex.Pattern;
 @Service
 public class BootstrapUserService {
 
+    private static final long BOOTSTRAP_LOCK_ID = 7_341_928_610_224L;
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    private final JdbcTemplate jdbcTemplate;
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
 
     public BootstrapUserService(
+            JdbcTemplate jdbcTemplate,
             UserMapper userMapper,
             RoleMapper roleMapper,
             UserRoleMapper userRoleMapper,
             PasswordEncoder passwordEncoder) {
+        this.jdbcTemplate = jdbcTemplate;
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
@@ -41,6 +45,7 @@ public class BootstrapUserService {
 
     @Transactional
     public void bootstrap(String rawEmail, String rawPassword) {
+        jdbcTemplate.execute("SELECT pg_advisory_xact_lock(" + BOOTSTRAP_LOCK_ID + ")");
         if (userMapper.countUnscopedUsers() > 0) {
             throw new BusinessException(
                     ApiErrorCode.ALREADY_BOOTSTRAPPED, "System is already bootstrapped");
@@ -61,13 +66,7 @@ public class BootstrapUserService {
         user.setPasswordAlgorithm("bcrypt");
         user.setAuthorizationVersion(1);
         user.setCreatedAt(Instant.now());
-        try {
-            userMapper.insert(user);
-        } catch (DuplicateKeyException exception) {
-            // The database constraint closes the race between concurrent bootstrap requests.
-            throw new BusinessException(
-                    ApiErrorCode.ALREADY_BOOTSTRAPPED, "System is already bootstrapped");
-        }
+        userMapper.insert(user);
 
         userRoleMapper.insertAssignment(
                 UuidV7.generate(), userId, roleMapper.requireIdByCode(RoleService.SYSTEM_ADMIN), null);
