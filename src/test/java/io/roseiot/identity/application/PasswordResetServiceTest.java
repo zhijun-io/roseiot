@@ -130,6 +130,7 @@ class PasswordResetServiceTest {
         User user = existingUser();
         PasswordResetRequest active = activeRequest();
         when(passwordResetRequestMapper.selectOne(any())).thenReturn(active);
+        when(passwordResetRequestMapper.consumeIfActive(eq(active.getId()), any(Instant.class))).thenReturn(1);
         when(userMapper.selectById(USER_ID)).thenReturn(user);
         when(passwordEncoder.encode("new passphrase 77")).thenReturn("new-hash");
 
@@ -138,8 +139,7 @@ class PasswordResetServiceTest {
         assertThat(user.getPasswordHash()).isEqualTo("new-hash");
         assertThat(user.getAuthorizationVersion()).isEqualTo(6);
         verify(userMapper).updateById(user);
-        assertThat(active.getUsedAt()).isNotNull();
-        verify(passwordResetRequestMapper).updateById(active);
+        verify(passwordResetRequestMapper).consumeIfActive(eq(active.getId()), any(Instant.class));
         verify(refreshSessions).revokeAllForUser(eq(USER_ID), any(Instant.class));
     }
 
@@ -147,6 +147,7 @@ class PasswordResetServiceTest {
     void shouldRevokeSessionsWithTheSameInstantThatConsumedTheToken() {
         PasswordResetRequest active = activeRequest();
         when(passwordResetRequestMapper.selectOne(any())).thenReturn(active);
+        when(passwordResetRequestMapper.consumeIfActive(eq(active.getId()), any(Instant.class))).thenReturn(1);
         when(userMapper.selectById(USER_ID)).thenReturn(existingUser());
         when(passwordEncoder.encode(any())).thenReturn("new-hash");
 
@@ -154,12 +155,14 @@ class PasswordResetServiceTest {
 
         ArgumentCaptor<Instant> revokedAt = ArgumentCaptor.forClass(Instant.class);
         verify(refreshSessions).revokeAllForUser(eq(USER_ID), revokedAt.capture());
-        assertThat(active.getUsedAt()).isEqualTo(revokedAt.getValue());
+        verify(passwordResetRequestMapper).consumeIfActive(eq(active.getId()), eq(revokedAt.getValue()));
     }
 
     @Test
     void shouldRejectResetWhenTheTokenOwnerIsGone() {
-        when(passwordResetRequestMapper.selectOne(any())).thenReturn(activeRequest());
+        PasswordResetRequest active = activeRequest();
+        when(passwordResetRequestMapper.selectOne(any())).thenReturn(active);
+        when(passwordResetRequestMapper.consumeIfActive(eq(active.getId()), any(Instant.class))).thenReturn(1);
         when(userMapper.selectById(USER_ID)).thenReturn(null);
 
         assertThatThrownBy(() -> cut.confirmPasswordReset("reset-token", "new passphrase 77"))
@@ -191,6 +194,18 @@ class PasswordResetServiceTest {
 
         assertThatThrownBy(() -> cut.confirmPasswordReset("expired-token", "new passphrase 77"))
                 .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(userMapper, passwordEncoder, refreshSessions);
+    }
+
+    @Test
+    void shouldNotChangePasswordWhenAnotherRequestConsumedTheTokenFirst() {
+        PasswordResetRequest active = activeRequest();
+        when(passwordResetRequestMapper.selectOne(any())).thenReturn(active);
+        when(passwordResetRequestMapper.consumeIfActive(eq(active.getId()), any(Instant.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> cut.confirmPasswordReset("reset-token", "new passphrase 77"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(ApiErrorCode.INVALID_RESET_TOKEN.code());
         verifyNoInteractions(userMapper, passwordEncoder, refreshSessions);
     }
 }

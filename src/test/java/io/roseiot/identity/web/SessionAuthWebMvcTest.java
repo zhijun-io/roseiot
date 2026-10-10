@@ -2,7 +2,6 @@ package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
 import io.roseiot.identity.infra.security.AuthenticationExceptionMapping;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
@@ -38,7 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * Protocol contract of session endpoints under {@code /api/login}, {@code /api/token},
  * {@code /api/logout} and {@code /api/logout-all} (served by security filters).
  */
-@WebMvcTest(controllers = NoauthController.class)
+@WebMvcTest(controllers = IdentityNoauthController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @ImportRoseiotSecuredWebMvc
 class SessionAuthWebMvcTest {
@@ -54,9 +53,6 @@ class SessionAuthWebMvcTest {
 
     @MockitoBean
     private PasswordResetService passwordResetService;
-
-    @MockitoBean
-    private TenantInvitationService tenantInvitationService;
 
     @MockitoBean
     private AuthenticationManager identityAuthenticationManager;

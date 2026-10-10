@@ -47,7 +47,7 @@ class BootstrapUserServiceTest {
 
     private void stubEmptyRoleTable() {
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-hash");
-        when(roleMapper.requireIdByCode("SystemAdmin")).thenReturn(SYSTEM_ADMIN_ROLE_ID);
+        when(roleMapper.requireIdByCode(RoleService.SYSTEM_ADMIN)).thenReturn(SYSTEM_ADMIN_ROLE_ID);
     }
 
     @Test

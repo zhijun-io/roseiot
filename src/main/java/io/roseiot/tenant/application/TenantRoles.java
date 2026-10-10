@@ -1,9 +1,8 @@
 package io.roseiot.tenant.application;
 
-public final class TenantRoles {
+import io.roseiot.identity.application.RoleService;
 
-    public static final String TENANT_ADMIN = "TenantAdmin";
-    public static final String TENANT_USER = "TenantUser";
+public final class TenantRoles {
 
     private TenantRoles() {}
 
@@ -12,7 +11,7 @@ public final class TenantRoles {
             throw new IllegalArgumentException("targetRole is required");
         }
         String role = targetRole.trim();
-        if (!TENANT_ADMIN.equals(role) && !TENANT_USER.equals(role)) {
+        if (!RoleService.TENANT_ADMIN.equals(role) && !RoleService.TENANT_USER.equals(role)) {
             throw new IllegalArgumentException("Invalid targetRole");
         }
     }

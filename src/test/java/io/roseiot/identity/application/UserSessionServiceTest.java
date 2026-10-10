@@ -91,6 +91,22 @@ class UserSessionServiceTest {
     }
 
     @Test
+    void shouldRevokeFamilyWhenConcurrentRefreshLosesTheAtomicRotation() {
+        UUID familyId = UUID.randomUUID();
+        UserRefreshSession active = new UserRefreshSession();
+        active.setId(UUID.randomUUID());
+        active.setUserId(USER_ID);
+        active.setFamilyId(familyId);
+        when(refreshSessionMapper.selectOne(any())).thenReturn(active);
+        when(userMapper.selectById(USER_ID)).thenReturn(activeUser());
+        when(refreshSessions.rotate(eq(active), any(Instant.class))).thenReturn(null);
+
+        assertThatThrownBy(() -> cut.refresh("presented-refresh-token"))
+                .isInstanceOf(InvalidRefreshTokenAuthenticationException.class);
+        verify(refreshSessions).revokeFamily(eq(familyId), any(Instant.class));
+    }
+
+    @Test
     void shouldRejectOpenSessionWhenTenantIsDisabled() {
         UUID tenantId = UUID.randomUUID();
         User tenantUser = activeUser();

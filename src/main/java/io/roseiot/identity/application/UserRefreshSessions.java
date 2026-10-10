@@ -45,8 +45,9 @@ public class UserRefreshSessions {
     }
 
     UserSessionService.SessionTokens rotate(UserRefreshSession current, Instant now) {
-        current.setRevokedAt(now);
-        refreshSessionMapper.updateById(current);
+        if (refreshSessionMapper.revokeForRotation(current.getId(), now) != 1) {
+            return null;
+        }
 
         UUID newSessionId = UuidV7.generate();
         String refreshToken = TokenDigests.generateUrlSafe256Bit();

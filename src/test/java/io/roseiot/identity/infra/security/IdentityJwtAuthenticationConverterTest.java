@@ -1,6 +1,8 @@
 package io.roseiot.identity.infra.security;
 
 import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.persistence.UserRefreshSession;
+import io.roseiot.identity.persistence.UserRefreshSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -20,30 +22,46 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 class IdentityJwtAuthenticationConverterTest {
 
     private static final UUID USER_ID = UUID.fromString("019a0000-0000-7000-8000-000000000004");
+    private static final UUID SESSION_ID = UUID.fromString("019a0000-0000-7000-8000-000000000014");
 
     private SecurityUserDetailsService userDetailsService;
+    private UserRefreshSessionMapper refreshSessionMapper;
     private IdentityJwtAuthenticationConverter cut;
 
     @BeforeEach
     void setUp() {
         userDetailsService = mock(SecurityUserDetailsService.class);
-        cut = new IdentityJwtAuthenticationConverter(userDetailsService);
+        refreshSessionMapper = mock(UserRefreshSessionMapper.class);
+        cut = new IdentityJwtAuthenticationConverter(userDetailsService, refreshSessionMapper);
+        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any()))
+                .thenReturn(activeSession(USER_ID));
     }
 
     private static Jwt token(String subject, Object authorizationVersion) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("sub", subject);
+        claims.put("sid", SESSION_ID.toString());
         if (authorizationVersion != null) {
             claims.put(IdentityJwtClaims.AUTHORIZATION_VERSION, authorizationVersion);
         }
         Instant issuedAt = Instant.now();
         return new Jwt("raw-token-value", issuedAt, issuedAt.plus(15, ChronoUnit.MINUTES),
                 Map.of("alg", "HS256"), claims);
+    }
+
+    private static UserRefreshSession activeSession(UUID userId) {
+        UserRefreshSession session = new UserRefreshSession();
+        session.setId(SESSION_ID);
+        session.setUserId(userId);
+        session.setExpiresAt(Instant.now().plus(1, ChronoUnit.DAYS));
+        return session;
     }
 
     private SecurityUser loadedUser(long authorizationVersion) {
@@ -129,5 +147,34 @@ class IdentityJwtAuthenticationConverterTest {
     void shouldRejectSubjectThatIsNotAUserId() {
         assertInvalidToken(() -> cut.convert(token("session-scoped-principal", 1L)), "Invalid subject");
         verifyNoInteractions(userDetailsService);
+    }
+
+    @Test
+    void shouldRejectTokenWithoutSessionClaim() {
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
+        Jwt token = token(USER_ID.toString(), 1L);
+        Map<String, Object> claims = new HashMap<>(token.getClaims());
+        claims.remove("sid");
+        Jwt withoutSession = new Jwt(token.getTokenValue(), token.getIssuedAt(), token.getExpiresAt(),
+                token.getHeaders(), claims);
+
+        assertInvalidToken(() -> cut.convert(withoutSession), "Invalid session");
+    }
+
+    @Test
+    void shouldRejectTokenForMissingOrInactiveSession() {
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
+        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any())).thenReturn(null);
+
+        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "Session not active");
+    }
+
+    @Test
+    void shouldRejectSessionOwnedByAnotherUser() {
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(loadedUser(1));
+        when(refreshSessionMapper.selectActiveById(eq(SESSION_ID), any()))
+                .thenReturn(activeSession(UUID.randomUUID()));
+
+        assertInvalidToken(() -> cut.convert(token(USER_ID.toString(), 1L)), "Session not active");
     }
 }

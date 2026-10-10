@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -32,6 +33,7 @@ public class IdentityAuthConfig {
     }
 
     @Bean
+    @Profile("local")
     @ConditionalOnMissingBean(PasswordResetNotifier.class)
     PasswordResetNotifier passwordResetNotifier(
             @Value("${roseiot.auth.password-reset.link-base-url}") String passwordResetLinkBaseUrl) {

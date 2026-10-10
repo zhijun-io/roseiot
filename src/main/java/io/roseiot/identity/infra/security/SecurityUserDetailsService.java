@@ -6,16 +6,20 @@ import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRoleMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 public class SecurityUserDetailsService implements UserDetailsService {
+
+    private static final String ROLE_PREFIX = "ROLE_";
 
     private final UserMapper userMapper;
     private final UserRoleMapper userRoleMapper;
@@ -41,6 +45,12 @@ public class SecurityUserDetailsService implements UserDetailsService {
         if (user == null || user.getDisabledAt() != null) {
             throw new UsernameNotFoundException(notFoundKey);
         }
-        return new SecurityUser(user, RoseiotSecurityAuthorities.forUser(userRoleMapper, user.getId()));
+        var authorities = Stream.concat(
+                        userRoleMapper.listPermissionCodesForUser(user.getId()).stream(),
+                        userRoleMapper.listRoleCodesForUser(user.getId()).stream()
+                                .map(roleCode -> ROLE_PREFIX + roleCode))
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+        return new SecurityUser(user, authorities);
     }
 }

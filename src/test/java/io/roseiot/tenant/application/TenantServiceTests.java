@@ -2,6 +2,7 @@ package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import io.roseiot.identity.application.RoleService;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.tenant.persistence.Tenant;
 import io.roseiot.tenant.persistence.TenantMapper;
@@ -75,7 +76,7 @@ class TenantServiceTests {
         assertThat(stored.getCreatedAt()).isNotNull();
 
         verify(invitationService)
-                .issueInvitation(stored.getId(), "ops@roseiot.io", TenantRoles.TENANT_ADMIN);
+                .issueInvitation(stored.getId(), "ops@roseiot.io", RoleService.TENANT_ADMIN);
     }
 
     @Test

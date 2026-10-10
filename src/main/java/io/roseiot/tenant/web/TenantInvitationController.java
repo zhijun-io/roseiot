@@ -4,6 +4,7 @@ import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.tenant.application.TenantInvitationService.InvitationSummary;
+import io.roseiot.identity.application.RoleService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -71,7 +72,8 @@ public class TenantInvitationController {
 
     public record CreateInvitationRequest(
             @NotBlank @Email String email,
-            @NotBlank @Pattern(regexp = "TenantAdmin|TenantUser") String targetRole) {}
+            @NotBlank @Pattern(regexp = RoleService.TENANT_ADMIN + "|" + RoleService.TENANT_USER)
+                    String targetRole) {}
 
     public record InvitationResponse(
             UUID id,

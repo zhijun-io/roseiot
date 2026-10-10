@@ -4,6 +4,7 @@ import io.roseiot.identity.infra.security.MethodSecuritySpel;
 import io.roseiot.identity.infra.security.SecurityUser;
 import io.roseiot.tenant.application.TenantUserService;
 import io.roseiot.tenant.application.TenantUserService.TenantUserSummary;
+import io.roseiot.identity.application.RoleService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Pattern;
@@ -53,7 +54,8 @@ public class TenantUserController {
     }
 
     public record UpdateTenantUserRequest(
-            Boolean disabled, @Pattern(regexp = "TenantAdmin|TenantUser") String targetRole) {
+            Boolean disabled,
+            @Pattern(regexp = RoleService.TENANT_ADMIN + "|" + RoleService.TENANT_USER) String targetRole) {
 
         @AssertTrue(message = "At least one of disabled or targetRole must be provided")
         boolean isChangeRequested() {

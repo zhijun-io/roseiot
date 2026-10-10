@@ -3,8 +3,6 @@ package io.roseiot.identity.web;
 import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.PasswordResetService.ResetTokenState;
 import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.tenant.application.TenantInvitationService;
-import io.roseiot.tenant.application.TenantInvitationService.InvitationTokenState;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
 import io.roseiot.identity.infra.security.IdentityJwtAuthenticationConverter;
@@ -26,19 +24,16 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@WebMvcTest(controllers = NoauthController.class)
+@WebMvcTest(controllers = IdentityNoauthController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @ImportRoseiotSecuredWebMvc
-class NoauthControllerWebMvcTest {
+class IdentityNoauthControllerWebMvcTest {
 
     @Autowired
     private MockMvcTester mvc;
 
     @MockitoBean
     private PasswordResetService passwordResetService;
-
-    @MockitoBean
-    private TenantInvitationService tenantInvitationService;
 
     @MockitoBean
     private UserSessionService sessionService;
@@ -149,34 +144,6 @@ class NoauthControllerWebMvcTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("invalid_reset_token");
-    }
-
-    @Test
-    void shouldAnswerValidInvitationTokenWithStatus() {
-        given(tenantInvitationService.checkInvitationToken("plain-token"))
-                .willReturn(InvitationTokenState.VALID);
-
-        assertThat(mvc.get().uri("/api/noauth/tenant-invitations?invitationToken=plain-token"))
-                .hasStatus(HttpStatus.OK)
-                .bodyJson()
-                .extractingPath("$.status")
-                .isEqualTo("valid");
-    }
-
-    @Test
-    void shouldAcceptInvitationAndReturnSessionTokens() {
-        given(tenantInvitationService.acceptInvitation("invite-token", "Passw0rd!"))
-                .willReturn(new UserSessionService.SessionTokens("access-token", "refresh-token"));
-
-        assertThat(mvc.post().uri("/api/noauth/tenant-invitations")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"invitationToken": "invite-token", "password": "Passw0rd!"}
-                                """))
-                .hasStatus(HttpStatus.CREATED)
-                .bodyJson()
-                .extractingPath("$.accessToken")
-                .isEqualTo("access-token");
     }
 
     @Test

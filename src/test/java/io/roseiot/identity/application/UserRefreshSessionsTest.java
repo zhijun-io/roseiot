@@ -49,6 +49,7 @@ class UserRefreshSessionsTest {
         jwtEncoder = mock(JwtEncoder.class);
         cut = new UserRefreshSessions(refreshSessionMapper, userMapper, jwtEncoder);
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(jwt(ACCESS_TOKEN));
+        when(refreshSessionMapper.revokeForRotation(any(UUID.class), any(Instant.class))).thenReturn(1);
     }
 
     private static Jwt jwt(String tokenValue) {
@@ -169,8 +170,7 @@ class UserRefreshSessionsTest {
 
         UserSessionService.SessionTokens tokens = cut.rotate(current, NOW);
 
-        assertThat(current.getRevokedAt()).isEqualTo(NOW);
-        verify(refreshSessionMapper).updateById(current);
+        verify(refreshSessionMapper).revokeForRotation(current.getId(), NOW);
         UserRefreshSession next = insertedSession();
         assertThat(next.getFamilyId()).isEqualTo(familyId);
         assertThat(next.getUserId()).isEqualTo(USER_ID);

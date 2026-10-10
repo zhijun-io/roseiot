@@ -1,7 +1,7 @@
 package io.roseiot.identity.infra.security;
 
 import io.roseiot.identity.application.UserSessionService;
-import io.roseiot.identity.infra.security.session.JsonLoginAuthenticationFilter;
+import io.roseiot.identity.infra.security.session.RestLoginAuthenticationFilter;
 import io.roseiot.identity.infra.security.session.RefreshTokenAuthenticationFilter;
 import io.roseiot.identity.infra.security.session.SessionLogoutFilter;
 import io.roseiot.shared.api.ApiErrorBodyWriter;
@@ -16,6 +16,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -23,21 +24,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.util.List;
-
 @Configuration
+@EnableWebSecurity
 @EnableMethodSecurity
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
-public class SecurityConfig implements WebMvcConfigurer {
-
-    @Override
-    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-        resolvers.addFirst(new SecurityUserArgumentResolver());
-    }
+public class SecurityConfig {
 
     @Bean
     @ConditionalOnMissingBean(name = "identityAuthenticationManager")
@@ -50,13 +43,13 @@ public class SecurityConfig implements WebMvcConfigurer {
     }
 
     @Bean
-    JsonLoginAuthenticationFilter jsonLoginAuthenticationFilter(
+    RestLoginAuthenticationFilter jsonLoginAuthenticationFilter(
             @Qualifier("identityAuthenticationManager") AuthenticationManager authenticationManager,
             UserSessionService sessionService,
             SecurityExceptionHandler securityExceptionHandler,
             JsonMapper jsonMapper,
             ApiErrorBodyWriter apiErrorBodyWriter) {
-        return new JsonLoginAuthenticationFilter(
+        return new RestLoginAuthenticationFilter(
                 authenticationManager, sessionService, securityExceptionHandler, jsonMapper, apiErrorBodyWriter);
     }
 
@@ -82,7 +75,7 @@ public class SecurityConfig implements WebMvcConfigurer {
     @Order(1)
     SecurityFilterChain publicSecurityFilterChain(
             HttpSecurity http,
-            JsonLoginAuthenticationFilter jsonLoginAuthenticationFilter,
+            RestLoginAuthenticationFilter restLoginAuthenticationFilter,
             RefreshTokenAuthenticationFilter refreshTokenAuthenticationFilter)
             throws Exception {
         http.securityMatcher(
@@ -90,11 +83,27 @@ public class SecurityConfig implements WebMvcConfigurer {
                         "/actuator/health/**",
                         "/api/login",
                         "/api/token",
-                        "/api/noauth/**")
+                        "/api/noauth/password-reset/email",
+                        "/api/noauth/password-reset",
+                        "/api/noauth/user-activation",
+                        "/api/noauth/tenant-invitations")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-                .addFilterBefore(jsonLoginAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/login", "/api/token")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/noauth/password-reset/email",
+                                "/api/noauth/password-reset", "/api/noauth/user-activation",
+                                "/api/noauth/tenant-invitations")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/noauth/password-reset",
+                                "/api/noauth/user-activation", "/api/noauth/tenant-invitations")
+                        .permitAll()
+                        .anyRequest()
+                        .denyAll())
+                .addFilterBefore(restLoginAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(refreshTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

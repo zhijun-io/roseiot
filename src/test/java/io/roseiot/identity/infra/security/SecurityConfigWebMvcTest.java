@@ -4,11 +4,14 @@ import io.roseiot.identity.application.UserProfileService;
 import io.roseiot.identity.application.PasswordResetService;
 import io.roseiot.identity.application.UserSessionService;
 import io.roseiot.identity.persistence.User;
+import io.roseiot.identity.persistence.UserRefreshSession;
+import io.roseiot.identity.persistence.UserRefreshSessionMapper;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.tenant.application.TenantInvitationService;
 import io.roseiot.identity.domain.IdentityJwtClaims;
-import io.roseiot.identity.web.NoauthController;
+import io.roseiot.identity.web.IdentityNoauthController;
 import io.roseiot.identity.web.UserProfileController;
+import io.roseiot.tenant.web.TenantInvitationNoauthController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,8 +24,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Instant;
@@ -33,7 +38,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 /**
  * The URL rules of the production {@link SecurityConfig}: which paths anonymous callers may reach,
@@ -47,9 +56,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * {@link IdentityJwtAuthenticationConverter} is not on this path: it is mocked to satisfy the chain
  * and its own rules are proven by {@code IdentityJwtAuthenticationConverterTest}.
  */
-@WebMvcTest(controllers = {NoauthController.class, UserProfileController.class})
+@WebMvcTest(controllers = {IdentityNoauthController.class, TenantInvitationNoauthController.class,
+        UserProfileController.class})
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
 @ImportRoseiotSecuredWebMvc
+@Import(IdentityJwtAuthenticationConverter.class)
 class SecurityConfigWebMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("019f0000-0000-7000-8000-000000000001");
@@ -73,7 +84,10 @@ class SecurityConfigWebMvcTest {
     private JwtDecoder jwtDecoder;
 
     @MockitoBean
-    private IdentityJwtAuthenticationConverter jwtAuthenticationConverter;
+    private SecurityUserDetailsService userDetailsService;
+
+    @MockitoBean
+    private UserRefreshSessionMapper refreshSessionMapper;
 
     @MockitoBean
     private AuthenticationManager identityAuthenticationManager;
@@ -146,7 +160,13 @@ class SecurityConfigWebMvcTest {
 
     @Test
     void shouldAcceptBearerTokenForTheProfile() {
-        assertThat(mvc.get().uri("/api/users/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
+        User userRecord = new User();
+        userRecord.setId(USER_ID);
+        userRecord.setEmail("ops@roseiot.io");
+        SecurityUser principal = new SecurityUser(
+                userRecord, List.of(RoseiotWebMvcTestSupport.systemAdminAuthorities()));
+
+        assertThat(mvc.get().uri("/api/users/me").with(user(principal)))
                 .hasStatus(HttpStatus.OK);
     }
 
@@ -161,7 +181,7 @@ class SecurityConfigWebMvcTest {
     @Test
     void shouldAcceptBearerTokenForLogout() {
         assertThat(mvc.post().uri("/api/logout")
-                .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
+                .with(jwt().jwt(this::systemToken).authorities(RoseiotWebMvcTestSupport.systemAdminAuthorities()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
                 .hasStatus(HttpStatus.NO_CONTENT);
@@ -174,6 +194,62 @@ class SecurityConfigWebMvcTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("unauthorized");
+    }
+
+    @Test
+    void shouldDenyUnknownNoauthPaths() {
+        assertThat(mvc.get().uri("/api/noauth/not-a-public-route"))
+                .hasStatus(HttpStatus.UNAUTHORIZED)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("unauthorized");
+    }
+
+    @Test
+    void shouldInvalidateTheSameAccessTokenImmediatelyAfterLogout() {
+        UUID sessionId = UUID.randomUUID();
+        User user = new User();
+        user.setId(USER_ID);
+        user.setEmail("ops@roseiot.io");
+        user.setAuthorizationVersion(1);
+        SecurityUser principal = new SecurityUser(user, List.of(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                        IdentityJwtClaims.PERMISSION_PROFILE_READ)));
+        UserRefreshSession session = new UserRefreshSession();
+        session.setId(sessionId);
+        session.setUserId(USER_ID);
+        session.setExpiresAt(Instant.now().plusSeconds(3600));
+        boolean[] revoked = {false};
+        when(userDetailsService.loadByUserId(USER_ID)).thenReturn(principal);
+        when(refreshSessionMapper.selectActiveById(eq(sessionId), any()))
+                .thenAnswer(invocation -> revoked[0] ? null : session);
+        doAnswer(invocation -> {
+                    revoked[0] = true;
+                    return null;
+                })
+                .when(sessionService)
+                .logoutCurrentSession(sessionId);
+
+        Instant now = Instant.now();
+        Jwt token = Jwt.withTokenValue("same-access-token")
+                .header("alg", "HS256")
+                .subject(USER_ID.toString())
+                .claim("sid", sessionId.toString())
+                .claim(IdentityJwtClaims.AUTHORIZATION_VERSION, 1)
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(900))
+                .build();
+        given(jwtDecoder.decode("same-access-token")).willReturn(token);
+
+        assertThat(mvc.get().uri("/api/users/me")
+                        .header("Authorization", "Bearer same-access-token"))
+                .hasStatus(HttpStatus.OK);
+        assertThat(mvc.post().uri("/api/logout")
+                        .header("Authorization", "Bearer same-access-token"))
+                .hasStatus(HttpStatus.NO_CONTENT);
+        assertThat(mvc.get().uri("/api/users/me")
+                        .header("Authorization", "Bearer same-access-token"))
+                .hasStatus(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
@@ -192,7 +268,7 @@ class SecurityConfigWebMvcTest {
     @Test
     void shouldNotPublishAuthEndpointsBeyondTheirMethod() {
         assertThat(mvc.get().uri("/api/login").with(jwt().jwt(this::systemToken)))
-                .hasStatus(HttpStatus.NOT_FOUND);
+                .hasStatus(HttpStatus.FORBIDDEN);
     }
 
     private Jwt.Builder systemToken(Jwt.Builder builder) {

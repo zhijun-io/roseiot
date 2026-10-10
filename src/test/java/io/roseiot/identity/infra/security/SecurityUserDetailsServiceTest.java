@@ -1,6 +1,7 @@
 package io.roseiot.identity.infra.security;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.roseiot.identity.application.RoleService;
 import io.roseiot.identity.persistence.User;
 import io.roseiot.identity.persistence.UserMapper;
 import io.roseiot.identity.persistence.UserRoleMapper;
@@ -38,7 +39,7 @@ class SecurityUserDetailsServiceTest {
         User user = activeUser();
         when(userMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
         when(userRoleMapper.listPermissionCodesForUser(USER_ID)).thenReturn(List.of("user.profile.read"));
-        when(userRoleMapper.listRoleCodesForUser(USER_ID)).thenReturn(List.of("SystemAdmin"));
+        when(userRoleMapper.listRoleCodesForUser(USER_ID)).thenReturn(List.of(RoleService.SYSTEM_ADMIN));
 
         SecurityUser details = (SecurityUser) cut.loadUserByUsername("Ops@roseiot.io");
 
@@ -46,7 +47,7 @@ class SecurityUserDetailsServiceTest {
         assertThat(details.isSystemUser()).isTrue();
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .containsExactly("user.profile.read", "ROLE_SystemAdmin");
+                .containsExactly("user.profile.read", "ROLE_" + RoleService.SYSTEM_ADMIN);
     }
 
     @Test

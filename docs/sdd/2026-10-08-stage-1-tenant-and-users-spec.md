@@ -45,6 +45,7 @@
 
 - 租户上下文从 JWT 推导；客户端不得传入或覆盖当前租户 ID。
 - `TenantUser` 不具有 `tenant.user.invite` 或 `tenant.user.manage`；不得停用或降级最后一名有效 `TenantAdmin`。
+- 同一租户的成员角色和启用状态变更必须串行检查最后管理员约束，避免并发操作同时通过检查并移除多名管理员。
 - `tenant` 与 `tenant_user_invitation` 是本 Spec 的持久化模型；不创建 `member` 表。
 - 邀请 token 有效期 **7 天**、单次使用、可 **DELETE** 撤销；同一 `(tenant_id, email)` 仅一条 **pending** 邀请（DB 约束）。响应、日志、通知 **不得** 含 token 明文；测试经 `TenantInvitationNotifier` 取得。
 - 接受邀请创建 `users` + `user_role`，标记邀请终态，并签发 **`ctx=tenant` + `tid`** 会话。
@@ -67,3 +68,4 @@
 - 2026-10-08 | 固定租户请求/响应、PATCH 字段、邀请时效与租户停用会话语义 | AC-1, AC-2 | no — 不改变 Plan 切片或验证命令
 - 2026-10-09 | 取消 `/api/tenants/users/me`；租户 self profile/改密统一 `/api/users/me/**` | AC-2 | yes — Plan Slice 4 与 Identity/系统用户 Spec 边界同步修订
 - 2026-10-09 | 邀请 REST  redesign：`/api/tenants/invitations` + `/api/noauth/tenant-invitations`（GET/POST）；废弃 `user-invitations` 与 `user-invitation-acceptance` | AC-1 | yes — Plan Slice 2/3 与 Q518
+- 2026-10-10 | 明确并发成员变更下的最后管理员保护 | AC-1 | yes — 使用租户行锁串行化成员角色/启用状态变更

@@ -92,6 +92,10 @@ public class PasswordResetService {
             throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
         }
 
+        if (passwordResetRequestMapper.consumeIfActive(active.getId(), now) != 1) {
+            throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
+        }
+
         UUID userId = active.getUserId();
         User user = userMapper.selectById(userId);
         if (user == null) {
@@ -101,9 +105,6 @@ public class PasswordResetService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setAuthorizationVersion(user.getAuthorizationVersion() + 1);
         userMapper.updateById(user);
-
-        active.setUsedAt(now);
-        passwordResetRequestMapper.updateById(active);
 
         refreshSessions.revokeAllForUser(userId, now);
     }

@@ -55,7 +55,7 @@ roseiot:
         max-attempts: 5
   auth:
     jwt:
-      secret: ${ROSEIOT_AUTH_JWT_SECRET:dev-only-change-me-32chars-minimum!!}
+      secret: ${ROSEIOT_AUTH_JWT_SECRET}
     password-reset:
       link-base-url: ${ROSEIOT_PASSWORD_RESET_LINK_BASE_URL:http://localhost:${server.port:8080}}
     tenant-invitation:

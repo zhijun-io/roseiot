@@ -1,9 +1,17 @@
 package io.roseiot.identity.infra.security;
 
 import io.roseiot.identity.domain.IdentityJwtClaims;
+import io.roseiot.identity.application.RoleService;
+import io.roseiot.identity.persistence.User;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -12,11 +20,11 @@ public final class RoseiotWebMvcTestSupport {
     private RoseiotWebMvcTestSupport() {}
 
     public static SimpleGrantedAuthority roleSystemAdmin() {
-        return new SimpleGrantedAuthority(RoseiotSecurityAuthorities.ROLE_PREFIX + "SystemAdmin");
+        return new SimpleGrantedAuthority("ROLE_" + RoleService.SYSTEM_ADMIN);
     }
 
     public static SimpleGrantedAuthority roleTenantAdmin() {
-        return new SimpleGrantedAuthority(RoseiotSecurityAuthorities.ROLE_PREFIX + "TenantAdmin");
+        return new SimpleGrantedAuthority("ROLE_" + RoleService.TENANT_ADMIN);
     }
 
     public static SimpleGrantedAuthority[] systemAdminAuthorities() {
@@ -31,10 +39,10 @@ public final class RoseiotWebMvcTestSupport {
     }
 
     public static SimpleGrantedAuthority roleTenantUser() {
-        return new SimpleGrantedAuthority(RoseiotSecurityAuthorities.ROLE_PREFIX + "TenantUser");
+        return new SimpleGrantedAuthority("ROLE_" + RoleService.TENANT_USER);
     }
 
-    public static SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtWithTenantUser(
+    public static RequestPostProcessor jwtWithTenantUser(
             Consumer<org.springframework.security.oauth2.jwt.Jwt.Builder> jwtCustomizer) {
         SimpleGrantedAuthority[] permissions = Stream.of(
                         IdentityJwtClaims.PERMISSION_PROFILE_READ,
@@ -70,7 +78,7 @@ public final class RoseiotWebMvcTestSupport {
         return withRole;
     }
 
-    public static SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtWithSystemAdmin(
+    public static RequestPostProcessor jwtWithSystemAdmin(
             Consumer<org.springframework.security.oauth2.jwt.Jwt.Builder> jwtCustomizer) {
         SimpleGrantedAuthority[] authorities = systemAdminAuthorities();
         SimpleGrantedAuthority[] withRole = new SimpleGrantedAuthority[authorities.length + 1];
@@ -79,21 +87,38 @@ public final class RoseiotWebMvcTestSupport {
         return jwtWithAuthorities(jwtCustomizer, withRole);
     }
 
-    public static SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtWithTenantAdmin(
+    public static RequestPostProcessor jwtWithTenantAdmin(
             Consumer<org.springframework.security.oauth2.jwt.Jwt.Builder> jwtCustomizer) {
         return jwtWithAuthorities(jwtCustomizer, tenantAdminAuthorities());
     }
 
-    public static SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtWithAllPermissions(
+    public static RequestPostProcessor jwtWithAllPermissions(
             Consumer<org.springframework.security.oauth2.jwt.Jwt.Builder> jwtCustomizer) {
         return jwtWithSystemAdmin(jwtCustomizer);
     }
 
-    public static SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor jwtWithAuthorities(
+    public static RequestPostProcessor jwtWithAuthorities(
             Consumer<org.springframework.security.oauth2.jwt.Jwt.Builder> jwtCustomizer,
             SimpleGrantedAuthority... authorities) {
-        return SecurityMockMvcRequestPostProcessors.jwt()
-                .jwt(jwtCustomizer)
-                .authorities(authorities);
+        return request -> {
+            Instant now = Instant.now();
+            Jwt.Builder builder = Jwt.withTokenValue("test-token")
+                    .header("alg", "none")
+                    .issuedAt(now)
+                    .expiresAt(now.plusSeconds(60));
+            jwtCustomizer.accept(builder);
+            Jwt jwt = builder.build();
+
+            User user = new User();
+            user.setId(UUID.fromString(jwt.getSubject()));
+            user.setAuthorizationVersion(Math.toIntExact(
+                    ((Number) jwt.getClaim(IdentityJwtClaims.AUTHORIZATION_VERSION)).longValue()));
+            String tenantId = jwt.getClaimAsString("tid");
+            if (tenantId != null && !tenantId.isBlank()) {
+                user.setTenantId(UUID.fromString(tenantId));
+            }
+            SecurityUser principal = new SecurityUser(user, Arrays.asList(authorities));
+            return SecurityMockMvcRequestPostProcessors.user(principal).postProcessRequest(request);
+        };
     }
 }

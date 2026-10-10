@@ -119,7 +119,7 @@ Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT �
 
 ```bash
 ./mvnw -q verify
-cp .env.example .env   # 可选：覆盖 POSTGRES_PASSWORD
+cp .env.example .env   # 填入至少 32 字节的随机 ROSEIOT_AUTH_JWT_SECRET；本地手动通知时启用 local profile
 ./mvnw spring-boot:run # 自动 docker compose up，并注入数据源连接
 ```
 
@@ -179,7 +179,7 @@ echo $?   # 应非 0；stderr 含 already bootstrapped，不含密码
 
 ## 系统用户认证（Spec #2）
 
-前置：已完成 [系统引导（IAM-001）](#系统引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。在 `.env` 中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字符；参见 [`.env.example`](.env.example)），勿使用仓库默认值上线。
+前置：已完成 [系统引导（IAM-001）](#系统引导iam-001)，应用以 Web 模式运行（不带 `--bootstrap`）。必须在环境中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字节）；应用没有内置密钥，缺失或过短时会拒绝启动。仅本地手动验证时，在 `.env` 设置 `SPRING_PROFILES_ACTIVE=local`，日志 notifier 会输出可用的重置/邀请链接；其它环境必须接入不记录明文 token 的通知实现，否则应用无法启动。
 
 业务 API 前缀为 **`/api`**（URL 中无 `/v1`）。错误体为稳定 JSON：`{"code":"...","message":"..."}`。
 
@@ -232,7 +232,7 @@ curl -sS -X POST "$BASE/api/token" \
 
 ### 手动验证（AC-6：密码重置）
 
-默认 Bean 为 `LoggingPasswordResetNotifier`，在 WARN 日志中打印 **`/api/noauth/password-reset?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见 `PasswordResetServiceTest` 与 `NoauthControllerWebMvcTest`。
+启用 `local` profile 时，`LoggingPasswordResetNotifier` 在 WARN 日志中打印 **`/api/noauth/password-reset?resetToken=…`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见 `PasswordResetServiceTest` 与 `IdentityNoauthControllerWebMvcTest`。
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/api/noauth/password-reset/email" \

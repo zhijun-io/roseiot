@@ -23,10 +23,6 @@ public final class SecurityUserUtils {
         return optionalFrom(authentication);
     }
 
-    public static SecurityUser requireCurrentUser() {
-        return from(SecurityContextHolder.getContext().getAuthentication());
-    }
-
     public static SecurityUser from(Authentication authentication) {
         if (authentication == null) {
             throw new AccessDeniedException("Forbidden");

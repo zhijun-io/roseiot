@@ -2,6 +2,7 @@ package io.roseiot.tenant.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import io.roseiot.identity.application.RoleService;
 import io.roseiot.identity.domain.LoginEmails;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
@@ -50,7 +51,7 @@ public class TenantService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ApiErrorCode.TENANT_SLUG_CONFLICT);
         }
-        invitationService.issueInvitation(tenant.getId(), email, TenantRoles.TENANT_ADMIN);
+        invitationService.issueInvitation(tenant.getId(), email, RoleService.TENANT_ADMIN);
         return tenant;
     }
 

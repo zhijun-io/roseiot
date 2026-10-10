@@ -1,5 +1,6 @@
 package io.roseiot.tenant.application;
 
+import io.roseiot.identity.application.RoleService;
 import io.roseiot.identity.persistence.Role;
 import io.roseiot.identity.persistence.RoleMapper;
 import io.roseiot.identity.persistence.TenantUserRow;
@@ -47,7 +48,8 @@ public class TenantUserService {
 
     @Transactional
     public void updateUser(UUID tenantId, UUID userId, Boolean disabled, String targetRole) {
-        tenantMapper.requireActive(tenantId);
+        // Serialize changes before checking the last-admin invariant.
+        tenantMapper.requireActiveForUpdate(tenantId);
         String newRole = targetRole == null || targetRole.isBlank() ? null : targetRole.trim();
         if (disabled == null && newRole == null) {
             throw new IllegalArgumentException("No changes requested");
@@ -66,10 +68,10 @@ public class TenantUserService {
         boolean willDisable = Boolean.TRUE.equals(disabled) && !currentlyDisabled;
         boolean willStayActive = !currentlyDisabled && !willDisable;
         boolean demotesActiveAdmin = newRole != null
-                && TenantRoles.TENANT_ADMIN.equals(currentRole)
-                && !TenantRoles.TENANT_ADMIN.equals(newRole)
+                && RoleService.TENANT_ADMIN.equals(currentRole)
+                && !RoleService.TENANT_ADMIN.equals(newRole)
                 && willStayActive;
-        if ((willDisable || demotesActiveAdmin) && TenantRoles.TENANT_ADMIN.equals(currentRole)) {
+        if ((willDisable || demotesActiveAdmin) && RoleService.TENANT_ADMIN.equals(currentRole)) {
             ensureNotLastActiveTenantAdmin(tenantId, userId);
         }
 
@@ -96,7 +98,7 @@ public class TenantUserService {
     }
 
     private void ensureNotLastActiveTenantAdmin(UUID tenantId, UUID userId) {
-        int activeAdmins = userRoleMapper.countActiveTenantUsersWithRole(tenantId, TenantRoles.TENANT_ADMIN);
+        int activeAdmins = userRoleMapper.countActiveTenantUsersWithRole(tenantId, RoleService.TENANT_ADMIN);
         if (activeAdmins <= 1) {
             throw new BusinessException(ApiErrorCode.LAST_TENANT_ADMIN);
         }

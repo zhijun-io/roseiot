@@ -59,7 +59,7 @@ public class BootstrapUserService {
         userMapper.insert(user);
 
         userRoleMapper.insertAssignment(
-                UuidV7.generate(), userId, roleMapper.requireIdByCode("SystemAdmin"), null);
+                UuidV7.generate(), userId, roleMapper.requireIdByCode(RoleService.SYSTEM_ADMIN), null);
     }
 
     static String normalizeEmail(String rawEmail) {

@@ -25,8 +25,8 @@
 - Acceptance: AC-1, AC-2.
 - Depends on: Slice 1.
 - Test or proof: 先写 `TenantInvitationServiceTests` 覆盖邀请状态转换和 token 规则，再以 Testcontainers 覆盖首次接受、用户/角色写入和 JWT claim。
-- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；在 `identity.web` 暴露 **`GET|POST /api/noauth/tenant-invitations`**（与 password-reset 同构）；在 `AuthController` 与 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 password reset token。
-- Verification: `./mvnw -q test -Dtest=NoauthControllerWebMvcTest,TenantInvitationPostgresTest`.
+- Implementation outline: 在 `tenant.application` 实现邀请接受事务：校验 token 摘要与邀请状态、创建 `users` 和 `user_role`、标记邀请终态；由 `tenant.web.TenantInvitationNoauthController` 暴露 **`GET|POST /api/noauth/tenant-invitations`**（与 password-reset 同构）；在 `UserRefreshSessions` 支持租户 JWT claim；邀请 token 使用独立实体和摘要，不复用 password reset token。
+- Verification: `./mvnw -q test -Dtest=TenantInvitationNoauthControllerWebMvcTest,TenantInvitationPostgresTest`.
 - Done: true（2026-10-09；`GET|POST /api/noauth/tenant-invitations`、`TenantInvitationService.acceptInvitation`、Postgres 接受闭环）。
 
 ## Slice 3: 租户管理员邀请和用户管理
@@ -36,6 +36,7 @@
 - Depends on: Slice 2.
 - Test or proof: 先写 `TenantUserManagementServiceTests` 覆盖最后管理员与归属规则，再用 `@WebMvcTest` 和必要的 Testcontainers 测试覆盖 HTTP 与跨租户拒绝。
 - Implementation outline: 在 `tenant.web` 暴露 **`/api/tenants/users/**`** 与 **`/api/tenants/invitations/**`**（REST：POST 创建、GET 列表/详情、DELETE 撤销）；在 `tenant.application` 集中实施租户归属、`tenant.user.invite`、`tenant.user.manage` 与最后管理员规则；错误响应复用现有能力内处理机制。
+- Concurrency hardening: `TenantUserService.updateUser` 在读取成员和统计有效管理员之前锁定对应 `tenant` 行；同一租户的成员角色/启用状态变更由 PostgreSQL 行锁串行化，事务提交后后续请求再基于最新状态检查最后管理员约束。
 - Verification: `./mvnw -q test -Dtest=TenantInvitationsMockMvcTests`.
 - Done: true（2026-10-09；`TenantInvitationController`、`TenantUserController`、`TenantUsersMockMvcTests`、`TenantUserManagementPostgresTest`）。
 

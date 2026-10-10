@@ -65,7 +65,12 @@ public class UserSessionService {
                 throw AuthenticationExceptionMapping.invalidRefreshToken();
             }
             ensureTenantActive(user.getTenantId(), true);
-            return refreshSessions.rotate(active, now);
+            SessionTokens rotated = refreshSessions.rotate(active, now);
+            if (rotated != null) {
+                return rotated;
+            }
+            refreshSessions.revokeFamily(active.getFamilyId(), now);
+            throw AuthenticationExceptionMapping.invalidRefreshToken();
         }
 
         UserRefreshSession existing = refreshSessionMapper.selectOne(

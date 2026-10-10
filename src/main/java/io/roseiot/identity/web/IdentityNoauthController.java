@@ -1,9 +1,9 @@
 package io.roseiot.identity.web;
 
 import io.roseiot.identity.application.PasswordResetService;
+import io.roseiot.identity.application.UserSessionService;
 import io.roseiot.shared.domain.ApiErrorCode;
 import io.roseiot.shared.domain.BusinessException;
-import io.roseiot.tenant.application.TenantInvitationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,15 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @ConditionalOnProperty(name = "roseiot.bootstrap.enabled", havingValue = "false", matchIfMissing = true)
 @RequestMapping("/api/noauth")
-public class NoauthController {
+public class IdentityNoauthController {
 
     private final PasswordResetService passwordResetService;
-    private final TenantInvitationService tenantInvitationService;
 
-    public NoauthController(
-            PasswordResetService passwordResetService, TenantInvitationService tenantInvitationService) {
+    public IdentityNoauthController(PasswordResetService passwordResetService) {
         this.passwordResetService = passwordResetService;
-        this.tenantInvitationService = tenantInvitationService;
     }
 
     @PostMapping("/password-reset/email")
@@ -57,19 +54,6 @@ public class NoauthController {
         throw new BusinessException(ApiErrorCode.NOT_IMPLEMENTED);
     }
 
-    @GetMapping("/tenant-invitations")
-    TokenCheckResponse checkInvitationToken(@RequestParam("invitationToken") String invitationToken) {
-        return TokenCheckResponse.from(tenantInvitationService.checkInvitationToken(invitationToken));
-    }
-
-    @PostMapping("/tenant-invitations")
-    @ResponseStatus(HttpStatus.CREATED)
-    SessionTokenResponse acceptTenantInvitation(
-            @Valid @RequestBody AcceptTenantInvitationRequest request) {
-        return SessionTokenResponse.from(tenantInvitationService.acceptInvitation(
-                request.invitationToken(), request.password()));
-    }
-
     public record TokenCheckResponse(String status) {
 
         static TokenCheckResponse from(Enum<?> state) {
@@ -81,7 +65,12 @@ public class NoauthController {
 
     public record ResetPasswordRequest(@NotBlank String resetToken, @NotBlank String password) {}
 
-    public record AcceptTenantInvitationRequest(@NotBlank String invitationToken, @NotBlank String password) {}
-
     public record ActivateUserRequest(@NotBlank String activateToken, @NotBlank String password) {}
+
+    public record SessionTokenResponse(String accessToken, String refreshToken) {
+
+        public static SessionTokenResponse from(UserSessionService.SessionTokens tokens) {
+            return new SessionTokenResponse(tokens.accessToken(), tokens.refreshToken());
+        }
+    }
 }

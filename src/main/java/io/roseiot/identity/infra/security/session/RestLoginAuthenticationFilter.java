@@ -21,7 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 
 /** {@code POST /api/login} — {@link AuthenticationManager} + session issuance. */
-public final class JsonLoginAuthenticationFilter extends OncePerRequestFilter {
+public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
 
     private static final PathPatternRequestMatcher LOGIN =
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/login");
@@ -32,7 +32,7 @@ public final class JsonLoginAuthenticationFilter extends OncePerRequestFilter {
     private final JsonMapper jsonMapper;
     private final ApiErrorBodyWriter apiErrorBodyWriter;
 
-    public JsonLoginAuthenticationFilter(
+    public RestLoginAuthenticationFilter(
             AuthenticationManager authenticationManager,
             UserSessionService sessionService,
             SecurityExceptionHandler securityExceptionHandler,
