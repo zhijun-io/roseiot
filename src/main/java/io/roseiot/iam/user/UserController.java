@@ -1,15 +1,16 @@
 package io.roseiot.iam.user;
 
 import io.roseiot.iam.security.SecurityUser;
+import io.roseiot.shared.webmvc.CursorPage;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Email;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -43,19 +44,37 @@ class UserController {
 
     @GetMapping("/users")
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    List<UserInfo> listTenantUsers(@AuthenticationPrincipal SecurityUser user) {
+    CursorPage<UserInfo> list(
+            @AuthenticationPrincipal SecurityUser user,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit) {
         Long tenantId = user.requireTenantId();
-        return userService.listTenantUsers(tenantId);
+        return userService.list(tenantId, cursor, limit);
+    }
+
+    @GetMapping("/users/{userId}")
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
+    UserInfo get(@AuthenticationPrincipal SecurityUser user, @PathVariable Long userId) {
+        return userService.get(user.requireTenantId(), userId);
+    }
+
+    @PostMapping("/users")
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
+    UserInfo create(
+            @AuthenticationPrincipal SecurityUser user,
+            @Valid @RequestBody CreateUserRequest request) {
+        return userService.create(user.requireTenantId(), request.email(), request.name(),
+                request.password(), request.roleId());
     }
 
     @PutMapping("/users/{userId}")
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    void updateTenantUser(
+    void update(
             @AuthenticationPrincipal SecurityUser user,
             @PathVariable Long userId,
             @Valid @RequestBody UpdateUserRequest request) {
         Long tenantId = user.requireTenantId();
-        userService.updateTenantUser(tenantId, userId, request.disabled(), request.roleId());
+        userService.update(tenantId, userId, request.disabled(), request.roleId());
     }
 
     @PostMapping("/password-resets")
@@ -77,6 +96,11 @@ class UserController {
     record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {}
     record ResetPasswordRequest(@NotBlank String email) {}
     record UpdateUserRequest(@NotNull Boolean disabled, @NotNull Long roleId) {}
+    record CreateUserRequest(
+            @NotBlank @Email @Size(max = 320) String email,
+            @NotBlank @Size(max = 255) String name,
+            @NotBlank String password,
+            @NotNull Long roleId) {}
     record PasswordRequest(@NotBlank String password) {}
 
 }

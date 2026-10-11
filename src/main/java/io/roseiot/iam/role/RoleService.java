@@ -7,6 +7,7 @@ import io.roseiot.iam.resource.ResourceService;
 import io.roseiot.tenant.TenantService;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
+import io.roseiot.shared.webmvc.CursorPage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,15 +32,24 @@ public class RoleService {
         return Role.from(role);
     }
 
-    public List<View> list(Long tenantId) {
+    public CursorPage<RoleInfo> list(Long tenantId, String cursor, int limit) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
-        return roleMapper.selectList(Wrappers.lambdaQuery(RoleEntity.class).eq(RoleEntity::getTenantId, tenantId).orderByAsc(RoleEntity::getName))
+        long afterId = CursorPage.afterId(cursor);
+        int pageSize = CursorPage.checkedLimit(limit);
+        List<RoleInfo> rows = roleMapper.selectList(Wrappers.lambdaQuery(RoleEntity.class)
+                        .eq(RoleEntity::getTenantId, tenantId).gt(RoleEntity::getId, afterId)
+                        .orderByAsc(RoleEntity::getId).last("LIMIT " + (pageSize + 1)))
                 .stream().map(this::view).toList();
+        return CursorPage.fromRows(rows, pageSize, RoleInfo::id);
+    }
+
+    public RoleInfo get(Long tenantId, Long roleId) {
+        return view(requireEntity(tenantId, roleId));
     }
 
     @Transactional
-    public View create(Long tenantId, String name, Set<String> actionCodes) {
+    public RoleInfo create(Long tenantId, String name, Set<String> actionCodes) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
         if (name == null || name.isBlank() || name.length() > 255)
@@ -53,7 +63,7 @@ public class RoleService {
     }
 
     @Transactional
-    public View update(Long tenantId, Long id, String name, Set<String> actionCodes) {
+    public RoleInfo update(Long tenantId, Long id, String name, Set<String> actionCodes) {
         tenantService.requireActiveForUpdate(tenantId);
         RoleEntity roleEntity = requireEntity(tenantId, id);
         roleEntity.setName(name.trim());
@@ -101,14 +111,12 @@ public class RoleService {
         }
     }
 
-    private View view(RoleEntity roleEntity) {
+    private RoleInfo view(RoleEntity roleEntity) {
         Set<Long> assignedResourceIds = new HashSet<>();
         roleResourceMapper.selectList(Wrappers.lambdaQuery(RoleResourceEntity.class).eq(RoleResourceEntity::getRoleId, roleEntity.getId()))
                 .forEach(roleResource -> assignedResourceIds.add(roleResource.getResourceId()));
-        return new View(roleEntity.getId(), roleEntity.getName(), resourceService.catalog().stream()
+        return new RoleInfo(roleEntity.getId(), roleEntity.getName(), resourceService.catalog().stream()
                 .filter(resource -> assignedResourceIds.contains(resource.id()) && resource.type() == ResourceType.ACTION)
                 .map(Resource::code).sorted().toList());
     }
-
-    public record View(Long id, String name, List<String> actionCodes) {}
 }

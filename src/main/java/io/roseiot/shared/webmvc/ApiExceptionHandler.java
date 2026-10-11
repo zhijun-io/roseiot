@@ -34,7 +34,17 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleBusiness(BusinessException exception) {
         ApiErrorCode code = exception.errorCode();
         return apiJson.errorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(), code.code(), exception.apiMessage());
+                statusFor(code).value(), code.code(), exception.apiMessage());
+    }
+
+    private static HttpStatus statusFor(ApiErrorCode code) {
+        return switch (code) {
+            case VALIDATION_ERROR, INVALID_ACTION, INVALID_RESET_TOKEN -> HttpStatus.BAD_REQUEST;
+            case TENANT_NOT_FOUND, TENANT_USER_NOT_FOUND, ROLE_NOT_FOUND, SYSTEM_SETTING_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+            case EMAIL_ALREADY_EXISTS, ROLE_IN_USE, LAST_TENANT_ADMIN, SYSTEM_SETTING_EXISTS -> HttpStatus.CONFLICT;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

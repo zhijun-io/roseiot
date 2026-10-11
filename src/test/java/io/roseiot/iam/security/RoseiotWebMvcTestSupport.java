@@ -25,7 +25,9 @@ public final class RoseiotWebMvcTestSupport {
     public static SimpleGrantedAuthority[] platformAdminAuthorities() {
         return Stream.of("tenant.create",
                         "tenant.disable",
-                        "tenant.enable")
+                        "tenant.enable",
+                        "tenant.read",
+                        "system.setting.manage")
                 .map(SimpleGrantedAuthority::new)
                 .toArray(SimpleGrantedAuthority[]::new);
     }

@@ -44,6 +44,18 @@ public class UserCredentialService {
     }
 
     @Transactional
+    public void createInitialPassword(Long userId, String password) {
+        ensureValidPassword(password);
+        Instant now = Instant.now();
+        UserCredentialEntity credential = new UserCredentialEntity();
+        credential.setUserId(userId);
+        credential.setPassword(passwordEncoder.encode(password));
+        credential.setCreatedAt(now);
+        credential.setUpdatedAt(now);
+        credentialMapper.insert(credential);
+    }
+
+    @Transactional
     public void changePassword(Long userId, String currentPassword, String newPassword) {
         UserCredentialEntity credential = credentialMapper.selectById(userId);
         if (credential == null || currentPassword == null

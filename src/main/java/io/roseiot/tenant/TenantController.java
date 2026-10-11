@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import io.roseiot.shared.webmvc.CursorPage;
+
 @RestController
 @RequestMapping("/tenants")
 class TenantController {
@@ -16,6 +18,21 @@ class TenantController {
 
     TenantController(TenantService tenantService) {
         this.tenantService = tenantService;
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('tenant.read')")
+    CursorPage<TenantInfo> list(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit) {
+        CursorPage<Tenant> page = tenantService.list(cursor, limit);
+        return new CursorPage<>(page.items().stream().map(TenantInfo::from).toList(), page.nextCursor());
+    }
+
+    @GetMapping("/{tenantId}")
+    @PreAuthorize("hasAuthority('tenant.read')")
+    TenantInfo get(@PathVariable Long tenantId) {
+        return TenantInfo.from(tenantService.get(tenantId));
     }
 
     @PostMapping
@@ -32,7 +49,7 @@ class TenantController {
     TenantInfo update(
             @PathVariable Long tenantId,
             @Valid @RequestBody UpdateTenantRequest request) {
-        return TenantInfo.from(tenantService.updateTenant(tenantId, request.name(), request.disabled()));
+        return TenantInfo.from(tenantService.update(tenantId, request.name(), request.disabled()));
     }
 
     record CreateTenantRequest(@NotBlank @Size(max = 255) String name) {

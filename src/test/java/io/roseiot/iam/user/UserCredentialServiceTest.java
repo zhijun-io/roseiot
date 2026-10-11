@@ -150,6 +150,19 @@ class UserCredentialServiceTest {
     }
 
     @Test
+    void shouldCreateInitialPasswordCredential() {
+        when(passwordEncoder.encode("new passphrase 77")).thenReturn("new-hash");
+
+        cut.createInitialPassword(USER_ID, "new passphrase 77");
+
+        ArgumentCaptor<UserCredentialEntity> credential = ArgumentCaptor.forClass(UserCredentialEntity.class);
+        verify(credentialMapper).insert(credential.capture());
+        assertThat(credential.getValue().getUserId()).isEqualTo(USER_ID);
+        assertThat(credential.getValue().getPassword()).isEqualTo("new-hash");
+        assertThat(credential.getValue().getCreatedAt()).isNotNull();
+    }
+
+    @Test
     void shouldReplacePasswordAndConsumeToken() {
         UserCredentialEntity credential = credential();
         credential.setResetToken(hash("reset-token"));

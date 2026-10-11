@@ -99,6 +99,8 @@ FROM (VALUES
     ('tenant.create', 'Create tenants', 'menu.management', 104),
     ('tenant.disable', 'Disable tenants', 'menu.management', 105),
     ('tenant.enable', 'Enable tenants', 'menu.management', 106),
+    ('tenant.read', 'View tenants', 'menu.management', 107),
+    ('system.setting.manage', 'Manage system settings', 'menu.management', 108),
     ('device.read', 'View devices', 'menu.devices', 201),
     ('device.command.issue', 'Issue device commands', 'menu.devices', 202),
     ('device.credential.read', 'Read device credentials', 'menu.devices', 203),

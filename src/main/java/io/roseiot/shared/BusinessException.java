@@ -16,6 +16,12 @@ public class BusinessException extends RuntimeException {
         this.detail = detail;
     }
 
+    public BusinessException(ApiErrorCode errorCode, String detail, Throwable cause) {
+        super(detail != null ? detail : errorCode.code(), cause);
+        this.errorCode = errorCode;
+        this.detail = detail;
+    }
+
     public ApiErrorCode errorCode() {
         return errorCode;
     }

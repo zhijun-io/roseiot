@@ -1,14 +1,17 @@
 package io.roseiot.tenant;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
+import io.roseiot.shared.webmvc.CursorPage;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.util.Base64;
 import java.time.Instant;
+import java.util.Base64;
+import java.util.List;
 
 @Service
 public class TenantService {
@@ -34,6 +37,22 @@ public class TenantService {
         ensureActive(tenantMapper.selectByIdForUpdate(tenantId));
     }
 
+    public CursorPage<Tenant> list(String cursor, int limit) {
+        long afterId = CursorPage.afterId(cursor);
+        int pageSize = CursorPage.checkedLimit(limit);
+        List<Tenant> rows = tenantMapper.selectList(Wrappers.lambdaQuery(TenantEntity.class)
+                        .gt(TenantEntity::getId, afterId).orderByAsc(TenantEntity::getId)
+                        .last("LIMIT " + (pageSize + 1)))
+                .stream().map(Tenant::from).toList();
+        return CursorPage.fromRows(rows, pageSize, Tenant::id);
+    }
+
+    public Tenant get(Long tenantId) {
+        TenantEntity tenant = tenantMapper.selectById(tenantId);
+        if (tenant == null) throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
+        return Tenant.from(tenant);
+    }
+
     public boolean isActive(Long tenantId) {
         return tenantId != null && isActive(tenantMapper.selectById(tenantId));
     }
@@ -52,7 +71,7 @@ public class TenantService {
     }
 
     @Transactional
-    public Tenant updateTenant(Long tenantId, String name, Boolean disabled) {
+    public Tenant update(Long tenantId, String name, Boolean disabled) {
         TenantEntity tenant = tenantMapper.selectById(tenantId);
         if (tenant == null) throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
         requireCustomerTenant(tenantId);

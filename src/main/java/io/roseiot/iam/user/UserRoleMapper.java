@@ -19,7 +19,8 @@ interface UserRoleMapper extends BaseMapper<UserRoleEntity> {
             JOIN role_resource rp ON rp.role_id = ur.role_id AND rp.tenant_id = u.tenant_id
             JOIN resource p ON p.id = rp.resource_id AND p.type = 'ACTION' AND p.status = 'ACTIVE'
             JOIN tenant default_tenant ON default_tenant.id = p.tenant_id AND default_tenant.code = 'default'
-              AND (p.code NOT IN ('tenant.create', 'tenant.disable', 'tenant.enable')
+              AND (p.code NOT IN (
+                    'tenant.create', 'tenant.disable', 'tenant.enable', 'tenant.read', 'system.setting.manage')
                   OR r.tenant_id = default_tenant.id)
             WHERE ur.user_id = #{userId}
             """)
@@ -37,10 +38,28 @@ interface UserRoleMapper extends BaseMapper<UserRoleEntity> {
             FROM users u
             JOIN user_role ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
             JOIN "role" r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
-            WHERE u.tenant_id = #{tenantId}
-            ORDER BY u.created_at
+            WHERE u.tenant_id = #{tenantId} AND u.id > #{afterId}
+            ORDER BY u.id
+            LIMIT #{fetchLimit}
             """)
-    List<UserInfo> listTenantUsers(Long tenantId);
+    List<UserInfo> list(@Param("tenantId") Long tenantId, @Param("afterId") long afterId,
+                                   @Param("fetchLimit") int fetchLimit);
+
+    @ConstructorArgs({
+            @Arg(column = "id", javaType = Long.class),
+            @Arg(column = "email", javaType = String.class),
+            @Arg(column = "name", javaType = String.class),
+            @Arg(column = "role_id", javaType = Long.class),
+            @Arg(column = "disabled", javaType = boolean.class)
+    })
+    @Select("""
+            SELECT u.id, u.email, u.name, r.id AS role_id, u.status = 'DISABLED' AS disabled
+            FROM users u
+            JOIN user_role ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            JOIN "role" r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
+            WHERE u.tenant_id = #{tenantId} AND u.id = #{userId}
+            """)
+    UserInfo get(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
     default void insertAssignment(Long userId, Long roleId, Long tenantId) {
         UserRoleEntity assignment = new UserRoleEntity();

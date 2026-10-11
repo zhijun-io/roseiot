@@ -35,9 +35,9 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    void shouldAnswerBusinessErrorsWithInternalServerErrorAndStableCode() {
+    void shouldAnswerMissingResourcesWithNotFoundAndStableCode() {
         assertBody(cut.handleBusiness(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND)),
-                500, "tenant_not_found", "tenant_not_found");
+                404, "tenant_not_found", "tenant_not_found");
     }
 
     @Test
@@ -45,7 +45,7 @@ class ApiExceptionHandlerTest {
         assertBody(
                 cut.handleBusiness(new BusinessException(
                         ApiErrorCode.VALIDATION_ERROR, "Password must contain letters and digits")),
-                500,
+                400,
                 "validation_error",
                 "Password must contain letters and digits");
     }

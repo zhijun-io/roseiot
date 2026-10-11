@@ -17,6 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,6 +57,32 @@ class TenantLifecycleMockMvcTests {
     private Tenant tenant(boolean disabled) {
         return new Tenant(TENANT_ID, TENANT_CODE, "Acme HVAC",
                 disabled ? TenantStatus.DISABLED : TenantStatus.ACTIVE);
+    }
+
+    @Test
+    void shouldListTenantsForPlatformReader() {
+        given(tenantService.list(null, 50)).willReturn(new io.roseiot.shared.webmvc.CursorPage<>(List.of(tenant(false)), null));
+
+        assertThat(mvc.get().uri("/tenants")
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken, RoseiotWebMvcTestSupport.action("tenant.read"))))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.items[0].code")
+                .isEqualTo(TENANT_CODE);
+    }
+
+    @Test
+    void shouldGetTenantByIdForPlatformReader() {
+        given(tenantService.get(TENANT_ID)).willReturn(tenant(false));
+
+        assertThat(mvc.get().uri("/tenants/" + TENANT_ID)
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken, RoseiotWebMvcTestSupport.action("tenant.read"))))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.id")
+                .isEqualTo(TENANT_ID.intValue());
     }
 
     @Test
@@ -148,7 +175,7 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldDisableTenantWithTheDisablePermission() {
-        given(tenantService.updateTenant(TENANT_ID, "Acme HVAC", true)).willReturn(tenant(true));
+        given(tenantService.update(TENANT_ID, "Acme HVAC", true)).willReturn(tenant(true));
 
         assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
@@ -161,7 +188,7 @@ class TenantLifecycleMockMvcTests {
                 .extractingPath("$.disabled")
                 .isEqualTo(true);
 
-        verify(tenantService).updateTenant(TENANT_ID, "Acme HVAC", true);
+        verify(tenantService).update(TENANT_ID, "Acme HVAC", true);
     }
 
     @Test
@@ -183,7 +210,7 @@ class TenantLifecycleMockMvcTests {
     @Test
     void shouldAnswerUnknownTenantWithNotFoundWithoutLeakingExistenceElsewhere() {
         willThrow(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND))
-                .given(tenantService).updateTenant(any(), any(), any());
+                .given(tenantService).update(any(), any(), any());
 
         assertThat(mvc.put().uri("/tenants/" + TENANT_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken))
@@ -191,7 +218,7 @@ class TenantLifecycleMockMvcTests {
                 .content("""
                         {"name": "Acme HVAC", "disabled": true}
                         """))
-                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .hasStatus(HttpStatus.NOT_FOUND)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("tenant_not_found");

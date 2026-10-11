@@ -35,14 +35,14 @@ class TenantPersistencePostgresTest {
                         + " WHERE table_schema = current_schema() AND table_name = 'user_invitation'", Integer.class))
                 .isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM resource WHERE type = 'ACTION'", Integer.class))
-                .isEqualTo(9);
+                .isEqualTo(11);
     }
 
     @Test
     void updatesTenantById() {
         Tenant tenant = tenantService.create("Acme HVAC");
 
-        tenantService.updateTenant(tenant.id(), "Acme Climate", true);
+        tenantService.update(tenant.id(), "Acme Climate", true);
 
         assertThat(jdbcTemplate.queryForObject("SELECT name FROM tenant WHERE id = ?", String.class, tenant.id()))
                 .isEqualTo("Acme Climate");

@@ -52,29 +52,68 @@ class TenantUsersMockMvcTests {
 
     @Test
     void shouldListMembers() {
-        given(userService.listTenantUsers(TENANT_ID))
-                .willReturn(List.of(new UserInfo(
-                        MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false)));
+        given(userService.list(TENANT_ID, null, 50))
+                .willReturn(new io.roseiot.shared.webmvc.CursorPage<>(List.of(new UserInfo(
+                        MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false)), null));
 
         assertThat(mvc.get().uri("/users").with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .isLenientlyEqualTo("""
-                        [
-                          {
+                        {
+                          "items": [{
                             "id": 1004,
                             "email": "member@roseiot.io",
                             "name": "Member",
                             "roleId": 1006,
                             "disabled": false
-                          }
-                        ]
+                          }] ,
+                          "nextCursor": null
+                        }
                         """);
+    }
+
+    @Test
+    void shouldGetMemberDetailsWithinTheCurrentTenant() {
+        given(userService.get(TENANT_ID, MANAGED_USER_ID))
+                .willReturn(new UserInfo(MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false));
+
+        assertThat(mvc.get().uri("/users/" + MANAGED_USER_ID)
+                .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.id")
+                .isEqualTo(MANAGED_USER_ID.intValue());
+    }
+
+    @Test
+    void shouldCreateTenantUserWithInitialPassword() {
+        given(userService.create(
+                TENANT_ID, "new@roseiot.io", "New Member", "first-password-123", ROLE_ID))
+                .willReturn(new UserInfo(MANAGED_USER_ID, "new@roseiot.io", "New Member", ROLE_ID, false));
+
+        assertThat(mvc.post().uri("/users")
+                .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"new@roseiot.io\",\"name\":\"New Member\",\"password\":\"first-password-123\",\"roleId\":1006}"))
+                .hasStatus(HttpStatus.OK)
+                .bodyJson()
+                .extractingPath("$.email")
+                .isEqualTo("new@roseiot.io");
+
+        verify(userService).create(
+                TENANT_ID, "new@roseiot.io", "New Member", "first-password-123", ROLE_ID);
     }
 
     @Test
     void shouldRejectPlatformJwtWithoutMemberManagement() {
         assertThat(mvc.get().uri("/users").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
+                .hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void shouldRejectTenantUserManagementWithoutPermission() {
+        assertThat(mvc.get().uri("/users").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
@@ -88,7 +127,7 @@ class TenantUsersMockMvcTests {
                                 """))
                 .hasStatus(HttpStatus.OK);
 
-        verify(userService).updateTenantUser(TENANT_ID, MANAGED_USER_ID, false, ROLE_ID);
+        verify(userService).update(TENANT_ID, MANAGED_USER_ID, false, ROLE_ID);
     }
 
     @Test
@@ -100,7 +139,7 @@ class TenantUsersMockMvcTests {
                                 {"disabled": true, "roleId": 1006}
                                 """))
                 .hasStatus(HttpStatus.OK);
-        verify(userService).updateTenantUser(TENANT_ID, MANAGED_USER_ID, true, ROLE_ID);
+        verify(userService).update(TENANT_ID, MANAGED_USER_ID, true, ROLE_ID);
     }
 
     @Test
@@ -119,7 +158,7 @@ class TenantUsersMockMvcTests {
     void shouldMapLastTenantAdminConflict() {
         willThrow(new BusinessException(ApiErrorCode.LAST_TENANT_ADMIN))
                 .given(userService)
-                .updateTenantUser(eq(TENANT_ID), eq(MANAGED_USER_ID), eq(true), eq(ROLE_ID));
+                .update(eq(TENANT_ID), eq(MANAGED_USER_ID), eq(true), eq(ROLE_ID));
 
         assertThat(mvc.put().uri("/users/" + MANAGED_USER_ID)
                         .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
@@ -127,7 +166,7 @@ class TenantUsersMockMvcTests {
                         .content("""
                                 {"disabled": true, "roleId": 1006}
                                 """))
-                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .hasStatus(HttpStatus.CONFLICT)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("last_tenant_admin");

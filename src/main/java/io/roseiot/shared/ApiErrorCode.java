@@ -11,8 +11,11 @@ public enum ApiErrorCode {
     VALIDATION_ERROR("validation_error"),
     TENANT_NOT_FOUND("tenant_not_found"),
     TENANT_USER_NOT_FOUND("tenant_user_not_found"),
+    EMAIL_ALREADY_EXISTS("email_already_exists"),
     ROLE_NOT_FOUND("role_not_found"),
     ROLE_IN_USE("role_in_use"),
+    SYSTEM_SETTING_NOT_FOUND("system_setting_not_found"),
+    SYSTEM_SETTING_EXISTS("system_setting_exists"),
     INVALID_ACTION("invalid_action"),
     LAST_TENANT_ADMIN("last_tenant_admin"),
     /** Used with {@link io.roseiot.shared.ratelimit.RateLimitExceededException} (HTTP 429), not {@link BusinessException}. */

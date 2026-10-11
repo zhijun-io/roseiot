@@ -25,6 +25,9 @@ class UserServiceTest {
     private UserMapper userMapper;
     private UserCredentialMapper credentialMapper;
     private UserRoleMapper userRoleMapper;
+    private RoleService roleService;
+    private TenantService tenantService;
+    private UserCredentialService credentialService;
     private UserService cut;
 
     @BeforeEach
@@ -32,8 +35,11 @@ class UserServiceTest {
         userMapper = mock(UserMapper.class);
         credentialMapper = mock(UserCredentialMapper.class);
         userRoleMapper = mock(UserRoleMapper.class);
+        roleService = mock(RoleService.class);
+        tenantService = mock(TenantService.class);
+        credentialService = mock(UserCredentialService.class);
         cut = new UserService(userMapper, credentialMapper, userRoleMapper,
-                mock(RoleService.class), mock(TenantService.class));
+                roleService, tenantService, credentialService);
     }
 
     @Test
@@ -85,5 +91,25 @@ class UserServiceTest {
         when(userMapper.selectById(USER_ID)).thenReturn(user);
 
         assertThat(cut.findForAccessToken(USER_ID)).isNull();
+    }
+
+    @Test
+    void shouldCreateUserAndInitialCredentialInCurrentTenant() {
+        when(userMapper.selectCount(org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        when(userMapper.insert(org.mockito.ArgumentMatchers.any(UserEntity.class))).thenAnswer(invocation -> {
+            UserEntity user = invocation.getArgument(0);
+            user.setId(USER_ID);
+            return 1;
+        });
+
+        UserInfo created = cut.create(42L, " NEW@EXAMPLE.TEST ", " New User ", "passphrase1234", 7L);
+
+        assertThat(created).isEqualTo(new UserInfo(USER_ID, "new@example.test", "New User", 7L, false));
+        verify(tenantService).requireCustomerTenant(42L);
+        verify(tenantService).requireActiveForUpdate(42L);
+        verify(roleService).requireAssignable(42L, 7L);
+        verify(credentialService).createInitialPassword(USER_ID, "passphrase1234");
+        verify(userRoleMapper).insertAssignment(USER_ID, 7L, 42L);
+        verify(roleService).ensureAdministrator(42L);
     }
 }

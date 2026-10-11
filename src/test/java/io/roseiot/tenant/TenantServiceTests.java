@@ -49,7 +49,7 @@ class TenantServiceTests {
     @Test
     void updateByIdRejectsUnknownTenant() {
         when(tenantMapper.selectById(TENANT_ID)).thenReturn(null);
-        assertThatThrownBy(() -> service.updateTenant(TENANT_ID, "Name", null))
+        assertThatThrownBy(() -> service.update(TENANT_ID, "Name", null))
                 .isInstanceOf(BusinessException.class);
         verify(tenantMapper, never()).updateById(any(TenantEntity.class));
     }
@@ -59,7 +59,7 @@ class TenantServiceTests {
         TenantEntity entity = new TenantEntity();
         entity.setId(Tenant.DEFAULT_TENANT_ID);
         when(tenantMapper.selectById(Tenant.DEFAULT_TENANT_ID)).thenReturn(entity);
-        assertThatThrownBy(() -> service.updateTenant(Tenant.DEFAULT_TENANT_ID, "Name", null))
+        assertThatThrownBy(() -> service.update(Tenant.DEFAULT_TENANT_ID, "Name", null))
                 .isInstanceOf(AccessDeniedException.class);
         verify(tenantMapper, never()).updateById(any(TenantEntity.class));
     }
@@ -73,7 +73,7 @@ class TenantServiceTests {
         entity.setCreatedAt(Instant.now());
         entity.setStatus(TenantStatus.ACTIVE);
         when(tenantMapper.selectById(TENANT_ID)).thenReturn(entity);
-        Tenant updated = service.updateTenant(TENANT_ID, "Acme Climate", true);
+        Tenant updated = service.update(TENANT_ID, "Acme Climate", true);
         assertThat(updated.name()).isEqualTo("Acme Climate");
         assertThat(updated.status()).isEqualTo(TenantStatus.DISABLED);
         verify(tenantMapper).updateById(entity);
