@@ -56,18 +56,6 @@ roseiot:
         path: /password-resets/{token}
         key-prefix: "auth:reset-token-use:"
         max-attempts: 20
-      - method: GET
-        path: /tenant-invitations/{token}
-        key-prefix: "auth:invitation-token-check:"
-        max-attempts: 20
-      - method: PUT
-        path: /tenant-invitations/{token}
-        key-prefix: "auth:invitation-token-use:"
-        max-attempts: 20
-      - method: POST
-        path: /tenants/{tenantId}/invitations
-        key-prefix: "auth:invitation-create:"
-        max-attempts: 20
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}

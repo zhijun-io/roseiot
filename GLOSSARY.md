@@ -13,30 +13,33 @@ _避免使用_：账号、客户、组织（用于表达同一概念时）
 _避免使用_：设备用户；把 User 仅理解为「租户内成员」；平台作用域用户（旧称）
 
 **用户凭证（User Credential）**：
-属于一个 User 的认证秘密及其密码恢复状态。当前保存密码哈希、算法和至多一条当前密码重置状态；密码明文和重置 token 明文不持久化。设备凭证由 Device 能力独立拥有。
+属于一个 User 的认证秘密及其密码恢复状态。当前保存密码哈希和至多一条当前密码重置状态；密码明文和重置 token 明文不持久化。设备凭证由 Device 能力独立拥有。
 _避免使用_：用户身份；设备凭证；将短期重置流程状态误称为独立长期凭证
 
 **默认租户（Default Tenant）**：
-固定多租户部署中的保留平台租户，slug 固定为 `default`，承载平台角色和平台资源目录；客户业务数据归属各自租户。
+固定多租户部署中的保留平台租户，内部 ID 为 `1`、对外 code 为 `default`，承载平台资源目录；客户业务数据归属各自租户。租户使用自增 `BIGINT` 内部主键，API 通过唯一 code 定位；迁移不预置任何角色。
 _避免使用_：系统租户（含义易混）；超级租户
 
 **平台管理员（Platform Administrator）**：
-属于 `default` 租户的 User，通过受保护的内置 `TENANT_ADMIN` 角色获得显式的平台管理 ACTION；此角色不会自动获得客户业务数据访问权。
+属于 `default` 租户且被授予平台管理 ACTION 的 User；角色名称不决定平台身份，也不自动获得客户业务数据访问权。
 _避免使用_：`SYSTEM_ADMIN` 角色；空 tenant_id 用户
+
+**状态（Status）**：
+实体当前可用状态。Tenant、User 和 Resource 分别使用各自的状态枚举；当前值为 `ACTIVE`、`DISABLED`，不同实体的状态转换规则独立。
 
 **ACTION**：
 资源目录中表示可授权业务操作的资源类型。其稳定 `code`（如 `device.read`）是 RBAC 的最小授权键，可关联到角色，并由受保护 API 上的 Spring Security 注解检查。一个 ACTION 可以保护多个 API。
 _避免使用_：Permission（旧模型名称）；Authority；scope（OAuth scope，易混淆）
 
 **角色（Role）**：
-属于一个且仅一个租户的 ACTION 集合。Role code 标识角色自身，不直接授权 API；如 `TENANT_ADMIN`。每租户可有同 code 的系统预置角色，租户内唯一。
+属于一个且仅一个租户的 ACTION 集合。Role 使用自增 ID 定位；角色名称只用于显示，不直接授权 API。创建租户时为首位管理员生成包含全部可分配租户 ACTION 的角色，其它角色按需创建。
 _避免使用_：Authority、Spring `ROLE_*` 作为产品术语
 
 **MENU**：
 资源目录中描述导航层级与展示元数据的资源类型。MENU 可有自己的稳定 code，但该 code 不是授权键；菜单是否可见由用户已获准的 ACTION 及其菜单归属推导，父子关系不隐含授权继承。
 
 **资源 code（Resource Code）**：
-标识对应资源对象的稳定字符串。MENU、ACTION 等资源各自有 code；角色 code 与租户 slug 也分别标识角色和租户。只有 ACTION code 用作 API 授权键。
+标识对应资源对象的稳定字符串。MENU 和 ACTION 有 code；Tenant 使用唯一 code 对外定位，Role 不使用 code。只有 ACTION code 用作 API 授权键。
 
 **个人操作（Authenticated Self-service）**：
 有效登录用户对自身资料与密码的操作能力，无需角色或 ACTION。目标由认证主体确定，不能指定其他用户；仍受账户、租户、会话状态与密码校验约束。
@@ -62,7 +65,7 @@ _避免使用_：已删除设备、已迁移设备
 ## 租户角色
 
 **租户管理员（Tenant Administrator）**：
-属于客户租户且被分配该租户内置角色 `TENANT_ADMIN` 的主体；其权限由该角色关联的 ACTION 决定。与 `default` 租户中同 code 的受保护角色分属不同租户，客户租户角色不具有平台管理 ACTION。
+属于客户租户且获授成员管理与邀请 ACTION 的主体；具体角色由租户管理，客户租户角色不能获得平台管理 ACTION。
 _避免使用_：`SYSTEM_ADMIN`（不存在的角色）；超级管理员
 
 **租户用户（Tenant User）**：
@@ -122,7 +125,7 @@ _避免使用_：设备重注册、凭证查看
 ## 标识与命名
 
 **内部 ID（Internal ID）**：
-平台为资源生成的不透明身份标识，不承载业务含义。阶段 1 起采用 RFC 9562 **UUID version 7**（`io.roseiot.shared.util.UuidV7`），后续阶段 1 实体沿用同一生成方式。
+平台为实体生成的内部身份标识，不承载业务含义。Tenant、User、Role、Resource 和 SystemSetting 使用数据库自增 `BIGINT`；Tenant 另有唯一 code 供外部定位。纯关联数据不额外生成身份 ID。
 _避免使用_：业务编码、名称
 
 **业务标识符（Business Identifier）**：
@@ -304,10 +307,6 @@ _避免使用_：用户 ID、租户邮箱
 **租户用户关系（Tenant Membership）**：
 用户属于某个租户并在其中承担固定角色的关系。
 _避免使用_：用户账号、租户上下文
-
-**成员邀请（Member Invitation）**：
-邀请指定邮箱的人员以指定初始角色加入一个租户的限时授权。
-_避免使用_：租户用户关系、用户账号、账户恢复
 
 **有效成员（Active Member）**：
 当前可以在所属租户内登录并执行获授权操作的租户用户。

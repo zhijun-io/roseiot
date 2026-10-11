@@ -1,201 +1,76 @@
 # Roseiot
 
-Roseiot 是一个逐步建设的物联网平台后端，用于学习真实 IoT 场景、验证工程
-取舍，并形成可运行、可测试、可解释的项目证据。
+Roseiot 是一个面向物联网场景的多租户后端项目。目前处于建设阶段，重点是逐步交付可运行、可测试的业务闭环；当前代码尚未包含产品、设备、遥测或命令等 IoT 领域功能。
 
-## 当前状态
+## 当前实现
 
-阶段 0 已完成（健康检查、Compose、Flyway）。阶段 1 已交付：IAM 认证与 RBAC、固定多租户模型及全局系统设置（Flyway **V1–V12**
-）。数据库迁移创建 `default` 平台租户、资源目录、平台角色和系统设置表；客户租户由 `TenantService` 在创建事务中初始化内置角色与授权。SQL
-迁移不创建函数或触发器。当前没有首管理员创建入口，初始化页面与后端能力待后续设计。HTTP 路由使用资源路径，不添加 `/api`、`/noauth` 或 `/internal` 前缀；登录保留 `/login`，当前用户操作位于 `/me`，认证边界由 Spring Security 按接口配置。Access JWT 含 **`sub`/`tid`**，不使用 refresh token；授权只依据主体被授予的活动 **ACTION**
-code（角色与资源多对多；资源目录含 MENU/ACTION 父子层级，可按树结构渲染）。用户密码和重置状态存于 IAM `UserCredential`；系统级
-`GENERAL.setting.baseUrl` 用于生成邮件绝对链接。当前路径设计见 [API 路径](api.md)。
+当前代码主要包含：
 
-## 建设原则
+- 多租户基础及租户管理；
+- 用户登录、个人资料、密码修改和密码重置；
+- 基于角色与资源 ACTION 的授权；
+- PostgreSQL 持久化、Flyway 基线迁移和健康检查；
+- 登录与密码重置接口的限流。
 
-- 以业务闭环和可观察行为为交付单位；
-- 默认采用模块化单体，不提前拆分微服务；
-- 优先使用 Java、Spring Boot 和 PostgreSQL 的已有能力；
-- 依赖和基础设施必须由当前问题驱动；
-- 用测试、演示脚本和可复现基准证明结果。
+当前还没有首位管理员创建入口，因此全新数据库尚不能通过应用 API 创建第一个登录用户。用户邀请功能已移除。密码重置通知目前使用日志实现，不是邮件投递服务；重置链接依赖 `system_setting` 中的通用 `baseUrl` 设置。
 
-## 技术基线（已验证）
+## 技术栈
 
-| 项 | 版本 |
-| --- | --- |
-| Java | 25 |
-| Spring Boot | 4.1.1 |
-| Maven | 3.10.0（Wrapper） |
-| PostgreSQL | 18（`compose.yaml` 与 Testcontainers `postgres:18-alpine`） |
-| MyBatis Plus | 3.5.17（`mybatis-plus-spring-boot4-starter`，阶段 1 起） |
+- Java 25
+- Spring Boot 4.1.1
+- Maven Wrapper
+- PostgreSQL 18
+- MyBatis-Plus 3.5.17
+- Flyway
 
-与 PRD 候选基线一致；依赖来自 Maven Central 正式发布版本。
+## 本地运行
 
-## 本地配置
+需要 JDK 25 和 Docker。默认启动方式由 Spring Boot Docker Compose 支持启动仓库中的 PostgreSQL 服务。
 
-敏感信息只放在未跟踪的 `.env` 或 `application-local.*` 中。可参考
-[`.env.example`](.env.example) 中的变量名，不要提交真实凭证。
+```bash
+cp .env.example .env
+```
 
-配置加载顺序（简）：
+编辑 `.env`，为 `ROSEIOT_AUTH_JWT_SECRET` 设置至少 32 字节的随机密钥。建议同时为本地 PostgreSQL 设置独立密码。
 
-1. **`spring-boot:run` + `compose.yaml`**：`JdbcConnectionDetails` 优先于 `application.yml` 中的 `SPRING_DATASOURCE_*` 占位符。
-2. **`.env`**：经 `spring.config.import=optional:file:.env[.properties]` 从进程工作目录（通常在仓库根）加载；Compose 另用同一文件做 `POSTGRES_PASSWORD` 等变量替换。
-3. **集成测试**：`spring.docker.compose.skip.in-tests=true`，不启动 Compose；`@Import(TestcontainersConfig.class)` 经 `@ServiceConnection` 注入数据源，不依赖本机 `.env`。
-4. **IDE 试跑**：运行测试源里的 `TestRoseiotApplication`（Testcontainers Postgres，等同 spring-blog 的 `TestBlogApplication`）。
+```bash
+./mvnw spring-boot:run
+```
 
-## 测试策略
+应用启动后，可检查健康状态：
 
-与访谈 **Q128** 一致：按风险选边界，不追求固定比例或「每表一个集成测试类」。
+```bash
+curl -fsS http://localhost:8080/actuator/health/liveness
+curl -fsS http://localhost:8080/actuator/health/readiness
+```
 
-**命名**：
+如果使用已有 PostgreSQL 而不启动 Compose，在 `.env` 中设置 `SPRING_DOCKER_COMPOSE_ENABLED=false`，并提供 `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME` 和 `SPRING_DATASOURCE_PASSWORD`，然后运行相同的启动命令。
 
-- `*WebMvcTest`、`*MockMvcTests`：`@WebMvcTest` + MockMvc，只断言 HTTP 契约（Controller / Security 切片）。
-- `*PostgresTest` 等真库集成：`@SpringBootTest` + `@Import(TestcontainersConfig.class)`，验证 Flyway、Mapper、事务。
-- `*Test` / `*ServiceTests` 等单元测试：不启 Spring。
+当前 Flyway 只保留从空数据库创建结构的 V1 基线，不包含旧开发版本的升级迁移。使用已有数据库前，请先确认其状态与当前基线兼容。
 
-### 单元测试
+## 验证
 
-**边界**：单类/单用例，**不启动 Spring**（`@ExtendWith(MockitoExtension.class)` + `@InjectMocks` / `@Mock`）。
-
-**写单元测试当**：
-
-- 业务规则、分支、错误码映射在 **application 层 Service**（或纯函数）里，用 Mock 替代 Mapper、Encoder、时钟等即可断言。
-- 同一逻辑已有集成测试覆盖 Happy path，但失败分支多、起容器成本高——用单元测试补分支。
-- 无 I/O：UUID 生成、格式校验、小工具类。
-
-**不写单元测试当**：
-
-- 被测对象只是 Spring 配置拼装（`@Configuration`、Filter 链顺序）——测了也测不到真实行为，应写集成测试。
-- 断言完全依赖 PostgreSQL 约束、Flyway 脚本或 HTTP 状态码——那是集成测试的职责。
-
-### 集成测试
-
-**边界**：HTTP 契约用 `@WebMvcTest` 切片；真库接线用 `@SpringBootTest` + `TestcontainersConfig`（PostgreSQL `@ServiceConnection`）。
-
-**写集成测试当**：
-
-- **HTTP 契约（MockMvc 切片）**：`LoginAuthenticationWebMvcTest`、`TenantLifecycleMockMvcTests` 等（401、错误体、权限分支）。
-- **Security + Controller 组合**：`SecurityConfigWebMvcTest`（匿名 recovery、JWT 入口等与过滤器链一致的行为）。
-- **持久化 / Flyway / 事务**：如 `TenantLifecyclePostgresTest`——在 PostgreSQL 上验证表、Mapper 与跨表原子性（不必走 HTTP）。
-
-**不写集成测试当**：
-
-- 仅验证 Service 在「密码错误 / 用户不存在」时抛何种异常——Mock 即可，不要为每个分支起容器。
-- 与已有 API 集成测试重复的 profile 字段断言（集成测试已证明 JWT → `/me` 即可）。
-
-### 公共夹具
-
-| 类型 | 用途 |
-| --- | --- |
-| `TestcontainersConfig` | 唯一 Postgres 容器 + `@ServiceConnection`（真库 `@SpringBootTest` 通过 `@Import` 引入） |
-
-### 示例
-
-| 类型        | 示例类                                                                                         |
-|-------------|------------------------------------------------------------------------------------------------|
-| 单元        | `UserServiceTest`、`UserCredentialServiceTest`、`TenantServiceTests` |
-| WebMvc 切片 | `LoginAuthenticationWebMvcTest`、`UserProfileControllerWebMvcTest`、`TenantLifecycleMockMvcTests`      |
-| 真库集成    | `TenantLifecyclePostgresTest`                                                                  |
-
-**原则**：能写单元测试的不要 `@SpringBootTest`；`@WebMvcTest` 只承担 HTTP 契约，Flyway 与持久化证据用真库集成测试。
-
-
-## 文档
-
-- [产品需求（PRD）](docs/product/prd.md)
-- [产品访谈决策日志](docs/product/interview-decisions.md)
-- [项目路线](docs/roadmap.md)
-- [Agent 规则](AGENTS.md)
-- [API 路径](api.md)
-
-### 架构决策（ADR）
-
-- [IAM 身份认证与授权](docs/adr/2026-10-10-iam.md)
-- [租户模型与生命周期](docs/adr/2026-10-10-tenant.md)
-- [系统设置与全局配置](docs/adr/2026-10-10-system-settings.md)
-
-## 验证与运行
-
-前置：**JDK 25**（与 `pom.xml` 一致）、**Docker**（Testcontainers 跑 `./mvnw verify`；本地启动需 Docker 以运行 `compose.yaml` 中的 PostgreSQL）。
+完整验证需要 Docker，以便 Testcontainers 启动 PostgreSQL：
 
 ```bash
 ./mvnw -q verify
-cp .env.example .env   # 填入至少 32 字节的随机 ROSEIOT_AUTH_JWT_SECRET；本地手动通知时启用 local profile
-./mvnw spring-boot:run # 自动 docker compose up，并注入数据源连接
 ```
 
-`spring-boot-docker-compose` 为 optional 依赖，打生产包时默认不包含。若已手动 `docker compose up` 同一文件，Boot 只会复用容器并建立 service connection，不会重复 up/stop。
+## 代码组织
 
-**不用 Compose**：在 `.env` 中设 `SPRING_DOCKER_COMPOSE_ENABLED=false` 并填写 `SPRING_DATASOURCE_*`，再 `./mvnw spring-boot:run`（仓库根存在 `compose.yaml` 时默认仍会 compose up，须显式关闭）。
+代码按业务能力和功能组织，主要包括：
 
-健康检查（未认证，不返回连接串或凭证详情）：
+- `iam.user`、`iam.role`、`iam.resource`、`iam.security`：用户、授权资源与认证；
+- `tenant`：租户管理和租户状态；
+- `system`：系统设置；
+- `shared`：跨功能使用的安全、MyBatis 和 HTTP 支持代码。
 
-```bash
-curl -sS "http://localhost:8080/actuator/health/liveness"
-curl -sS "http://localhost:8080/actuator/health/readiness"
-```
+项目采用模块化单体，不为尚未实现的 IoT 功能预建模块或通用框架。
 
-## 首个管理员初始化
+## 文档
 
-Flyway 会创建保留 `default` 平台租户、资源目录和平台内置角色。应用目前不创建管理员用户，也不提供 CLI bootstrap 或匿名初始化
-API；首管理员初始化页面及其后端能力待后续 Spec。空库可以正常启动，但在管理员创建前无法登录。
-
-## 系统用户认证（Spec #2）
-
-前置：数据库迁移已执行。必须在环境中设置 **`ROSEIOT_AUTH_JWT_SECRET`**（HS256，至少 32 字节）；应用没有内置密钥，缺失或过短时会拒绝启动。仅本地手动验证时，在
-`.env` 设置 `SPRING_PROFILES_ACTIVE=local`，日志 notifier 会输出可用的重置/邀请链接；其它环境必须接入不记录明文 token
-的通知实现，否则应用无法启动。
-
-API 路径和方法见 [api.md](api.md)。错误体为稳定 JSON：`{"code":"...","message":"..."}`。成功创建与更新使用 **200**，无响应体的变更可使用 **204**；不使用 `PATCH`、`201` 或 `202`。
-
-Access JWT（HS256）有效期 15 分钟，包含 `sub`（用户 id）和 `tid`（用户所属租户）。每个请求都会检查当前用户和租户状态并加载最新权限。过期后重新登录；客户端退出时清除本地令牌。改密和权限变化不会撤销已签发令牌，令牌最长仍可使用至过期。
-
-Flyway 从 **V1–V12** 创建当前 schema、平台资源/角色 seed 和 `system_setting`。V7 将 `users` 中的密码字段迁入一对一
-`user_credential`，并把每用户最新的重置状态迁入凭证行。客户租户内置角色在应用创建租户时由同一事务初始化。其它 schema
-变更仍须清空重建或按迁移脚本升级。V8 移除用户授权版本，V9 扩展用户资料时间字段并简化凭据列名，V10 删除资源 scope，V11 将资源启用标志改为枚举状态，V12 删除服务端用户会话表。
-
-验证：`./mvnw -q verify`（含 Testcontainers 空库基线测试）。
-
-生产默认限速（同一规范化邮箱，15 分钟窗口）：登录 **10** 次、`POST /password-resets` **5** 次，超出返回 **429** + `rate_limited`（规则见 `application.yml` 的 `roseiot.rate-limit.rules`）。集成测试在 `src/test/resources/application.properties` 中关闭限速；本地调试可设 `ROSEIOT_RATE_LIMIT_ENABLED=false`。
-
-### 手动验证（AC-2：登录与 profile）
-
-```bash
-BASE=http://localhost:8080
-
-LOGIN=$(curl -sS -X POST "$BASE/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"your-password-at-least-12-chars"}')
-ACCESS=$(echo "$LOGIN" | jq -r .accessToken)
-
-curl -sS "$BASE/me" -H "Authorization: Bearer $ACCESS" | jq .
-```
-
-退出时客户端应清除本地 `ACCESS`；access token 最长存活 15 分钟。
-
-### 手动验证（AC-6：密码重置）
-
-启用 `local` profile 时，`LoggingPasswordResetNotifier` 在 WARN 日志中打印 **
-`/password-resets/{token}`** 完整链接；前端对该 URL 发 GET 读取 `status` 后自行路由。自动化断言见
-`UserCredentialServiceTest` 与 `IdentityNoauthControllerWebMvcTest`。
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST "$BASE/password-resets" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com"}'
-# 期望 200，无 body（与未注册邮箱请求相同）
-
-# 校验令牌（邮件/日志里的链接应对 API，不是 /auth/…）：
-curl -sS "$BASE/password-resets/$RESET_TOKEN"
-# 期望 200，例如 {"status":"valid"}
-
-# 无前端时可直接 PUT 确认重置：
-curl -sS -o /dev/null -w '%{http_code}\n' -X PUT "$BASE/password-resets/$RESET_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d "{\"password\":\"newSecurePass9012\"}"
-# 期望 204；随后用新密码 login
-```
-
-## 租户与用户
-
-当前路径设计见 [api.md](api.md)。租户管理、成员管理和邀请操作均在服务端校验租户上下文与资源授权。
+- [产品需求](docs/product/prd.md)
+- [项目路线图](docs/roadmap.md)
+- [架构决策记录](docs/adr/)
+- [领域词汇](GLOSSARY.md)
+- [开发与 Agent 工作规范](AGENTS.md)

@@ -1,24 +1,23 @@
 package io.roseiot.shared.mybatis;
 
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
  * Explicit scope for verified maintenance, platform and token-based operations.
  */
 public final class TenantContext {
-    private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
+    private static final ThreadLocal<Long> CURRENT = new ThreadLocal<>();
 
     private TenantContext() {
     }
 
-    public static UUID current() {
+    public static Long current() {
         return CURRENT.get();
     }
 
-    public static <T> T call(UUID tenantId, Supplier<T> operation) {
-        UUID previous = CURRENT.get();
+    public static <T> T call(Long tenantId, Supplier<T> operation) {
+        Long previous = CURRENT.get();
         CURRENT.set(Objects.requireNonNull(tenantId));
         try {
             return operation.get();

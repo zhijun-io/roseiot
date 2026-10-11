@@ -1,6 +1,6 @@
 package io.roseiot.shared.ratelimit;
 
-import io.roseiot.shared.api.ApiJson;
+import io.roseiot.shared.webmvc.ApiJson;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.WriteListener;

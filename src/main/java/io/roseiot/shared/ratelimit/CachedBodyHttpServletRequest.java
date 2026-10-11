@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 final class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
 
@@ -20,7 +19,7 @@ final class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
 
     @Override
     public ServletInputStream getInputStream() {
-        InputStream stream = new ByteArrayInputStream(body);
+        ByteArrayInputStream stream = new ByteArrayInputStream(body);
         return new ServletInputStream() {
             @Override
             public int read() throws IOException {
@@ -29,7 +28,7 @@ final class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
 
             @Override
             public boolean isFinished() {
-                return false;
+                return stream.available() == 0;
             }
 
             @Override

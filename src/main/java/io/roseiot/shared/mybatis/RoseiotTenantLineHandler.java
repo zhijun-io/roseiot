@@ -1,9 +1,9 @@
 package io.roseiot.shared.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-import io.roseiot.iam.infra.security.SecurityUser;
+import io.roseiot.shared.security.TenantPrincipal;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.LongValue;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,10 +23,11 @@ public final class RoseiotTenantLineHandler implements TenantLineHandler {
 
     @Override
     public Expression getTenantId() {
-        if (TenantContext.current() != null) return new StringValue(TenantContext.current().toString());
+        if (TenantContext.current() != null) return new LongValue(TenantContext.current());
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof SecurityUser user) {
-            return new StringValue(user.requireTenantId().toString());
+        if (authentication != null && authentication.getPrincipal() instanceof TenantPrincipal principal) {
+            if (principal.tenantId() == null) throw new AccessDeniedException("Tenant context required");
+            return new LongValue(principal.tenantId());
         }
         throw new AccessDeniedException("Tenant context required");
     }

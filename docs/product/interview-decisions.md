@@ -3939,7 +3939,7 @@ AND 凭证当前有效
 
 ❓ **Q512 — 系统用户 HTTP 路径**：是否将会话端点定为 **`/api/auth/**`**、系统用户 profile 定为 **`/api/users/me/**`**，并保持业务 API 在 `/api` 下且无 URL 主版本号？
 
-➡️ **用户确认（2026-10-08）。** 以 README、系统用户认证 Spec 与 `SecurityConfig` 为准。**会话路径**已由 **Q515** supersede（现为 **`/api/login`** 等 + **`/api/noauth/**`**）。
+➡️ **用户确认（2026-10-08）。** 以 README、系统用户认证 Spec 与 `WebSecurityConfig` 为准。**会话路径**已由 **Q515** supersede（现为 **`/api/login`** 等 + **`/api/noauth/**`**）。
 
 ---
 
@@ -3957,7 +3957,7 @@ AND 凭证当前有效
 
 ❓ **Q515 — 会话与匿名 HTTP 路径（修订 Q512）**：会话是否改为 **`POST /api/login`**、**`/api/token`**、**`/api/logout`**、**`/api/logout-all`**；匿名 REST 是否统一前缀 **`/api/noauth/**`**（含密码重置与邀请接受）？
 
-➡️ **用户确认（2026-10-09）。** 以 [`docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md`](../sdd/2026-10-08-stage-1-system-user-auth-spec.md)、[`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 与 `SecurityConfig` 为准。Q512 中 **`/api/auth/**`** 会话约定由本决策 supersede；profile 仍为 **`/api/users/me/**`**。
+➡️ **用户确认（2026-10-09）。** 以 [`docs/sdd/2026-10-08-stage-1-system-user-auth-spec.md`](../sdd/2026-10-08-stage-1-system-user-auth-spec.md)、[`docs/sdd/2026-10-08-stage-1-tenant-and-users-spec.md`](../sdd/2026-10-08-stage-1-tenant-and-users-spec.md) 与 `WebSecurityConfig` 为准。Q512 中 **`/api/auth/**`** 会话约定由本决策 supersede；profile 仍为 **`/api/users/me/**`**。
 
 ---
 
@@ -4013,6 +4013,8 @@ AND 凭证当前有效
 
 **关于 `device.credential.read` 的进一步澄清（2026-10-10）：** 这是现有权限目录中的 code，迁移后保留为 `ACTION`，只是默认不分配给内置角色。任何可授权权限都必须有对应 ACTION 定义；若目录中不存在该 ACTION，先由系统维护目录定义，租户角色 API 才可分配。未知或退役 ACTION code 一律拒绝。
 
+**进一步调整（2026-10-11）：** 不再为客户租户预置固定的 `TENANT_ADMIN`、`DEVICE_OPERATOR`、`DEVICE_VIEWER` 角色。创建租户时按当前可分配的租户 ACTION 生成首位管理员角色，并通过角色 ID 关联邀请；业务逻辑不按管理员角色名称或标识判断权限。Role 由 UUID 定位，不保留 role code；其它租户角色按需创建。平台专属 ACTION 仍仅能关联到 `default` 租户的角色。
+
 
 ---
 
@@ -4031,3 +4033,5 @@ AND 凭证当前有效
 ❓ **Q527 — HTTP 认证命名空间（2026-10-10）**：是否统一规定 `/api/**` 要求 access-token 登录态，`/noauth/**` 不要求 access-token 登录态，`/internal/**` 留作未来内部接口？登录、refresh、密码重置、激活和租户邀请等公开身份端点迁入 `/noauth/**`；refresh 仍须校验 refresh token 与服务端会话状态。
 
 ➡️ **用户确认（2026-10-10）。** 是。旧 `/api/login`、`/api/token` 和 `/api/noauth/**` 不保留匿名兼容入口；公开端点不要求 access-token，但必须执行各自的凭证和业务校验。
+
+**进一步调整（2026-10-11）：** 实体主键采用数据库自增 `BIGINT`，包括 Tenant、User、Role、Resource、SystemSetting 和 UserInvitation；UserCredential 继续使用 user_id 作为共享主键，关联表使用复合主键。Tenant 通过唯一 code 对外定位，内部 id 用于关系。Tenant.status 与 User.status、Resource.status 分别使用所属功能枚举，当前只有 `ACTIVE`/`DISABLED`；User 暂不保留无实际创建流程支撑的 `PENDING_ACTIVATION`。

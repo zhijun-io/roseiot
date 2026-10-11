@@ -17,8 +17,10 @@ class CachedBodyHttpServletRequestTest {
                 new CachedBodyHttpServletRequest(new MockHttpServletRequest(), body);
 
         try (var in = cut.getInputStream()) {
+            assertThat(in.isFinished()).isFalse();
             assertThat(new String(in.readAllBytes(), StandardCharsets.UTF_8))
                     .isEqualTo("{\"email\":\"ops@roseiot.io\"}");
+            assertThat(in.isFinished()).isTrue();
             assertThat(in.isReady()).isTrue();
         }
     }
@@ -29,6 +31,7 @@ class CachedBodyHttpServletRequestTest {
                 new CachedBodyHttpServletRequest(new MockHttpServletRequest(), null);
 
         try (var in = cut.getInputStream()) {
+            assertThat(in.isFinished()).isTrue();
             assertThat(in.readAllBytes()).isEmpty();
         }
     }

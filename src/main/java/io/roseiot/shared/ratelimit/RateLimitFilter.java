@@ -1,13 +1,14 @@
 package io.roseiot.shared.ratelimit;
 
-import io.roseiot.shared.api.ApiJson;
-import io.roseiot.shared.domain.ApiErrorCode;
+import io.roseiot.shared.webmvc.ApiJson;
+import io.roseiot.shared.ApiErrorCode;
 import org.springframework.http.HttpStatus;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 
 @Component
+@EnableConfigurationProperties(RateLimitProperties.class)
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 @ConditionalOnProperty(name = "roseiot.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimitFilter extends OncePerRequestFilter {
