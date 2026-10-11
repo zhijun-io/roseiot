@@ -1,6 +1,6 @@
 package io.roseiot.shared.ratelimit;
 
-import io.roseiot.shared.webmvc.ApiJson;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.WriteListener;
@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
@@ -48,33 +49,20 @@ class RateLimitFilterTest {
         responseBody = new RecordingOutputStream();
         filterChain = mock(FilterChain.class);
         when(response.getOutputStream()).thenReturn(responseBody);
-        properties = new RateLimitProperties();
-        properties.setWindowMinutes(60);
-        properties.setRules(List.of(loginRule(1)));
+        properties = new RateLimitProperties(60, 16 * 1024, 10_000, List.of(loginRule(1)));
     }
 
     private RateLimitProperties.Rule loginRule(int maxAttempts) {
-        RateLimitProperties.Rule rule = new RateLimitProperties.Rule();
-        rule.setMethod("POST");
-        rule.setPath(LOGIN_PATH);
-        rule.setBodyField("email");
-        rule.setKeyPrefix("auth:login:");
-        rule.setMaxAttempts(maxAttempts);
-        return rule;
+        return new RateLimitProperties.Rule("POST", LOGIN_PATH, "email", "auth:login:", maxAttempts);
     }
 
     private RateLimitProperties.Rule tokenRule(String method, String path, int maxAttempts) {
-        RateLimitProperties.Rule rule = new RateLimitProperties.Rule();
-        rule.setMethod(method);
-        rule.setPath(path);
-        rule.setKeyPrefix("auth:token:");
-        rule.setMaxAttempts(maxAttempts);
-        return rule;
+        return new RateLimitProperties.Rule(method, path, null, "auth:token:", maxAttempts);
     }
 
     private RateLimitFilter cut(SlidingWindowRateLimiter rateLimiter) {
         return new RateLimitFilter(rateLimiter, properties, JsonMapper.builder().build(),
-                new ApiJson(JsonMapper.builder().build()));
+                new ApiHttpSupport(JsonMapper.builder().build()));
     }
 
     private void stubLoginRequest() throws IOException {
@@ -92,7 +80,7 @@ class RateLimitFilterTest {
     void shouldPassRequestThroughWhenNoRuleMatches() throws Exception {
         when(request.getMethod()).thenReturn("GET");
         when(request.getRequestURI()).thenReturn("/me");
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
 
@@ -103,7 +91,7 @@ class RateLimitFilterTest {
     @Test
     void shouldHandDownstreamAReplayableBodyAfterReadingItForTheKey() throws Exception {
         stubLoginRequest();
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
 
@@ -116,7 +104,7 @@ class RateLimitFilterTest {
     @Test
     void shouldAllowFirstAttemptWithinTheLimit() throws Exception {
         stubLoginRequest();
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
 
@@ -127,7 +115,7 @@ class RateLimitFilterTest {
     @Test
     void shouldRejectSecondAttemptBeyondTheLimitWithStableErrorBody() throws Exception {
         stubLoginRequest();
-        SlidingWindowRateLimiter rateLimiter = new SlidingWindowRateLimiter(properties);
+        SlidingWindowRateLimiter rateLimiter = new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC());
         RateLimitFilter cut = cut(rateLimiter);
         cut.doFilterInternal(request, response, filterChain);
 
@@ -136,12 +124,14 @@ class RateLimitFilterTest {
         cut.doFilterInternal(request, response, filterChain);
 
         verify(response).setStatus(429);
-        verify(response).setContentType("application/json");
+        verify(response).setContentType("application/problem+json");
         verify(response).setCharacterEncoding("UTF-8");
+        verify(response).setHeader(eq("Retry-After"), org.mockito.ArgumentMatchers.matches("[1-9][0-9]*"));
         verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
         assertThat(responseBody.asText())
                 .contains("\"code\":\"rate_limited\"")
-                .contains("\"message\":\"rate_limited\"");
+                .contains("\"detail\":\"rate_limited\"")
+                .contains("\"type\":\"urn:roseiot:problem:rate_limited\"");
     }
 
     @Test
@@ -149,7 +139,7 @@ class RateLimitFilterTest {
         stubRequest("POST", LOGIN_PATH, """
                 {"password":"correct horse 42"}
                 """.getBytes(StandardCharsets.UTF_8));
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
         cut.doFilterInternal(request, response, filterChain);
@@ -160,19 +150,85 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void shouldRateLimitTokenPathByClientAddressWithoutReadingRequestBody() throws Exception {
-        properties.setRules(List.of(tokenRule("GET", "/password-resets/{token}", 1)));
-        stubRequest("GET", "/password-resets/one-time-token", new byte[0]);
+    void shouldRateLimitResetTokenValidationByClientAddressAndBufferBoundedBody() throws Exception {
+        properties = withRules(List.of(tokenRule("POST", "/password-resets/validations", 1)));
+        stubRequest("POST", "/password-resets/validations", new byte[0]);
         when(request.getRemoteAddr()).thenReturn("192.0.2.10");
-        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties));
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
         clearInvocations(filterChain, response);
         cut.doFilterInternal(request, response, filterChain);
 
-        verify(request, never()).getInputStream();
+        verify(request, times(2)).getInputStream();
         verify(response).setStatus(429);
         verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+    }
+
+    @Test
+    void shouldRejectOversizedChunkedBodyBeforePassingItDownstream() throws Exception {
+        properties = withMaxRequestBodyBytes(16);
+        stubRequest("POST", LOGIN_PATH, new byte[32]);
+        when(request.getContentLengthLong()).thenReturn(-1L);
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+
+        cut.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(413);
+        verify(response).setContentType("application/problem+json");
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        assertThat(responseBody.asText()).contains("\"code\":\"request_too_large\"");
+    }
+
+    @Test
+    void shouldBoundBodiesForClientAddressKeyedRoutesToo() throws Exception {
+        properties = withRulesAndMaxRequestBodyBytes(List.of(tokenRule("POST", "/password-resets/validations", 20)), 16);
+        stubRequest("POST", "/password-resets/validations", new byte[32]);
+        when(request.getContentLengthLong()).thenReturn(-1L);
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+
+        cut.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(413);
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        assertThat(responseBody.asText()).contains("\"code\":\"request_too_large\"");
+    }
+
+    @Test
+    void shouldAnswerServiceUnavailableWhenLimiterTrackingCapacityIsExhausted() throws Exception {
+        properties = withRulesAndMaxTrackedKeys(List.of(tokenRule("POST", "/password-resets/validations", 20)), 1);
+        stubRequest("POST", "/password-resets/validations", new byte[0]);
+        when(request.getRemoteAddr()).thenReturn("192.0.2.10", "192.0.2.11");
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+        cut.doFilterInternal(request, response, filterChain);
+        clearInvocations(filterChain, response);
+
+        cut.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(503);
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        assertThat(responseBody.asText()).contains("\"code\":\"rate_limit_capacity_exhausted\"");
+    }
+
+    private RateLimitProperties withRules(List<RateLimitProperties.Rule> rules) {
+        return new RateLimitProperties(properties.windowMinutes(), properties.maxRequestBodyBytes(),
+                properties.maxTrackedKeys(), rules);
+    }
+
+    private RateLimitProperties withMaxRequestBodyBytes(int maxBytes) {
+        return new RateLimitProperties(properties.windowMinutes(), maxBytes, properties.maxTrackedKeys(),
+                properties.rules());
+    }
+
+    private RateLimitProperties withRulesAndMaxRequestBodyBytes(
+            List<RateLimitProperties.Rule> rules, int maxBytes) {
+        return new RateLimitProperties(properties.windowMinutes(), maxBytes, properties.maxTrackedKeys(), rules);
+    }
+
+    private RateLimitProperties withRulesAndMaxTrackedKeys(
+            List<RateLimitProperties.Rule> rules, int maxTrackedKeys) {
+        return new RateLimitProperties(properties.windowMinutes(), properties.maxRequestBodyBytes(),
+                maxTrackedKeys, rules);
     }
 
     private static final class StubInputStream extends ServletInputStream {

@@ -3,9 +3,9 @@ package io.roseiot.iam.user;
 import io.roseiot.iam.user.UserCredentialService.ResetTokenState;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.security.SecurityUser;
+import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.tenant.TenantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,8 +54,7 @@ class UserControllerCredentialWebMvcTest {
 
     @Test
     void shouldChangePasswordThroughAuthenticatedCredentialEndpoint() {
-        User user = new User(USER_ID, null, null, null, UserStatus.ACTIVE);
-        SecurityUser principal = new SecurityUser(user, null, List.of());
+        SecurityUser principal = new SecurityUser(USER_ID, null, "user@roseiot.io", true, null, List.of());
 
         assertThat(mvc.put().uri("/me/password")
                 .with(user(principal))
@@ -108,23 +107,28 @@ class UserControllerCredentialWebMvcTest {
     }
 
     @Test
-    void shouldAnswerValidResetTokenWithOkAndStatus() {
+    void shouldAnswerValidResetTokenWithoutPuttingItInTheUrl() {
         given(credentialService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
 
-        assertThat(mvc.get().uri("/password-resets/plain-token"))
+        assertThat(mvc.post().uri("/password-resets/validations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"plain-token\"}"))
                 .hasStatus(HttpStatus.OK)
+                .hasHeader("Cache-Control", "no-store")
                 .bodyJson()
                 .extractingPath("$.status")
                 .isEqualTo("valid");
     }
 
     @Test
-    void shouldAnswerValidResetTokenEvenWhenAuthorizationHeaderIsInvalid() {
+    void shouldAllowAnonymousResetTokenValidationEvenWhenAuthorizationHeaderIsInvalid() {
         given(credentialService.checkResetToken("plain-token")).willReturn(ResetTokenState.VALID);
 
-        assertThat(mvc.get()
-                        .uri("/password-resets/plain-token")
-                        .header("Authorization", "Bearer not-a-valid-jwt"))
+        assertThat(mvc.post()
+                        .uri("/password-resets/validations")
+                        .header("Authorization", "Bearer not-a-valid-jwt")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"plain-token\"}"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -135,7 +139,9 @@ class UserControllerCredentialWebMvcTest {
     void shouldAnswerInvalidResetTokenWithStatusInvalid() {
         given(credentialService.checkResetToken("bad")).willReturn(ResetTokenState.INVALID);
 
-        assertThat(mvc.get().uri("/password-resets/bad"))
+        assertThat(mvc.post().uri("/password-resets/validations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"bad\"}"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -146,7 +152,9 @@ class UserControllerCredentialWebMvcTest {
     void shouldAnswerExpiredResetTokenWithStatusExpired() {
         given(credentialService.checkResetToken("old")).willReturn(ResetTokenState.EXPIRED);
 
-        assertThat(mvc.get().uri("/password-resets/old"))
+        assertThat(mvc.post().uri("/password-resets/validations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"old\"}"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.status")
@@ -154,29 +162,31 @@ class UserControllerCredentialWebMvcTest {
     }
 
     @Test
-    void shouldResetPasswordWithTbShapedBody() {
-        assertThat(mvc.put().uri("/password-resets/reset-token")
+    void shouldResetPasswordWithTokenInTheRequestBody() {
+        assertThat(mvc.post().uri("/password-resets/confirmations")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"password": "Passw0rd!"}
+                        {"token": "reset-token", "password": "Passw0rd!"}
                         """))
-                .hasStatus(HttpStatus.OK);
+                .hasStatus(HttpStatus.OK)
+                .hasHeader("Cache-Control", "no-store");
 
         verify(credentialService).confirmPasswordReset("reset-token", "Passw0rd!");
     }
 
     @Test
-    void shouldAnswerInvalidResetTokenOnPutWithBadRequest() {
+    void shouldAnswerInvalidResetTokenWithBadRequest() {
         willThrow(new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN))
                 .given(credentialService)
                 .confirmPasswordReset(any(), any());
 
-        assertThat(mvc.put().uri("/password-resets/used-token")
+        assertThat(mvc.post().uri("/password-resets/confirmations")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"password": "Passw0rd!"}
+                        {"token": "used-token", "password": "Passw0rd!"}
                         """))
                 .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasHeader("Cache-Control", "no-store")
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("invalid_reset_token");

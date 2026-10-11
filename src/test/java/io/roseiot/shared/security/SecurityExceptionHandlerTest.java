@@ -1,11 +1,10 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
-import io.roseiot.shared.webmvc.ApiJson;
-import io.roseiot.shared.ApiErrorResponse;
-import io.roseiot.iam.security.SecurityExceptionHandler;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,14 +20,18 @@ import static org.mockito.Mockito.mock;
 class SecurityExceptionHandlerTest {
 
     private final SecurityExceptionHandler cut =
-            new SecurityExceptionHandler(new ApiJson(JsonMapper.builder().build()));
+            new SecurityExceptionHandler(new ApiHttpSupport(JsonMapper.builder().build()));
 
-    private void assertBody(ResponseEntity<ApiErrorResponse> response, int status, String code, String message) {
+    private void assertBody(ResponseEntity<ProblemDetail> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);
         assertThat(response.getBody())
                 .isNotNull()
-                .extracting(ApiErrorResponse::code, ApiErrorResponse::message)
-                .containsExactly(code, message);
+                .satisfies(problem -> {
+                    assertThat(problem.getStatus()).isEqualTo(status);
+                    assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:" + code);
+                    assertThat(problem.getDetail()).isEqualTo(message);
+                    assertThat(problem.getProperties()).containsEntry("code", code);
+                });
     }
 
     @Test
@@ -38,8 +41,11 @@ class SecurityExceptionHandlerTest {
         cut.commence(new MockHttpServletRequest(), response, mock(AuthenticationException.class));
 
         assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentType()).startsWith("application/problem+json");
         assertThat(response.getContentAsString())
-                .isEqualTo("{\"code\":\"unauthorized\",\"message\":\"unauthorized\"}");
+                .contains("\"type\":\"urn:roseiot:problem:unauthorized\"")
+                .contains("\"status\":401")
+                .contains("\"code\":\"unauthorized\"");
     }
 
     @Test
@@ -49,8 +55,11 @@ class SecurityExceptionHandlerTest {
         cut.handle(new MockHttpServletRequest(), response, new AccessDeniedException("denied"));
 
         assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentType()).startsWith("application/problem+json");
         assertThat(response.getContentAsString())
-                .isEqualTo("{\"code\":\"forbidden\",\"message\":\"Forbidden\"}");
+                .contains("\"type\":\"urn:roseiot:problem:forbidden\"")
+                .contains("\"status\":403")
+                .contains("\"detail\":\"Forbidden\"");
     }
 
     @Test

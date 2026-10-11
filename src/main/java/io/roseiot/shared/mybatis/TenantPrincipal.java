@@ -1,4 +1,4 @@
-package io.roseiot.shared.security;
+package io.roseiot.shared.mybatis;
 
 
 /** Minimal authenticated-principal contract needed by tenant-aware persistence infrastructure. */

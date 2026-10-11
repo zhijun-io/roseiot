@@ -1,6 +1,6 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
-import io.roseiot.shared.webmvc.ApiJson;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +17,7 @@ import tools.jackson.core.JacksonException;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.Clock;
 
 /** Handles {@code POST /login}. */
 public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
@@ -26,18 +27,21 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
     private final SecurityExceptionHandler securityExceptionHandler;
-    private final ApiJson apiJson;
+    private final ApiHttpSupport apiHttpSupport;
     private final JwtTokenFactory jwtTokenFactory;
+    private final Clock clock;
 
     public RestLoginAuthenticationFilter(
             AuthenticationManager authenticationManager,
             JwtTokenFactory jwtTokenFactory,
             SecurityExceptionHandler securityExceptionHandler,
-            ApiJson apiJson) {
+            ApiHttpSupport apiHttpSupport,
+            Clock clock) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenFactory = jwtTokenFactory;
         this.securityExceptionHandler = securityExceptionHandler;
-        this.apiJson = apiJson;
+        this.apiHttpSupport = apiHttpSupport;
+        this.clock = clock;
     }
 
     @Override
@@ -50,13 +54,13 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
 
         LoginBody body;
         try {
-            body = apiJson.readBody(request, LoginBody.class);
+            body = apiHttpSupport.readBody(request, LoginBody.class);
         } catch (JacksonException exception) {
             securityExceptionHandler.handleMalformedRequest(response);
             return;
         }
         if (body == null || !StringUtils.hasText(body.email()) || !StringUtils.hasText(body.password())) {
-            apiJson.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "validation_error", "Validation failed");
+            apiHttpSupport.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "validation_error", "Validation failed");
             return;
         }
 
@@ -64,8 +68,9 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
             Authentication result = authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(
                     body.email(), body.password()));
             SecurityUser principal = (SecurityUser) result.getPrincipal();
-            String token = jwtTokenFactory.createAccessToken(principal.userId(), principal.requireTenantId(), Instant.now());
-            apiJson.writeJson(response, HttpServletResponse.SC_OK, new LoginResponse(token));
+            String token = jwtTokenFactory.createAccessToken(
+                    principal.userId(), principal.requireTenantId(), Instant.now(clock));
+            apiHttpSupport.writeJson(response, HttpServletResponse.SC_OK, new LoginResponse(token));
         } catch (AuthenticationException exception) {
             securityExceptionHandler.commence(request, response, exception);
         }

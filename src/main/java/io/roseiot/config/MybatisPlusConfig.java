@@ -1,8 +1,11 @@
-package io.roseiot.shared.mybatis;
+package io.roseiot.config;
 
+import io.roseiot.shared.mybatis.RoseiotTenantLineHandler;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.annotation.DbType;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,6 +20,9 @@ public class MybatisPlusConfig {
 
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(tenantInterceptor);
+        PaginationInnerInterceptor paginationInterceptor = new PaginationInnerInterceptor(DbType.POSTGRE_SQL);
+        paginationInterceptor.setMaxLimit(100L);
+        interceptor.addInnerInterceptor(paginationInterceptor);
         return interceptor;
     }
 }

@@ -1,7 +1,7 @@
 package io.roseiot.tenant;
 
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
@@ -17,6 +17,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Instant;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,14 +65,16 @@ class TenantLifecycleMockMvcTests {
 
     @Test
     void shouldListTenantsForPlatformReader() {
-        given(tenantService.list(null, 50)).willReturn(new io.roseiot.shared.webmvc.CursorPage<>(List.of(tenant(false)), null));
+        given(tenantService.list(org.mockito.ArgumentMatchers.any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(new TenantInfo(TENANT_ID, TENANT_CODE, "Acme HVAC", false)),
+                        PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/tenants")
                 .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
                         this::systemToken, RoseiotWebMvcTestSupport.action("tenant.read"))))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .extractingPath("$.items[0].code")
+                .extractingPath("$.content[0].code")
                 .isEqualTo(TENANT_CODE);
     }
 

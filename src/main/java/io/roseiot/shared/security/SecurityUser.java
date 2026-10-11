@@ -1,32 +1,44 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
-import io.roseiot.iam.user.User;
-import io.roseiot.iam.user.UserStatus;
+import io.roseiot.shared.mybatis.TenantPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+import java.util.List;
 
 /** Current user and authorities loaded for an authenticated request. */
-public final class SecurityUser implements UserDetails, io.roseiot.shared.security.TenantPrincipal {
+public final class SecurityUser implements UserDetails, TenantPrincipal {
 
-    private final User user;
+    private final Long userId;
+    private final Long tenantId;
+    private final String username;
+    private final boolean enabled;
     private final Collection<? extends GrantedAuthority> authorities;
     private final String passwordHash;
 
-    public SecurityUser(User user, String passwordHash, Collection<? extends GrantedAuthority> authorities) {
-        this.user = user;
+    public SecurityUser(
+            Long userId,
+            Long tenantId,
+            String username,
+            boolean enabled,
+            String passwordHash,
+            Collection<? extends GrantedAuthority> authorities) {
+        this.userId = userId;
+        this.tenantId = tenantId;
+        this.username = username;
+        this.enabled = enabled;
         this.passwordHash = passwordHash;
-        this.authorities = authorities;
+        this.authorities = List.copyOf(authorities);
     }
 
     public Long userId() {
-        return user.id();
+        return userId;
     }
 
     public Long tenantId() {
-        return user.tenantId();
+        return tenantId;
     }
 
     public Long requireTenantId() {
@@ -54,7 +66,7 @@ public final class SecurityUser implements UserDetails, io.roseiot.shared.securi
 
     @Override
     public String getUsername() {
-        return user.email();
+        return username;
     }
 
     @Override
@@ -74,7 +86,7 @@ public final class SecurityUser implements UserDetails, io.roseiot.shared.securi
 
     @Override
     public boolean isEnabled() {
-        return user.status() == UserStatus.ACTIVE;
+        return enabled;
     }
 
     @Override

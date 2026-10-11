@@ -1,9 +1,11 @@
 package io.roseiot.iam.resource;
 
-import io.roseiot.shared.webmvc.CursorPage;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Sort;
 
 
 @RestController
@@ -16,9 +18,8 @@ class ResourceController {
     }
 
     @GetMapping("/resources")
-    CursorPage<Resource> list(
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "50") int limit) {
-        return resourceService.list(cursor, limit);
+    Page<ResourceInfo> list(
+            @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+        return resourceService.list(pageable);
     }
 }

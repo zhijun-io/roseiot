@@ -1,7 +1,7 @@
 package io.roseiot.iam.user;
 
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.tenant.TenantService;
 import org.junit.jupiter.api.Test;

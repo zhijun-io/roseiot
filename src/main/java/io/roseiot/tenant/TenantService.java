@@ -3,13 +3,18 @@ package io.roseiot.tenant;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import io.roseiot.shared.webmvc.CursorPage;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
 
@@ -19,8 +24,10 @@ public class TenantService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TenantMapper tenantMapper;
-    public TenantService(TenantMapper tenantMapper) {
+    private final Clock clock;
+    public TenantService(TenantMapper tenantMapper, Clock clock) {
         this.tenantMapper = tenantMapper;
+        this.clock = clock;
     }
 
     public void requireCustomerTenant(Long tenantId) {
@@ -37,16 +44,26 @@ public class TenantService {
         ensureActive(tenantMapper.selectByIdForUpdate(tenantId));
     }
 
-    public CursorPage<Tenant> list(String cursor, int limit) {
-        long afterId = CursorPage.afterId(cursor);
-        int pageSize = CursorPage.checkedLimit(limit);
-        List<Tenant> rows = tenantMapper.selectList(Wrappers.lambdaQuery(TenantEntity.class)
-                        .gt(TenantEntity::getId, afterId).orderByAsc(TenantEntity::getId)
-                        .last("LIMIT " + (pageSize + 1)))
-                .stream().map(Tenant::from).toList();
-        return CursorPage.fromRows(rows, pageSize, Tenant::id);
+    @PreAuthorize("hasAuthority('tenant.read')")
+    public org.springframework.data.domain.Page<TenantInfo> list(Pageable pageable) {
+        Pageable checkedPageable = checkedPageable(pageable);
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<TenantEntity> result = tenantMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
+                        checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()),
+                Wrappers.lambdaQuery(TenantEntity.class).orderByAsc(TenantEntity::getId));
+        List<TenantInfo> items = result.getRecords().stream().map(Tenant::from).map(TenantInfo::from).toList();
+        return new PageImpl<>(items, checkedPageable, result.getTotal());
     }
 
+    private static Pageable checkedPageable(Pageable pageable) {
+        if (pageable.isUnpaged() || pageable.getPageSize() < 1 || pageable.getPageSize() > 100
+                || !Sort.by(Sort.Order.asc("id")).equals(pageable.getSort())) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id"));
+    }
+
+    @PreAuthorize("hasAuthority('tenant.read')")
     public Tenant get(Long tenantId) {
         TenantEntity tenant = tenantMapper.selectById(tenantId);
         if (tenant == null) throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
@@ -58,8 +75,9 @@ public class TenantService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.create')")
     public Tenant create(String name) {
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         TenantEntity tenant = new TenantEntity();
         tenant.setCode(generateCode());
         tenant.setName(name.trim());
@@ -71,6 +89,8 @@ public class TenantService {
     }
 
     @Transactional
+    @PreAuthorize("(#p2 == null or (#p2 ? hasAuthority('tenant.disable') : hasAuthority('tenant.enable')))"
+            + " and (#p1 == null or #p1.isBlank() or hasAuthority('tenant.create'))")
     public Tenant update(Long tenantId, String name, Boolean disabled) {
         TenantEntity tenant = tenantMapper.selectById(tenantId);
         if (tenant == null) throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);

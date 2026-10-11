@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
+import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,7 +31,7 @@ class TenantServiceTests {
         Configuration configuration = new MybatisConfiguration();
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), TenantEntity.class);
         tenantMapper = mock(TenantMapper.class);
-        service = new TenantService(tenantMapper);
+        service = new TenantService(tenantMapper, Clock.systemUTC());
     }
 
     @Test

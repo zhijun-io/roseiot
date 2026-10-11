@@ -1,15 +1,19 @@
 package io.roseiot.iam.role;
 
-import io.roseiot.iam.security.SecurityUser;
-import io.roseiot.shared.webmvc.CursorPage;
+import io.roseiot.shared.security.SecurityUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -23,11 +27,10 @@ class RoleController {
 
     @GetMapping("/roles")
     @PreAuthorize("hasAuthority('tenant.role.manage')")
-    CursorPage<RoleInfo> list(
+    Page<RoleInfo> list(
             @AuthenticationPrincipal SecurityUser user,
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "50") int limit) {
-        return roleService.list(user.requireTenantId(), cursor, limit);
+            @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+        return roleService.list(user.requireTenantId(), pageable);
     }
 
     @GetMapping("/roles/{roleId}")
@@ -39,7 +42,7 @@ class RoleController {
     @PostMapping("/roles")
     @PreAuthorize("hasAuthority('tenant.role.manage')")
     RoleInfo create(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody RoleRequest request) {
-        return roleService.create(user.requireTenantId(), request.name(), request.actionCodes());
+        return roleService.create(user.requireTenantId(), request.name(), Set.copyOf(request.actionCodes()));
     }
 
     @PutMapping("/roles/{roleId}")
@@ -48,7 +51,7 @@ class RoleController {
             @AuthenticationPrincipal SecurityUser user,
             @PathVariable Long roleId,
             @Valid @RequestBody RoleRequest request) {
-        return roleService.update(user.requireTenantId(), roleId, request.name(), request.actionCodes());
+        return roleService.update(user.requireTenantId(), roleId, request.name(), Set.copyOf(request.actionCodes()));
     }
 
     @DeleteMapping("/roles/{roleId}")
@@ -57,5 +60,7 @@ class RoleController {
         roleService.delete(user.requireTenantId(), roleId);
     }
 
-    record RoleRequest(@NotBlank @Size(max = 255) String name, @NotNull Set<@NotBlank String> actionCodes) {}
+    record RoleRequest(
+            @NotBlank @Size(max = 255) String name,
+            @NotNull @Size(max = 100) List<@NotBlank @Size(max = 128) String> actionCodes) {}
 }

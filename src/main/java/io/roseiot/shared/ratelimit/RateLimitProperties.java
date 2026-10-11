@@ -1,79 +1,31 @@
 package io.roseiot.shared.ratelimit;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
-import java.util.ArrayList;
 import java.util.List;
 
+@Validated
 @ConfigurationProperties(prefix = "roseiot.rate-limit")
-public class RateLimitProperties {
+public record RateLimitProperties(
+        @Min(1) int windowMinutes,
+        @Min(1) int maxRequestBodyBytes,
+        @Min(1) int maxTrackedKeys,
+        @NotNull List<@Valid Rule> rules) {
 
-    private int windowMinutes = 15;
-    private List<Rule> rules = new ArrayList<>();
-
-    public int getWindowMinutes() {
-        return windowMinutes;
+    public RateLimitProperties {
+        rules = rules == null ? null : List.copyOf(rules);
     }
 
-    public void setWindowMinutes(int windowMinutes) {
-        this.windowMinutes = windowMinutes;
-    }
-
-    public List<Rule> getRules() {
-        return rules;
-    }
-
-    public void setRules(List<Rule> rules) {
-        this.rules = rules;
-    }
-
-    public static class Rule {
-
-        private String method = "POST";
-        private String path;
-        private String bodyField;
-        private String keyPrefix;
-        private int maxAttempts;
-
-        public String getMethod() {
-            return method;
-        }
-
-        public void setMethod(String method) {
-            this.method = method;
-        }
-
-        public String getPath() {
-            return path;
-        }
-
-        public void setPath(String path) {
-            this.path = path;
-        }
-
-        public String getBodyField() {
-            return bodyField;
-        }
-
-        public void setBodyField(String bodyField) {
-            this.bodyField = bodyField;
-        }
-
-        public String getKeyPrefix() {
-            return keyPrefix;
-        }
-
-        public void setKeyPrefix(String keyPrefix) {
-            this.keyPrefix = keyPrefix;
-        }
-
-        public int getMaxAttempts() {
-            return maxAttempts;
-        }
-
-        public void setMaxAttempts(int maxAttempts) {
-            this.maxAttempts = maxAttempts;
-        }
-
-    }
+    public record Rule(
+            @NotBlank @Pattern(regexp = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS") String method,
+            @NotBlank String path,
+            String bodyField,
+            @NotBlank String keyPrefix,
+            @Min(1) int maxAttempts) {}
 }

@@ -1,14 +1,14 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
-import io.roseiot.shared.webmvc.ApiJson;
-import io.roseiot.shared.ApiErrorResponse;
 import io.roseiot.shared.ApiErrorCode;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
@@ -24,10 +24,10 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private final ApiJson apiJson;
+    private final ApiHttpSupport apiHttpSupport;
 
-    public SecurityExceptionHandler(ApiJson apiJson) {
-        this.apiJson = apiJson;
+    public SecurityExceptionHandler(ApiHttpSupport apiHttpSupport) {
+        this.apiHttpSupport = apiHttpSupport;
     }
 
     @Override
@@ -37,7 +37,7 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
             AuthenticationException authException)
             throws IOException {
         String code = authenticationErrorCode(authException);
-        apiJson.writeError(response, HttpServletResponse.SC_UNAUTHORIZED, code, code);
+        apiHttpSupport.writeError(response, HttpServletResponse.SC_UNAUTHORIZED, code, code);
     }
 
     @Override
@@ -46,17 +46,17 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
             HttpServletResponse response,
             AccessDeniedException accessDeniedException)
             throws IOException {
-        apiJson.writeError(response, HttpServletResponse.SC_FORBIDDEN, "forbidden", "Forbidden");
+        apiHttpSupport.writeError(response, HttpServletResponse.SC_FORBIDDEN, "forbidden", "Forbidden");
     }
 
     public void handleMalformedRequest(HttpServletResponse response) throws IOException {
-        apiJson.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "bad_request", "Malformed request body");
+        apiHttpSupport.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "bad_request", "Malformed request body");
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    ResponseEntity<ApiErrorResponse> handleAuthentication(AuthenticationException exception) {
+    ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException exception) {
         String code = authenticationErrorCode(exception);
-        return apiJson.errorResponse(HttpStatus.UNAUTHORIZED.value(), code, code);
+        return apiHttpSupport.errorResponse(HttpStatus.UNAUTHORIZED.value(), code, code);
     }
 
     private static String authenticationErrorCode(AuthenticationException exception) {
@@ -66,8 +66,8 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException exception) {
-        return apiJson.errorResponse(HttpStatus.FORBIDDEN.value(), "forbidden", "Forbidden");
+    ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException exception) {
+        return apiHttpSupport.errorResponse(HttpStatus.FORBIDDEN.value(), "forbidden", "Forbidden");
     }
 
 }

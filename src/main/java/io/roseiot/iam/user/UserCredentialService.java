@@ -5,6 +5,7 @@ import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -23,6 +25,7 @@ import java.util.regex.Pattern;
 @Service
 public class UserCredentialService {
 
+    private static final int MAX_BCRYPT_PASSWORD_BYTES = 72;
     private static final Pattern HAS_LETTER = Pattern.compile("[A-Za-z]");
     private static final Pattern HAS_DIGIT = Pattern.compile("\\d");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -31,22 +34,25 @@ public class UserCredentialService {
     private final UserCredentialMapper credentialMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
+    private final Clock clock;
 
     public UserCredentialService(
             UserMapper userMapper,
             UserCredentialMapper credentialMapper,
             ApplicationEventPublisher eventPublisher,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            Clock clock) {
         this.userMapper = userMapper;
         this.credentialMapper = credentialMapper;
         this.eventPublisher = eventPublisher;
         this.passwordEncoder = passwordEncoder;
+        this.clock = clock;
     }
 
     @Transactional
     public void createInitialPassword(Long userId, String password) {
         ensureValidPassword(password);
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         UserCredentialEntity credential = new UserCredentialEntity();
         credential.setUserId(userId);
         credential.setPassword(passwordEncoder.encode(password));
@@ -56,6 +62,8 @@ public class UserCredentialService {
     }
 
     @Transactional
+    @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
+            + " and #p0 == authentication.principal.userId()")
     public void changePassword(Long userId, String currentPassword, String newPassword) {
         UserCredentialEntity credential = credentialMapper.selectById(userId);
         if (credential == null || currentPassword == null
@@ -65,7 +73,7 @@ public class UserCredentialService {
         ensureValidPassword(newPassword);
 
         credential.setPassword(passwordEncoder.encode(newPassword));
-        credential.setUpdatedAt(Instant.now());
+        credential.setUpdatedAt(Instant.now(clock));
         credentialMapper.updateById(credential);
     }
 
@@ -78,7 +86,7 @@ public class UserCredentialService {
         if (credential == null) return;
 
         String plainToken = generateResetToken();
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         credential.setResetToken(hashResetToken(plainToken));
         credential.setResetExpiresAt(now.plus(1, ChronoUnit.HOURS));
         credential.setResetAt(null);
@@ -93,7 +101,7 @@ public class UserCredentialService {
         UserCredentialEntity credential = credentialMapper.selectOne(new LambdaQueryWrapper<UserCredentialEntity>()
                 .eq(UserCredentialEntity::getResetToken, tokenHash));
         if (credential == null || credential.getResetAt() != null) return ResetTokenState.INVALID;
-        if (credential.getResetExpiresAt() == null || !credential.getResetExpiresAt().isAfter(Instant.now())) {
+        if (credential.getResetExpiresAt() == null || !credential.getResetExpiresAt().isAfter(Instant.now(clock))) {
             return ResetTokenState.EXPIRED;
         }
         return ResetTokenState.VALID;
@@ -107,7 +115,7 @@ public class UserCredentialService {
         ensureValidPassword(newPassword);
 
         String tokenHash = hashResetToken(rawToken);
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         UserCredentialEntity credential = credentialMapper.selectOne(new LambdaQueryWrapper<UserCredentialEntity>()
                 .eq(UserCredentialEntity::getResetToken, tokenHash)
                 .isNull(UserCredentialEntity::getResetAt)
@@ -142,6 +150,10 @@ public class UserCredentialService {
     private static void ensureValidPassword(String password) {
         if (password == null || password.length() < 12) {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must be at least 12 characters");
+        }
+        if (password.getBytes(StandardCharsets.UTF_8).length > MAX_BCRYPT_PASSWORD_BYTES) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR,
+                    "Password must not exceed 72 UTF-8 bytes");
         }
         if (!HAS_LETTER.matcher(password).find() || !HAS_DIGIT.matcher(password).find()) {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must contain letters and digits");

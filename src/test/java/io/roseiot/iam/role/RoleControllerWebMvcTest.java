@@ -1,7 +1,7 @@
 package io.roseiot.iam.role;
 
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +16,16 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(controllers = RoleController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
@@ -43,13 +49,14 @@ class RoleControllerWebMvcTest {
 
     @Test
     void shouldListTenantRoles() {
-        given(roleService.list(TENANT_ID, null, 50)).willReturn(new io.roseiot.shared.webmvc.CursorPage<>(
-                List.of(new RoleInfo(ROLE_ID, "Operator", List.of("device.read"))), null));
+        given(roleService.list(org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(new RoleInfo(ROLE_ID, "Operator", List.of("device.read"))),
+                        PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/roles").with(roleManager()))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .extractingPath("$.items[0].actionCodes[0]")
+                .extractingPath("$.content[0].actionCodes[0]")
                 .isEqualTo("device.read");
     }
 
@@ -68,6 +75,24 @@ class RoleControllerWebMvcTest {
                 .isEqualTo(ROLE_ID.intValue());
 
         verify(roleService).create(TENANT_ID, "Operator", Set.of("device.read"));
+    }
+
+    @Test
+    void shouldRejectRoleRequestsWithTooManyActionCodesBeforeCallingService() {
+        String actionCodes = IntStream.range(0, 101)
+                .mapToObj(index -> "\"device.read\"")
+                .collect(java.util.stream.Collectors.joining(","));
+
+        assertThat(mvc.post().uri("/roles")
+                .with(roleManager())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Operator\",\"actionCodes\":[" + actionCodes + "]}"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("validation_error");
+
+        verifyNoInteractions(roleService);
     }
 
     @Test

@@ -7,7 +7,11 @@ import io.roseiot.iam.resource.ResourceService;
 import io.roseiot.tenant.TenantService;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import io.roseiot.shared.webmvc.CursorPage;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,24 +36,37 @@ public class RoleService {
         return Role.from(role);
     }
 
-    public CursorPage<RoleInfo> list(Long tenantId, String cursor, int limit) {
+    @PreAuthorize("hasAuthority('tenant.role.manage')")
+    public org.springframework.data.domain.Page<RoleInfo> list(Long tenantId, Pageable pageable) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
-        long afterId = CursorPage.afterId(cursor);
-        int pageSize = CursorPage.checkedLimit(limit);
-        List<RoleInfo> rows = roleMapper.selectList(Wrappers.lambdaQuery(RoleEntity.class)
-                        .eq(RoleEntity::getTenantId, tenantId).gt(RoleEntity::getId, afterId)
-                        .orderByAsc(RoleEntity::getId).last("LIMIT " + (pageSize + 1)))
-                .stream().map(this::view).toList();
-        return CursorPage.fromRows(rows, pageSize, RoleInfo::id);
+        Pageable checkedPageable = checkedPageable(pageable);
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<RoleEntity> result = roleMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
+                        checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()),
+                Wrappers.lambdaQuery(RoleEntity.class)
+                        .eq(RoleEntity::getTenantId, tenantId)
+                        .orderByAsc(RoleEntity::getId));
+        return new PageImpl<>(views(result.getRecords()), checkedPageable, result.getTotal());
     }
 
+    private static Pageable checkedPageable(Pageable pageable) {
+        if (pageable.isUnpaged() || pageable.getPageSize() < 1 || pageable.getPageSize() > 100
+                || !Sort.by(Sort.Order.asc("id")).equals(pageable.getSort())) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id"));
+    }
+
+    @PreAuthorize("hasAuthority('tenant.role.manage')")
     public RoleInfo get(Long tenantId, Long roleId) {
         return view(requireEntity(tenantId, roleId));
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.role.manage')")
     public RoleInfo create(Long tenantId, String name, Set<String> actionCodes) {
+        validateActionCodes(actionCodes);
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
         if (name == null || name.isBlank() || name.length() > 255)
@@ -63,7 +80,9 @@ public class RoleService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.role.manage')")
     public RoleInfo update(Long tenantId, Long id, String name, Set<String> actionCodes) {
+        validateActionCodes(actionCodes);
         tenantService.requireActiveForUpdate(tenantId);
         RoleEntity roleEntity = requireEntity(tenantId, id);
         roleEntity.setName(name.trim());
@@ -74,6 +93,7 @@ public class RoleService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.role.manage')")
     public void delete(Long tenantId, Long id) {
         tenantService.requireActiveForUpdate(tenantId);
         RoleEntity roleEntity = requireEntity(tenantId, id);
@@ -111,12 +131,37 @@ public class RoleService {
         }
     }
 
+    private static void validateActionCodes(Set<String> actionCodes) {
+        if (actionCodes == null || actionCodes.size() > 100
+                || actionCodes.stream().anyMatch(code -> code == null || code.isBlank() || code.length() > 128)) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Invalid action codes");
+        }
+    }
+
     private RoleInfo view(RoleEntity roleEntity) {
-        Set<Long> assignedResourceIds = new HashSet<>();
-        roleResourceMapper.selectList(Wrappers.lambdaQuery(RoleResourceEntity.class).eq(RoleResourceEntity::getRoleId, roleEntity.getId()))
-                .forEach(roleResource -> assignedResourceIds.add(roleResource.getResourceId()));
-        return new RoleInfo(roleEntity.getId(), roleEntity.getName(), resourceService.catalog().stream()
-                .filter(resource -> assignedResourceIds.contains(resource.id()) && resource.type() == ResourceType.ACTION)
-                .map(Resource::code).sorted().toList());
+        return views(List.of(roleEntity)).getFirst();
+    }
+
+    private List<RoleInfo> views(List<RoleEntity> roles) {
+        if (roles.isEmpty()) return List.of();
+
+        Map<Long, Set<Long>> resourceIdsByRole = new HashMap<>();
+        roleResourceMapper.selectList(Wrappers.lambdaQuery(RoleResourceEntity.class)
+                        .in(RoleResourceEntity::getRoleId, roles.stream().map(RoleEntity::getId).toList()))
+                .forEach(assignment -> resourceIdsByRole
+                        .computeIfAbsent(assignment.getRoleId(), ignored -> new HashSet<>())
+                        .add(assignment.getResourceId()));
+
+        List<Resource> catalogue = resourceService.catalog();
+        return roles.stream().map(role -> {
+            Set<Long> assignedResourceIds = resourceIdsByRole.getOrDefault(role.getId(), Set.of());
+            List<String> actionCodes = catalogue.stream()
+                    .filter(resource -> assignedResourceIds.contains(resource.id())
+                            && resource.type() == ResourceType.ACTION)
+                    .map(Resource::code)
+                    .sorted()
+                    .toList();
+            return new RoleInfo(role.getId(), role.getName(), actionCodes);
+        }).toList();
     }
 }

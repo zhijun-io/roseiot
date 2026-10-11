@@ -1,4 +1,4 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;

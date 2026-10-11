@@ -1,9 +1,9 @@
 package io.roseiot.iam.security;
 
-import io.roseiot.shared.webmvc.ApiJson;
-import io.roseiot.shared.webmvc.ApiExceptionHandler;
-import io.roseiot.iam.security.SecurityExceptionHandler;
-import io.roseiot.iam.security.WebSecurityConfig;
+import io.roseiot.shared.security.SecurityExceptionHandler;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
+import io.roseiot.config.ApiExceptionHandler;
+import io.roseiot.config.WebSecurityConfig;
 import org.springframework.context.annotation.Import;
 
 import java.lang.annotation.ElementType;
@@ -18,7 +18,7 @@ import java.lang.annotation.Target;
     AuthenticationWebMvcTestConfiguration.class,
     WebSecurityConfig.class,
     SecurityExceptionHandler.class,
-    ApiJson.class,
+    ApiHttpSupport.class,
     ApiExceptionHandler.class
 })
 public @interface ImportRoseiotSecuredWebMvc {}

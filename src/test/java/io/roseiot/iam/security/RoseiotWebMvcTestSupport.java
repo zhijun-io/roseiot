@@ -1,8 +1,6 @@
 package io.roseiot.iam.security;
 
-import io.roseiot.iam.user.User;
-import io.roseiot.iam.user.UserStatus;
-import io.roseiot.iam.security.SecurityUser;
+import io.roseiot.shared.security.SecurityUser;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -67,10 +65,10 @@ public final class RoseiotWebMvcTestSupport {
             Jwt jwt = builder.build();
 
             String tenantId = jwt.getClaimAsString("tid");
-            User user = new User(Long.parseLong(jwt.getSubject()),
+            SecurityUser principal = new SecurityUser(
+                    Long.parseLong(jwt.getSubject()),
                     tenantId == null || tenantId.isBlank() ? null : Long.valueOf(tenantId),
-                    null, null, UserStatus.ACTIVE);
-            SecurityUser principal = new SecurityUser(user, null, Arrays.asList(authorities));
+                    "test-user", true, null, Arrays.asList(authorities));
             return SecurityMockMvcRequestPostProcessors.user(principal).postProcessRequest(request);
         };
     }

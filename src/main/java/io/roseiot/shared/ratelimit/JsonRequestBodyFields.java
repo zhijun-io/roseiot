@@ -1,5 +1,6 @@
 package io.roseiot.shared.ratelimit;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -15,6 +16,9 @@ public final class JsonRequestBodyFields {
         }
         try {
             JsonNode root = jsonMapper.readTree(body);
+            if (root == null || !root.isObject()) {
+                return Optional.empty();
+            }
             JsonNode node = root.get(fieldName);
             if (node == null || node.isNull()) {
                 return Optional.empty();
@@ -24,7 +28,8 @@ public final class JsonRequestBodyFields {
                 return Optional.empty();
             }
             return Optional.of(value);
-        } catch (Exception ignored) {
+        } catch (JacksonException _) {
+            // This is only a best-effort rate-limit key lookup; request parsing reports malformed JSON downstream.
             return Optional.empty();
         }
     }

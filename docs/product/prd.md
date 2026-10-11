@@ -75,7 +75,7 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 | `IAM-005` | 当前不实现成员邀请及接受流程。租户管理员可在本租户创建用户，并设置该用户的初始密码和角色；邮箱全平台唯一。密码重置不得泄露账号是否存在。 |
 | `IAM-006` | 成员移除采用停用而非删除；历史记录继续引用原身份。不得停用、移除或修改角色权限而导致租户失去至少一名具备 `tenant.user.manage` 权限的有效成员；检查须具备并发安全性。 |
 | `IAM-014` | 每个有效认证用户均可查看、修改自己的资料及修改自己的密码，无需角色或 ACTION。目标 user ID 由认证主体确定，禁止选择他人；个人资料白名单排除角色、租户和启停等管理字段。改密仍校验当前密码和新密码策略；不授予修改他人资料、资源或密码的能力。 |
-| `IAM-007` | 首版使用邮箱和密码认证，仅签发 15 分钟 access JWT，不使用 refresh token 或服务端会话。过期后重新登录；客户端退出时清除本地 token。用户或租户停用会阻止后续请求；密码和权限变更不撤销已签发 token，最多等待 token 到期生效。 |
+| `IAM-007` | 首版使用邮箱和密码认证，仅签发 15 分钟 access JWT，不使用 refresh token 或服务端会话。过期后重新登录；客户端退出时清除本地 token。用户或租户停用会阻止后续请求；密码修改或重置不撤销已签发 token。角色或权限变更在后续请求加载当前权限时立即生效，但不使 token 本身失效。 |
 | `IAM-008` | 登录、密码重置和敏感操作具备限速、通用失败响应、令牌单次使用和安全通知；浏览器安全策略在对应 Spec 中明确。 |
 | `IAM-009` | 租户停用是用户访问、设备认证、异步任务、实时订阅和外部投递的持续资格条件，各执行边界必须重新检查。 |
 | `IAM-010` | 租户删除首版不提供即时级联删除；导出、保留、擦除和管理员恢复必须走独立、可审计流程。 |
@@ -212,7 +212,7 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 
 - API 使用资源路径和稳定资源 ID，不添加通用 `/api`、`/noauth` 或 `/internal` 前缀；当前 HTTP API 不使用 PATCH，也不以 201、202 或 204 作为响应状态。成功的创建、更新和删除使用 200；列表与详情返回 200。
 - 创建接口定义幂等行为；修改接口使用版本或条件请求防止丢失更新。
-- 支持分页的列表使用 `cursor` 和 `limit` 查询参数。`limit` 默认 50、范围 1～100；排序按 ID 升序，响应形状为 `{ "items": [...], "nextCursor": "..." }`，末页的 `nextCursor` 为 `null`。游标对客户端是不透明的续查标识；空列表返回空 `items`。非法游标或超出范围的 `limit` 返回统一 400 错误。当前租户、用户、角色和资源目录列表使用该分页契约；SystemSetting 的类型固定且数量有界，列表不分页。
+- 支持分页的列表使用 Spring `Pageable` 的 `page`、`size` 和 `sort` 查询参数，并返回 Spring `Page`，其中内容均为响应 DTO。页码从 0 开始，默认 `size` 为 50、最大 100；当前列表只允许按 ID 升序排序。MyBatis-Plus 分页插件负责数据库分页并设置 100 条的 `maxLimit`。ID 升序用于稳定排序，不代表业务创建时间顺序；页码分页在列表持续变化时可能发生跨页重复或遗漏。当前租户、用户、角色和资源目录列表使用该契约；SystemSetting 的类型固定且数量有界，列表不分页。
 - 当前 IAM、租户和系统设置 HTTP 资源如下：
 
   | 资源 | 路径与方法 | 行为及边界 |
@@ -222,11 +222,12 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
   | 用户 | `GET /users`, `GET /users/{userId}` | 仅当前租户的 `tenant.user.manage` 用户可访问；用户 ID 与当前租户不匹配时按不存在处理。列表分页。 |
   | 用户 | `POST /users`, `PUT /users/{userId}` | 租户管理员创建用户并提交初始密码和角色；更新角色或启停状态。无用户物理删除接口。 |
   | 当前用户 | `GET /me`, `PUT /me`, `PUT /me/password` | 读取和更新自己的资料、修改自己的密码；目标身份取自认证主体。 |
+  | 密码重置 | `POST /password-resets`, `POST /password-resets/validations`, `POST /password-resets/confirmations` | 重置请求提交邮箱；验证和确认提交请求体中的一次性 token，响应使用 `Cache-Control: no-store`。令牌不得放在 URL 中。 |
   | 角色 | `GET /roles`, `GET /roles/{roleId}`, `POST /roles`, `PUT /roles/{roleId}`, `DELETE /roles/{roleId}` | 仅当前租户的 `tenant.role.manage` 用户可操作；列表分页。角色有成员时拒绝删除，角色更新不得移除租户最后一名管理员。 |
   | 资源目录 | `GET /resources` | 认证后只读查询系统维护的资源目录；支持分页，不提供资源写接口。 |
   | 系统设置 | `GET /system-settings`, `GET /system-settings/{id}`, `POST /system-settings`, `PUT /system-settings/{id}`, `DELETE /system-settings/{id}` | 需要 `system.setting.manage`；设置类型为 `SETUP` 或 `GENERAL`，设置内容为 JSON 对象。`GENERAL.baseUrl` 是生成邮件链接时使用的站点基础 URL。 |
 
-- 资源授权、租户隔离和统一错误信封由服务端执行；响应包含关联 ID，拒绝请求不得泄露秘密或跨租户资源是否存在。
+- 资源授权、租户隔离和统一 RFC 9457 `ProblemDetail` 错误响应由服务端执行；错误响应以 `application/problem+json` 返回，稳定错误码作为扩展属性 `code`，响应包含关联 ID，拒绝请求不得泄露秘密或跨租户资源是否存在。
 - 请求拒绝未知或不可写字段；响应允许兼容新增字段，敏感响应默认 `no-store`。
 - 对跨租户访问隐藏资源存在性；验证错误不得回显秘密或未脱敏载荷。
 

@@ -3,6 +3,9 @@ spring:
     name: roseiot
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  threads:
+    virtual:
+      enabled: true
   config:
     import: optional:file:.env[.properties]
   docker:
@@ -13,6 +16,13 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/roseiot}
     username: ${SPRING_DATASOURCE_USERNAME:roseiot}
     password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+  data:
+    web:
+      pageable:
+        default-page-size: 50
+        max-page-size: 100
   flyway:
     enabled: true
 management:
@@ -34,9 +44,13 @@ server:
   shutdown: graceful
 
 roseiot:
+  http:
+    max-request-body-bytes: 1048576
   rate-limit:
     enabled: ${ROSEIOT_RATE_LIMIT_ENABLED:true}
     window-minutes: 15
+    max-request-body-bytes: 16384
+    max-tracked-keys: 10000
     rules:
       - method: POST
         path: /login
@@ -48,14 +62,17 @@ roseiot:
         body-field: email
         key-prefix: "auth:reset-email:"
         max-attempts: 5
-      - method: GET
-        path: /password-resets/{token}
+      - method: POST
+        path: /password-resets/validations
         key-prefix: "auth:reset-token-check:"
         max-attempts: 20
-      - method: PUT
-        path: /password-resets/{token}
+      - method: POST
+        path: /password-resets/confirmations
         key-prefix: "auth:reset-token-use:"
         max-attempts: 20
+  password-reset:
+    logging:
+      enabled: ${ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED:false}
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}

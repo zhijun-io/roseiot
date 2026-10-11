@@ -1,4 +1,4 @@
-package io.roseiot.iam.security;
+package io.roseiot.shared.security;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
-    private final SecurityUserDetailsService userDetailsService;
+    private final SecurityUserLoader securityUserLoader;
 
-    public JwtAuthenticationConverter(SecurityUserDetailsService userDetailsService) {
-        this.userDetailsService = userDetailsService;
+    public JwtAuthenticationConverter(SecurityUserLoader securityUserLoader) {
+        this.securityUserLoader = securityUserLoader;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
 
         SecurityUser loaded;
         try {
-            loaded = userDetailsService.loadByUserId(userId);
+            loaded = securityUserLoader.loadByUserId(userId);
         } catch (UsernameNotFoundException exception) {
             throw invalidToken("User not active");
         }

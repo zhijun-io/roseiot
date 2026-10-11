@@ -9,6 +9,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.when;
 class UserCredentialServiceTest {
 
     private static final Long USER_ID = 1008L;
+    private static final Instant NOW = Instant.parse("2026-10-11T00:00:00Z");
     private UserMapper userMapper;
     private UserCredentialMapper credentialMapper;
     private ApplicationEventPublisher eventPublisher;
@@ -40,7 +42,8 @@ class UserCredentialServiceTest {
         credentialMapper = mock(UserCredentialMapper.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        cut = new UserCredentialService(userMapper, credentialMapper, eventPublisher, passwordEncoder);
+        cut = new UserCredentialService(userMapper, credentialMapper, eventPublisher, passwordEncoder,
+                Clock.fixed(NOW, java.time.ZoneOffset.UTC));
     }
 
     private UserEntity user() {
@@ -81,6 +84,17 @@ class UserCredentialServiceTest {
     }
 
     @Test
+    void shouldRejectPasswordsBeyondBcryptUtf8InputLimit() {
+        assertThatThrownBy(() -> cut.createInitialPassword(USER_ID, "a".repeat(72) + "1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Password must not exceed 72 UTF-8 bytes");
+        assertThatThrownBy(() -> cut.createInitialPassword(USER_ID, "a".repeat(70) + "é1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("Password must not exceed 72 UTF-8 bytes");
+        verifyNoInteractions(credentialMapper, passwordEncoder);
+    }
+
+    @Test
     void shouldAcceptPasswordAtMinimumLength() {
         assertThatThrownBy(() -> cut.confirmPasswordReset("valid-token", "abcdefghij12"))
                 .isInstanceOf(BusinessException.class)
@@ -92,7 +106,7 @@ class UserCredentialServiceTest {
     void shouldIssueOneCurrentResetTokenForKnownAccount() {
         when(userMapper.selectOne(any())).thenReturn(user());
         when(credentialMapper.selectById(USER_ID)).thenReturn(credential());
-        Instant before = Instant.now();
+        Instant before = NOW;
 
         cut.requestResetByEmail("ops@roseiot.io");
 
@@ -105,9 +119,9 @@ class UserCredentialServiceTest {
         assertThat(stored.getResetToken()).isEqualTo(hash(event.getValue().token()));
         assertThat(event.getValue().email()).isEqualTo("ops@roseiot.io");
         assertThat(stored.getResetAt()).isNull();
-        assertThat(stored.getUpdatedAt()).isBetween(before, Instant.now());
+        assertThat(stored.getUpdatedAt()).isEqualTo(NOW);
         assertThat(stored.getResetExpiresAt()).isBetween(
-                before.plus(1, ChronoUnit.HOURS), Instant.now().plus(1, ChronoUnit.HOURS));
+                before.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
     }
 
     @Test
@@ -166,7 +180,7 @@ class UserCredentialServiceTest {
     void shouldReplacePasswordAndConsumeToken() {
         UserCredentialEntity credential = credential();
         credential.setResetToken(hash("reset-token"));
-        credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        credential.setResetExpiresAt(NOW.plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
         when(credentialMapper.consumeResetTokenIfActive(eq(USER_ID), eq(credential.getResetToken()), any()))
                 .thenReturn(1);
@@ -193,7 +207,7 @@ class UserCredentialServiceTest {
     void shouldRejectConcurrentResetConsumerWithoutChangingPassword() {
         UserCredentialEntity credential = credential();
         credential.setResetToken(hash("reset-token"));
-        credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        credential.setResetExpiresAt(NOW.plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
         when(credentialMapper.consumeResetTokenIfActive(any(), any(), any())).thenReturn(0);
 
@@ -207,14 +221,14 @@ class UserCredentialServiceTest {
     void shouldClassifyCurrentResetTokenState() {
         UserCredentialEntity credential = credential();
         credential.setResetToken(hash("reset-token"));
-        credential.setResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        credential.setResetExpiresAt(NOW.plus(1, ChronoUnit.HOURS));
         when(credentialMapper.selectOne(any())).thenReturn(credential);
 
         assertThat(cut.checkResetToken("reset-token")).isEqualTo(UserCredentialService.ResetTokenState.VALID);
-        credential.setResetAt(Instant.now());
+        credential.setResetAt(NOW);
         assertThat(cut.checkResetToken("reset-token")).isEqualTo(UserCredentialService.ResetTokenState.INVALID);
         credential.setResetAt(null);
-        credential.setResetExpiresAt(Instant.now().minusSeconds(1));
+        credential.setResetExpiresAt(NOW.minusSeconds(1));
         assertThat(cut.checkResetToken("reset-token")).isEqualTo(UserCredentialService.ResetTokenState.EXPIRED);
         assertThat(cut.checkResetToken(" ")).isEqualTo(UserCredentialService.ResetTokenState.INVALID);
     }

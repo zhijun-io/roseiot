@@ -1,11 +1,16 @@
-package io.roseiot.iam.security;
+package io.roseiot.config;
 
-import io.roseiot.shared.webmvc.ApiJson;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtTokenFactory;
+import io.roseiot.shared.security.RestLoginAuthenticationFilter;
+import io.roseiot.shared.security.SecurityExceptionHandler;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import java.time.Clock;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,9 +30,10 @@ public class WebSecurityConfig {
             AuthenticationManager authenticationManager,
             JwtTokenFactory jwtTokenFactory,
             SecurityExceptionHandler securityExceptionHandler,
-            ApiJson apiJson) {
+            ApiHttpSupport apiHttpSupport,
+            Clock clock) {
         return new RestLoginAuthenticationFilter(
-                authenticationManager, jwtTokenFactory, securityExceptionHandler, apiJson);
+                authenticationManager, jwtTokenFactory, securityExceptionHandler, apiHttpSupport, clock);
     }
 
     @Bean
@@ -73,7 +79,8 @@ public class WebSecurityConfig {
             SecurityExceptionHandler securityExceptionHandler,
             JwtAuthenticationConverter jwtAuthenticationConverter)
             throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.securityMatcher("/**")
+                .csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth

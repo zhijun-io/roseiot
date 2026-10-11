@@ -1,7 +1,6 @@
 package io.roseiot.shared.mybatis;
 
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-import io.roseiot.shared.security.TenantPrincipal;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
 import org.springframework.security.access.AccessDeniedException;

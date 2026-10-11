@@ -1,9 +1,9 @@
 package io.roseiot.iam.user;
 
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.security.JwtTokenFactory;
-import io.roseiot.iam.security.SecurityUser;
+import io.roseiot.shared.security.JwtTokenFactory;
+import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.tenant.TenantService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,8 +47,7 @@ class LoginAuthenticationWebMvcTest {
 
     @Test
     void loginReturnsOnlyAnAccessToken() {
-        User user = new User(USER_ID, TENANT_ID, "ops@roseiot.io", null, UserStatus.ACTIVE);
-        SecurityUser principal = new SecurityUser(user, null, List.of());
+        SecurityUser principal = new SecurityUser(USER_ID, TENANT_ID, "ops@roseiot.io", true, null, List.of());
         given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .willReturn(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
         given(jwtTokenFactory.createAccessToken(org.mockito.ArgumentMatchers.eq(USER_ID),

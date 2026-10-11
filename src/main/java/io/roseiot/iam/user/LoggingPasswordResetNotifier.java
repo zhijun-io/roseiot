@@ -1,7 +1,7 @@
-package io.roseiot.iam.user.internal;
+package io.roseiot.iam.user;
 
-import io.roseiot.iam.user.PasswordResetRequestedEvent;
 import io.roseiot.system.SystemSettingService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -12,6 +12,7 @@ import java.net.URI;
 import java.util.Locale;
 
 @Component
+@ConditionalOnProperty(name = "roseiot.password-reset.logging.enabled", havingValue = "true")
 class LoggingPasswordResetNotifier {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingPasswordResetNotifier.class);
@@ -24,8 +25,13 @@ class LoggingPasswordResetNotifier {
 
     @TransactionalEventListener
     public void sendPasswordResetEmail(PasswordResetRequestedEvent event) {
-        String link = createLink(systemSettingService.requireGeneralBaseUrl(), event.token());
-        log.warn("Password reset for {} — open link: {}", event.email(), link);
+        try {
+            String link = createLink(systemSettingService.requireGeneralBaseUrl(), event.token());
+            log.warn("Local password-reset delivery for {} — open link: {}. Do not enable this notifier outside local development.",
+                    event.email(), link);
+        } catch (RuntimeException exception) {
+            log.error("Local password-reset delivery failed", exception);
+        }
     }
 
     static String createLink(String baseUrl, String plainResetToken) {
@@ -43,7 +49,8 @@ class LoggingPasswordResetNotifier {
 
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return UriComponentsBuilder.fromUriString(base)
-                .path("/password-resets/{token}")
+                .path("/password-resets")
+                .fragment("token={token}")
                 .encode()
                 .buildAndExpand(plainResetToken)
                 .toUriString();

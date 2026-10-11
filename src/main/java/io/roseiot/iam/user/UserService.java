@@ -2,19 +2,27 @@ package io.roseiot.iam.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.mybatis.TenantContext;
-import io.roseiot.shared.webmvc.CursorPage;
 import io.roseiot.iam.role.RoleService;
 import io.roseiot.tenant.TenantService;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UserService {
@@ -25,17 +33,22 @@ public class UserService {
     private final RoleService roleService;
     private final TenantService tenantService;
     private final UserCredentialService credentialService;
+    private final Clock clock;
 
     public UserService(UserMapper userMapper, UserCredentialMapper credentialMapper, UserRoleMapper userRoleMapper,
-                       RoleService roleService, TenantService tenantService, UserCredentialService credentialService) {
+                       RoleService roleService, TenantService tenantService, UserCredentialService credentialService,
+                       Clock clock) {
         this.userMapper = userMapper;
         this.credentialMapper = credentialMapper;
         this.userRoleMapper = userRoleMapper;
         this.roleService = roleService;
         this.tenantService = tenantService;
         this.credentialService = credentialService;
+        this.clock = clock;
     }
 
+    @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
+            + " and #p0 == authentication.principal.userId()")
     public UserProfile getProfile(Long userId) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
@@ -43,26 +56,28 @@ public class UserService {
     }
 
     @Transactional
+    @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
+            + " and #p0 == authentication.principal.userId()")
     public UserProfile updateProfile(Long userId, String name) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
         user.setName(name.trim());
-        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now(clock));
         userMapper.updateById(user);
         return UserProfile.from(user);
     }
 
-    public UserAuthentication findForAuthentication(String email) {
+    Optional<UserAuthentication> findForAuthentication(String email) {
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email));
-        if (!isActive(user)) return null;
+        if (!isActive(user)) return Optional.empty();
         UserCredentialEntity credential = credentialMapper.selectById(user.getId());
-        if (credential == null || credential.getPassword() == null) return null;
-        return authenticationData(user, credential.getPassword());
+        if (credential == null || credential.getPassword() == null) return Optional.empty();
+        return Optional.of(authenticationData(user, credential.getPassword()));
     }
 
-    public UserAuthentication findForAccessToken(Long userId) {
+    Optional<UserAuthentication> findForAccessToken(Long userId) {
         UserEntity user = userMapper.selectById(userId);
-        return isActive(user) ? authenticationData(user, null) : null;
+        return isActive(user) ? Optional.of(authenticationData(user, null)) : Optional.empty();
     }
 
     private UserAuthentication authenticationData(UserEntity user, String passwordHash) {
@@ -76,20 +91,30 @@ public class UserService {
         return user != null && user.getStatus() == UserStatus.ACTIVE;
     }
 
-    public boolean emailExists(String email) {
+    private boolean emailExists(String email) {
         return userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getEmail, email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT))) > 0;
     }
 
-    public CursorPage<UserInfo> list(Long tenantId, String cursor, int limit) {
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
+    public org.springframework.data.domain.Page<UserInfo> list(Long tenantId, Pageable pageable) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
-        long afterId = CursorPage.afterId(cursor);
-        int pageSize = CursorPage.checkedLimit(limit);
-        List<UserInfo> rows = userRoleMapper.list(tenantId, afterId, pageSize + 1);
-        return CursorPage.fromRows(rows, pageSize, UserInfo::id);
+        Pageable checkedPageable = checkedPageable(pageable);
+        IPage<UserInfo> result = userRoleMapper.list(
+                new Page<>(checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()), tenantId);
+        return new PageImpl<>(result.getRecords(), checkedPageable, result.getTotal());
     }
 
+    private static Pageable checkedPageable(Pageable pageable) {
+        if (pageable.isUnpaged() || pageable.getPageSize() < 1 || pageable.getPageSize() > 100
+                || !Sort.by(Sort.Order.asc("id")).equals(pageable.getSort())) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id"));
+    }
+
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
     public UserInfo get(Long tenantId, Long userId) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
@@ -99,6 +124,7 @@ public class UserService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
     public UserInfo create(Long tenantId, String email, String name, String password, Long roleId) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
@@ -108,7 +134,7 @@ public class UserService {
         }
         roleService.requireAssignable(tenantId, roleId);
 
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         UserEntity user = new UserEntity();
         user.setTenantId(tenantId);
         user.setEmail(normalizedEmail);
@@ -128,6 +154,7 @@ public class UserService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('tenant.user.manage')")
     public void update(Long tenantId, Long userId, Boolean disabled, Long roleId) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
@@ -143,7 +170,7 @@ public class UserService {
             userRoleMapper.insertAssignment(userId, roleId, tenantId);
         }
         if (disabled != null) {
-            Instant now = Instant.now();
+            Instant now = Instant.now(clock);
             UserStatus status = disabled ? UserStatus.DISABLED : UserStatus.ACTIVE;
             userMapper.update(null, Wrappers.lambdaUpdate(UserEntity.class)
                     .eq(UserEntity::getId, userId)

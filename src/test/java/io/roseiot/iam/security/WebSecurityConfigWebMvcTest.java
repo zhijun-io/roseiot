@@ -1,10 +1,12 @@
 package io.roseiot.iam.security;
 
+import io.roseiot.iam.user.SecurityUserDetailsService;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtTokenFactory;
+import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.iam.user.UserCredentialService;
 import io.roseiot.iam.user.UserService;
 import io.roseiot.iam.user.UserProfile;
-import io.roseiot.iam.user.User;
-import io.roseiot.iam.user.UserStatus;
 import io.roseiot.iam.role.RoleService;
 import io.roseiot.iam.resource.ResourceService;
 import io.roseiot.system.SystemSettingService;
@@ -51,8 +53,7 @@ class WebSecurityConfigWebMvcTest {
 
     @BeforeEach
     void setUpHandlers() {
-        User user = new User(USER_ID, TENANT_ID, "ops@roseiot.io", null, UserStatus.ACTIVE);
-        SecurityUser principal = new SecurityUser(user, null, List.of());
+        SecurityUser principal = new SecurityUser(USER_ID, TENANT_ID, "ops@roseiot.io", true, null, List.of());
         given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .willReturn(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
         given(jwtTokenFactory.createAccessToken(any(), any(), any())).willReturn("access-token");
@@ -61,9 +62,11 @@ class WebSecurityConfigWebMvcTest {
     }
 
     @Test
-    void allowsPublicTokenResourcesWithoutParsingAuthorizationHeader() {
-        assertThat(mvc.get().uri("/password-resets/recovery-token")
-                .header("Authorization", "Bearer invalid")).hasStatus2xxSuccessful();
+    void allowsPublicResetTokenValidationWithoutParsingAuthorizationHeader() {
+        assertThat(mvc.post().uri("/password-resets/validations")
+                .header("Authorization", "Bearer invalid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"recovery-token\"}")).hasStatus2xxSuccessful();
     }
 
     @Test
@@ -82,8 +85,8 @@ class WebSecurityConfigWebMvcTest {
 
     @Test
     void acceptsAuthenticatedProfileRequest() {
-        User user = new User(USER_ID, TENANT_ID, "ops@roseiot.io", null, UserStatus.ACTIVE);
-        assertThat(mvc.get().uri("/me").with(user(new SecurityUser(user, null, List.of())))).hasStatus(200);
+        SecurityUser principal = new SecurityUser(USER_ID, TENANT_ID, "ops@roseiot.io", true, null, List.of());
+        assertThat(mvc.get().uri("/me").with(user(principal))).hasStatus(200);
     }
 
     @Test

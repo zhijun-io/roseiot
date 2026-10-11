@@ -3,49 +3,68 @@ package io.roseiot.shared.ratelimit;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Component
 public class SlidingWindowRateLimiter {
 
     private final RateLimitProperties properties;
-    private final ConcurrentHashMap<String, Deque<Instant>> attemptsByKey = new ConcurrentHashMap<>();
+    private final Clock clock;
+    private final Map<String, Deque<Instant>> attemptsByKey = new HashMap<>();
     private final AtomicInteger cleanupCounter = new AtomicInteger();
+    private Instant lastCapacityCleanup;
 
-    public SlidingWindowRateLimiter(RateLimitProperties properties) {
+    public SlidingWindowRateLimiter(RateLimitProperties properties, Clock clock) {
         this.properties = properties;
+        this.clock = clock;
     }
 
     public void checkAllowed(String key, int maxAttempts) {
-        checkAllowed(key, maxAttempts, Instant.now());
+        checkAllowed(key, maxAttempts, Instant.now(clock));
     }
 
-    void checkAllowed(String key, int maxAttempts, Instant now) {
-        Instant cutoff = now.minus(properties.getWindowMinutes(), ChronoUnit.MINUTES);
-        attemptsByKey.compute(key, (ignored, attempts) -> {
-            Deque<Instant> activeAttempts = attempts == null ? new ConcurrentLinkedDeque<>() : attempts;
-            synchronized (activeAttempts) {
-                discardExpired(activeAttempts, cutoff);
-                if (activeAttempts.size() >= maxAttempts) {
-                    throw new RateLimitExceededException();
+    synchronized void checkAllowed(String key, int maxAttempts, Instant now) {
+        Instant cutoff = now.minus(properties.windowMinutes(), ChronoUnit.MINUTES);
+        Deque<Instant> activeAttempts = attemptsByKey.get(key);
+        if (activeAttempts == null) {
+            if (attemptsByKey.size() >= properties.maxTrackedKeys()) {
+                cleanupExpiredKeys(cutoff, now);
+                if (attemptsByKey.size() >= properties.maxTrackedKeys()) {
+                    throw new RateLimitCapacityExceededException();
                 }
-                activeAttempts.addLast(now);
             }
-            return activeAttempts;
-        });
-        if ((cleanupCounter.incrementAndGet() & 63) == 0) {
-            attemptsByKey.forEach((existingKey, attempts) -> attemptsByKey.computeIfPresent(
-                    existingKey, (ignored, current) -> {
-                        synchronized (current) {
-                            discardExpired(current, cutoff);
-                            return current.isEmpty() ? null : current;
-                        }
-                    }));
+            activeAttempts = new ArrayDeque<>();
+            attemptsByKey.put(key, activeAttempts);
         }
+        discardExpired(activeAttempts, cutoff);
+        if (activeAttempts.size() >= maxAttempts) {
+            Instant firstAttemptExpiresAt = activeAttempts.peekFirst()
+                    .plus(properties.windowMinutes(), ChronoUnit.MINUTES);
+            throw new RateLimitExceededException(Duration.between(now, firstAttemptExpiresAt));
+        }
+        activeAttempts.addLast(now);
+        if ((cleanupCounter.incrementAndGet() & 63) == 0) {
+            cleanupExpiredKeys(cutoff, now);
+        }
+    }
+
+    private void cleanupExpiredKeys(Instant cutoff, Instant now) {
+        if (lastCapacityCleanup != null && now.isBefore(lastCapacityCleanup.plusSeconds(30))) return;
+        Iterator<Map.Entry<String, Deque<Instant>>> entries = attemptsByKey.entrySet().iterator();
+        while (entries.hasNext()) {
+            Deque<Instant> attempts = entries.next().getValue();
+            discardExpired(attempts, cutoff);
+            if (attempts.isEmpty()) entries.remove();
+        }
+        lastCapacityCleanup = now;
     }
 
     private static void discardExpired(Deque<Instant> attempts, Instant cutoff) {
@@ -54,7 +73,7 @@ public class SlidingWindowRateLimiter {
         }
     }
 
-    int trackedKeyCount() {
+    synchronized int trackedKeyCount() {
         return attemptsByKey.size();
     }
 }

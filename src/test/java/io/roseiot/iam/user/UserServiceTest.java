@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
 
 import java.util.List;
+import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,7 +40,7 @@ class UserServiceTest {
         tenantService = mock(TenantService.class);
         credentialService = mock(UserCredentialService.class);
         cut = new UserService(userMapper, credentialMapper, userRoleMapper,
-                roleService, tenantService, credentialService);
+                roleService, tenantService, credentialService, Clock.systemUTC());
     }
 
     @Test
@@ -73,7 +74,7 @@ class UserServiceTest {
         when(userMapper.selectById(USER_ID)).thenReturn(user);
         when(userRoleMapper.listPermissionCodesForUser(USER_ID)).thenReturn(List.of("device:read"));
 
-        UserAuthentication authenticationUser = cut.findForAccessToken(USER_ID);
+        UserAuthentication authenticationUser = cut.findForAccessToken(USER_ID).orElseThrow();
 
         assertThat(authenticationUser.user().id()).isEqualTo(user.getId());
         assertThat(authenticationUser.user().email()).isEqualTo(user.getEmail());
@@ -90,7 +91,7 @@ class UserServiceTest {
         user.setStatus(UserStatus.DISABLED);
         when(userMapper.selectById(USER_ID)).thenReturn(user);
 
-        assertThat(cut.findForAccessToken(USER_ID)).isNull();
+        assertThat(cut.findForAccessToken(USER_ID)).isEmpty();
     }
 
     @Test

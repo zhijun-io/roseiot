@@ -1,7 +1,8 @@
 package io.roseiot.iam.security;
 
-import io.roseiot.iam.user.User;
-import io.roseiot.iam.user.UserStatus;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.SecurityUser;
+import io.roseiot.shared.security.SecurityUserLoader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -24,12 +25,12 @@ import static org.mockito.Mockito.when;
 class JwtAuthenticationConverterTest {
     private static final Long USER_ID = System.nanoTime();
     private static final Long TENANT_ID = 42L;
-    private SecurityUserDetailsService details;
+    private SecurityUserLoader details;
     private JwtAuthenticationConverter cut;
 
     @BeforeEach
     void setUp() {
-        details = mock(SecurityUserDetailsService.class);
+        details = mock(SecurityUserLoader.class);
         cut = new JwtAuthenticationConverter(details);
     }
 
@@ -40,8 +41,8 @@ class JwtAuthenticationConverterTest {
     }
 
     private static SecurityUser user(Long tenantId) {
-        User user = new User(USER_ID, tenantId, "ops@roseiot.io", null, UserStatus.ACTIVE);
-        return new SecurityUser(user, null, List.of(new SimpleGrantedAuthority("device.read")));
+        return new SecurityUser(USER_ID, tenantId, "ops@roseiot.io", true, null,
+                List.of(new SimpleGrantedAuthority("device.read")));
     }
 
     @Test

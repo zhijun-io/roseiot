@@ -2,4 +2,14 @@ package io.roseiot.iam.user;
 
 import java.util.List;
 
-public record UserAuthentication(User user, String password, List<String> permissions) {}
+record UserAuthentication(User user, String password, List<String> permissions) {
+
+    public UserAuthentication {
+        permissions = List.copyOf(permissions);
+    }
+
+    @Override
+    public String toString() {
+        return "UserAuthentication[redacted]";
+    }
+}

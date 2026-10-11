@@ -1,9 +1,8 @@
 package io.roseiot.iam.resource;
 
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
-import io.roseiot.tenant.Tenant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -15,6 +14,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Instant;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,15 +41,16 @@ class ResourceControllerWebMvcTest {
 
     @Test
     void shouldReturnReadOnlyCatalogToAuthenticatedUsers() {
-        given(resourceService.list(null, 50)).willReturn(new io.roseiot.shared.webmvc.CursorPage<>(List.of(new Resource(
-                1L, Tenant.DEFAULT_TENANT_ID, "device.read", "Read devices", ResourceType.ACTION,
-                null, ResourceStatus.ACTIVE, null, null, 1)), null));
+        given(resourceService.list(PageRequest.of(0, 50, Sort.by("id"))))
+                .willReturn(new PageImpl<>(List.of(new ResourceInfo(
+                        1L, "device.read", "Read devices", ResourceType.ACTION, null, null, null, 1)),
+                        PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/resources")
                 .with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .extractingPath("$.items[0].code")
+                .extractingPath("$.content[0].code")
                 .isEqualTo("device.read");
     }
 

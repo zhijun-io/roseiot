@@ -1,9 +1,10 @@
-package io.roseiot.iam.security;
+package io.roseiot.config;
 
-import io.roseiot.iam.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -40,5 +41,18 @@ class SecurityConfigTest {
             assertThat(context).hasSingleBean(org.springframework.security.oauth2.jwt.JwtEncoder.class);
             assertThat(context).hasSingleBean(org.springframework.security.oauth2.jwt.JwtDecoder.class);
         });
+    }
+
+    @Test
+    void passwordEncoderShouldWriteDelegatingHashesAndReadLegacyBcryptHashes() {
+        PasswordEncoder passwordEncoder = new SecurityConfig().passwordEncoder();
+        String rawPassword = "test-password-1234";
+        String legacyHash = new BCryptPasswordEncoder().encode(rawPassword);
+
+        assertThat(passwordEncoder.matches(rawPassword, legacyHash)).isTrue();
+
+        String currentHash = passwordEncoder.encode(rawPassword);
+        assertThat(currentHash).startsWith("{bcrypt}");
+        assertThat(passwordEncoder.matches(rawPassword, currentHash)).isTrue();
     }
 }

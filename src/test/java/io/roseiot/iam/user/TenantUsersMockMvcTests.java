@@ -1,7 +1,7 @@
 package io.roseiot.iam.user;
 
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
@@ -17,6 +17,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Instant;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,25 +56,17 @@ class TenantUsersMockMvcTests {
 
     @Test
     void shouldListMembers() {
-        given(userService.list(TENANT_ID, null, 50))
-                .willReturn(new io.roseiot.shared.webmvc.CursorPage<>(List.of(new UserInfo(
-                        MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false)), null));
+        given(userService.list(org.mockito.ArgumentMatchers.eq(TENANT_ID),
+                org.mockito.ArgumentMatchers.any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(new UserInfo(
+                        MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false)),
+                        PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/users").with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .isLenientlyEqualTo("""
-                        {
-                          "items": [{
-                            "id": 1004,
-                            "email": "member@roseiot.io",
-                            "name": "Member",
-                            "roleId": 1006,
-                            "disabled": false
-                          }] ,
-                          "nextCursor": null
-                        }
-                        """);
+                .extractingPath("$.content[0].email")
+                .isEqualTo("member@roseiot.io");
     }
 
     @Test

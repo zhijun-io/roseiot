@@ -1,4 +1,4 @@
-package io.roseiot.shared.ratelimit;
+package io.roseiot.shared.webmvc;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

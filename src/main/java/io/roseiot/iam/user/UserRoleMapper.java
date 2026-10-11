@@ -1,6 +1,7 @@
 package io.roseiot.iam.user;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.apache.ibatis.annotations.Arg;
 import org.apache.ibatis.annotations.ConstructorArgs;
 import org.apache.ibatis.annotations.Param;
@@ -38,12 +39,10 @@ interface UserRoleMapper extends BaseMapper<UserRoleEntity> {
             FROM users u
             JOIN user_role ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
             JOIN "role" r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
-            WHERE u.tenant_id = #{tenantId} AND u.id > #{afterId}
+            WHERE u.tenant_id = #{tenantId}
             ORDER BY u.id
-            LIMIT #{fetchLimit}
             """)
-    List<UserInfo> list(@Param("tenantId") Long tenantId, @Param("afterId") long afterId,
-                                   @Param("fetchLimit") int fetchLimit);
+    IPage<UserInfo> list(IPage<?> page, @Param("tenantId") Long tenantId);
 
     @ConstructorArgs({
             @Arg(column = "id", javaType = Long.class),

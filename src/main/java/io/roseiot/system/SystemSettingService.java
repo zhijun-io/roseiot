@@ -3,12 +3,14 @@ package io.roseiot.system;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,11 +18,14 @@ import java.util.Optional;
 public class SystemSettingService {
 
     private final SystemSettingMapper systemSettingMapper;
+    private final Clock clock;
 
-    public SystemSettingService(SystemSettingMapper systemSettingMapper) {
+    public SystemSettingService(SystemSettingMapper systemSettingMapper, Clock clock) {
         this.systemSettingMapper = systemSettingMapper;
+        this.clock = clock;
     }
 
+    @PreAuthorize("hasAuthority('system.setting.manage')")
     public List<SystemSetting> list() {
         return systemSettingMapper.selectList(
                         Wrappers.lambdaQuery(SystemSettingEntity.class)
@@ -28,6 +33,7 @@ public class SystemSettingService {
                 .stream().map(SystemSetting::from).toList();
     }
 
+    @PreAuthorize("hasAuthority('system.setting.manage')")
     public SystemSetting get(Long id) {
         SystemSettingEntity entity = systemSettingMapper.selectById(id);
         if (entity == null) throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_NOT_FOUND);
@@ -51,6 +57,7 @@ public class SystemSettingService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('system.setting.manage')")
     public SystemSetting create(SystemSettingType type, JsonNode setting) {
         if (type == null || setting == null || !setting.isObject()) {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "type and object setting are required");
@@ -59,7 +66,7 @@ public class SystemSettingService {
         if (systemSettingMapper.selectByType(type) != null) {
             throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_EXISTS);
         }
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         SystemSettingEntity created = new SystemSettingEntity();
         created.setType(type);
         created.setSetting(setting.deepCopy());
@@ -70,6 +77,7 @@ public class SystemSettingService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('system.setting.manage')")
     public SystemSetting update(Long id, JsonNode setting) {
         if (id == null || setting == null || !setting.isObject()) {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "id and object setting are required");
@@ -78,12 +86,13 @@ public class SystemSettingService {
         if (current == null) throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_NOT_FOUND);
         validateSetting(current.getType(), setting);
         current.setSetting(setting.deepCopy());
-        current.setUpdatedAt(Instant.now());
+        current.setUpdatedAt(Instant.now(clock));
         systemSettingMapper.updateById(current);
         return SystemSetting.from(current);
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('system.setting.manage')")
     public void delete(Long id) {
         if (systemSettingMapper.deleteById(id) == 0) {
             throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_NOT_FOUND);

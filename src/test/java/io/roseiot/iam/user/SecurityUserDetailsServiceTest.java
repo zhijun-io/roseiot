@@ -1,18 +1,13 @@
-package io.roseiot.iam.security;
+package io.roseiot.iam.user;
 
-import io.roseiot.iam.user.UserService;
-import io.roseiot.iam.user.UserAuthentication;
-import io.roseiot.iam.user.UserStatus;
-import io.roseiot.iam.user.User;
-
-import io.roseiot.iam.security.SecurityUser;
-import io.roseiot.iam.security.SecurityUserDetailsService;
+import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.tenant.TenantService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,7 +32,7 @@ class SecurityUserDetailsServiceTest {
 
     @Test
     void shouldLoadActiveTenantUserWithActionAuthoritiesOnly() {
-        when(userService.findForAuthentication("ops@roseiot.io")).thenReturn(authenticationUser());
+        when(userService.findForAuthentication("ops@roseiot.io")).thenReturn(Optional.of(authenticationUser()));
         when(tenantService.isActive(TENANT_ID)).thenReturn(true);
 
         SecurityUser details = (SecurityUser) cut.loadUserByUsername("Ops@roseiot.io");
@@ -50,7 +45,7 @@ class SecurityUserDetailsServiceTest {
 
     @Test
     void shouldLoadUserById() {
-        when(userService.findForAccessToken(USER_ID)).thenReturn(authenticationUser());
+        when(userService.findForAccessToken(USER_ID)).thenReturn(Optional.of(authenticationUser()));
         when(tenantService.isActive(TENANT_ID)).thenReturn(true);
 
         SecurityUser details = cut.loadByUserId(USER_ID);
@@ -61,14 +56,14 @@ class SecurityUserDetailsServiceTest {
 
     @Test
     void shouldTreatMissingUserAsNotFound() {
-        when(userService.findForAccessToken(USER_ID)).thenReturn(null);
+        when(userService.findForAccessToken(USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> cut.loadByUserId(USER_ID)).isInstanceOf(UsernameNotFoundException.class);
     }
 
     @Test
     void shouldTreatUserOfMissingTenantAsNotFound() {
-        when(userService.findForAccessToken(USER_ID)).thenReturn(authenticationUser());
+        when(userService.findForAccessToken(USER_ID)).thenReturn(Optional.of(authenticationUser()));
         when(tenantService.isActive(TENANT_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> cut.loadByUserId(USER_ID)).isInstanceOf(UsernameNotFoundException.class);
@@ -76,7 +71,7 @@ class SecurityUserDetailsServiceTest {
 
     @Test
     void shouldTreatUserOfDisabledTenantAsNotFound() {
-        when(userService.findForAccessToken(USER_ID)).thenReturn(authenticationUser());
+        when(userService.findForAccessToken(USER_ID)).thenReturn(Optional.of(authenticationUser()));
         when(tenantService.isActive(TENANT_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> cut.loadByUserId(USER_ID)).isInstanceOf(UsernameNotFoundException.class);

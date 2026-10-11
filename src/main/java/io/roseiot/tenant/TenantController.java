@@ -7,8 +7,11 @@ import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Sort;
 
-import io.roseiot.shared.webmvc.CursorPage;
 
 @RestController
 @RequestMapping("/tenants")
@@ -22,11 +25,9 @@ class TenantController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('tenant.read')")
-    CursorPage<TenantInfo> list(
-            @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "50") int limit) {
-        CursorPage<Tenant> page = tenantService.list(cursor, limit);
-        return new CursorPage<>(page.items().stream().map(TenantInfo::from).toList(), page.nextCursor());
+    Page<TenantInfo> list(
+            @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+        return tenantService.list(pageable);
     }
 
     @GetMapping("/{tenantId}")

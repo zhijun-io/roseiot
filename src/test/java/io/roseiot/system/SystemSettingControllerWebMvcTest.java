@@ -1,7 +1,7 @@
 package io.roseiot.system;
 
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.iam.security.JwtAuthenticationConverter;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

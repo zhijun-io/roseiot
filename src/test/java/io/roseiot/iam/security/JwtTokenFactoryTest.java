@@ -1,7 +1,7 @@
 package io.roseiot.iam.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import io.roseiot.iam.security.JwtTokenFactory;
+import io.roseiot.shared.security.JwtTokenFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.JwtDecoder;

@@ -18,8 +18,10 @@ public enum ApiErrorCode {
     SYSTEM_SETTING_EXISTS("system_setting_exists"),
     INVALID_ACTION("invalid_action"),
     LAST_TENANT_ADMIN("last_tenant_admin"),
+    REQUEST_TOO_LARGE("request_too_large"),
     /** Used with {@link io.roseiot.shared.ratelimit.RateLimitExceededException} (HTTP 429), not {@link BusinessException}. */
-    RATE_LIMITED("rate_limited");
+    RATE_LIMITED("rate_limited"),
+    RATE_LIMIT_CAPACITY_EXHAUSTED("rate_limit_capacity_exhausted");
 
     private final String code;
 
