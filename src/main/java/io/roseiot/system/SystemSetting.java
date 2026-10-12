@@ -4,7 +4,7 @@ import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
 /** Public system setting model; persistence representation stays within the setting feature. */
-public record SystemSetting(
+record SystemSetting(
         Long id,
         SystemSettingType type,
         JsonNode setting,
@@ -18,6 +18,12 @@ public record SystemSetting(
     @Override
     public JsonNode setting() {
         return setting == null ? null : setting.deepCopy();
+    }
+
+    @Override
+    public String toString() {
+        return "SystemSetting[id=" + id + ", type=" + type + ", setting=redacted"
+                + ", createdAt=" + createdAt + ", updatedAt=" + updatedAt + "]";
     }
 
     static SystemSetting from(SystemSettingEntity entity) {

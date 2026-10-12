@@ -77,8 +77,19 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private record LoginBody(String email, String password) {
+
+        @Override
+        public String toString() {
+            return "LoginBody[credentials=redacted]";
+        }
     }
 
-    private record LoginResponse(String accessToken) {}
+    private record LoginResponse(String accessToken) {
+
+        @Override
+        public String toString() {
+            return "LoginResponse[accessToken=redacted]";
+        }
+    }
 
 }

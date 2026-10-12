@@ -1,6 +1,5 @@
 package io.roseiot.shared.security;
 
-import io.roseiot.shared.mybatis.TenantPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,20 +15,20 @@ public final class SecurityUser implements UserDetails, TenantPrincipal {
     private final String username;
     private final boolean enabled;
     private final Collection<? extends GrantedAuthority> authorities;
-    private final String passwordHash;
+    private final String password;
 
     public SecurityUser(
             Long userId,
             Long tenantId,
             String username,
             boolean enabled,
-            String passwordHash,
+            String password,
             Collection<? extends GrantedAuthority> authorities) {
         this.userId = userId;
         this.tenantId = tenantId;
         this.username = username;
         this.enabled = enabled;
-        this.passwordHash = passwordHash;
+        this.password = password;
         this.authorities = List.copyOf(authorities);
     }
 
@@ -61,7 +60,7 @@ public final class SecurityUser implements UserDetails, TenantPrincipal {
 
     @Override
     public String getPassword() {
-        return passwordHash;
+        return password;
     }
 
     @Override

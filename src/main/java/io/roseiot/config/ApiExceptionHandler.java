@@ -38,6 +38,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         this.apiHttpSupport = apiHttpSupport;
     }
 
+    @ExceptionHandler(BusinessException.class)
+    ResponseEntity<ProblemDetail> handleBusinessException(BusinessException exception) {
+        log.error("Business exception requestId={}", MDC.get(RequestCorrelationFilter.MDC_KEY), exception);
+        return apiHttpSupport.errorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                exception.errorCode().code(),
+                "An unexpected error occurred");
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ProblemDetail> handleRateLimit(RateLimitExceededException exception) {
         String code = ApiErrorCode.RATE_LIMITED.code();
@@ -54,29 +63,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return apiHttpSupport.errorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(),
                 ApiErrorCode.RATE_LIMIT_CAPACITY_EXHAUSTED.code(),
                 "Rate limiting capacity is temporarily unavailable");
-    }
-
-    @ExceptionHandler(BusinessException.class)
-    ResponseEntity<ProblemDetail> handleBusiness(BusinessException exception) {
-        ApiErrorCode code = exception.errorCode();
-        HttpStatus status = statusFor(code);
-        if (status.is5xxServerError()) {
-            log.error("Unhandled business exception requestId={}", MDC.get(RequestCorrelationFilter.MDC_KEY), exception);
-        }
-        return apiHttpSupport.errorResponse(
-                status.value(), code.code(), status.is5xxServerError()
-                        ? "An unexpected error occurred"
-                        : exception.apiMessage());
-    }
-
-    private static HttpStatus statusFor(ApiErrorCode code) {
-        return switch (code) {
-            case VALIDATION_ERROR, INVALID_ACTION, INVALID_RESET_TOKEN -> HttpStatus.BAD_REQUEST;
-            case TENANT_NOT_FOUND, TENANT_USER_NOT_FOUND, ROLE_NOT_FOUND, SYSTEM_SETTING_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
-            case EMAIL_ALREADY_EXISTS, ROLE_IN_USE, LAST_TENANT_ADMIN, SYSTEM_SETTING_EXISTS -> HttpStatus.CONFLICT;
-            default -> HttpStatus.INTERNAL_SERVER_ERROR;
-        };
     }
 
     @Override

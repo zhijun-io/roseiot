@@ -57,7 +57,9 @@ class LoginAuthenticationWebMvcTest {
         assertThat(mvc.post().uri("/login").contentType(MediaType.APPLICATION_JSON).content("""
                         {"email":"ops@roseiot.io","password":"correct horse"}
                         """))
-                .hasStatus(HttpStatus.OK).bodyJson().isLenientlyEqualTo("""
+                .hasStatus(HttpStatus.OK)
+                .hasHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
+                .bodyJson().isLenientlyEqualTo("""
                         {"accessToken":"access-token-value"}
                         """);
         verify(jwtTokenFactory).createAccessToken(org.mockito.ArgumentMatchers.eq(USER_ID),

@@ -1,12 +1,12 @@
 package io.roseiot.iam.security;
 
-import io.roseiot.iam.user.SecurityUserDetailsService;
 import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.shared.security.JwtTokenFactory;
 import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.iam.user.UserCredentialService;
 import io.roseiot.iam.user.UserService;
-import io.roseiot.iam.user.UserProfile;
+import io.roseiot.iam.user.User;
+import io.roseiot.iam.user.UserStatus;
 import io.roseiot.iam.role.RoleService;
 import io.roseiot.iam.resource.ResourceService;
 import io.roseiot.system.SystemSettingService;
@@ -47,7 +47,6 @@ class WebSecurityConfigWebMvcTest {
     @MockitoBean private ResourceService resourceService;
     @MockitoBean private SystemSettingService systemSettingService;
     @MockitoBean private JwtDecoder jwtDecoder;
-    @MockitoBean private SecurityUserDetailsService userDetailsService;
     @MockitoBean private AuthenticationManager authenticationManager;
     @MockitoBean private JwtTokenFactory jwtTokenFactory;
 
@@ -58,7 +57,8 @@ class WebSecurityConfigWebMvcTest {
                 .willReturn(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
         given(jwtTokenFactory.createAccessToken(any(), any(), any())).willReturn("access-token");
         given(credentialService.checkResetToken(any())).willReturn(UserCredentialService.ResetTokenState.VALID);
-        given(userService.getProfile(any())).willReturn(new UserProfile(USER_ID, "ops@roseiot.io", null));
+        given(userService.getProfile(any())).willReturn(
+                new User(USER_ID, TENANT_ID, "ops@roseiot.io", null, UserStatus.ACTIVE));
     }
 
     @Test

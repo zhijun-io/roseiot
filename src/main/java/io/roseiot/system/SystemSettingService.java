@@ -3,26 +3,24 @@ package io.roseiot.system;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
-import java.time.Instant;
-import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@Transactional(readOnly = true)
 public class SystemSettingService {
 
     private final SystemSettingMapper systemSettingMapper;
-    private final Clock clock;
 
-    public SystemSettingService(SystemSettingMapper systemSettingMapper, Clock clock) {
+    public SystemSettingService(SystemSettingMapper systemSettingMapper) {
         this.systemSettingMapper = systemSettingMapper;
-        this.clock = clock;
     }
 
     @PreAuthorize("hasAuthority('system.setting.manage')")
@@ -66,13 +64,14 @@ public class SystemSettingService {
         if (systemSettingMapper.selectByType(type) != null) {
             throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_EXISTS);
         }
-        Instant now = Instant.now(clock);
         SystemSettingEntity created = new SystemSettingEntity();
         created.setType(type);
         created.setSetting(setting.deepCopy());
-        created.setCreatedAt(now);
-        created.setUpdatedAt(now);
-        systemSettingMapper.insert(created);
+        try {
+            systemSettingMapper.insert(created);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_EXISTS, null, exception);
+        }
         return SystemSetting.from(created);
     }
 
@@ -86,7 +85,6 @@ public class SystemSettingService {
         if (current == null) throw new BusinessException(ApiErrorCode.SYSTEM_SETTING_NOT_FOUND);
         validateSetting(current.getType(), setting);
         current.setSetting(setting.deepCopy());
-        current.setUpdatedAt(Instant.now(clock));
         systemSettingMapper.updateById(current);
         return SystemSetting.from(current);
     }

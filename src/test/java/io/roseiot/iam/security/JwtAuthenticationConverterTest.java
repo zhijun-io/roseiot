@@ -2,12 +2,12 @@ package io.roseiot.iam.security;
 
 import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.shared.security.SecurityUser;
-import io.roseiot.shared.security.SecurityUserLoader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import io.roseiot.shared.security.SecurityUserLoader;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -41,7 +41,7 @@ class JwtAuthenticationConverterTest {
     }
 
     private static SecurityUser user(Long tenantId) {
-        return new SecurityUser(USER_ID, tenantId, "ops@roseiot.io", true, null,
+        return new SecurityUser(USER_ID, tenantId, "ops@roseiot.io", true, "password-hash",
                 List.of(new SimpleGrantedAuthority("device.read")));
     }
 

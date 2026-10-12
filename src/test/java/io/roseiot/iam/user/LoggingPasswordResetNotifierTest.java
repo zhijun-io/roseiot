@@ -2,6 +2,10 @@ package io.roseiot.iam.user;
 
 import io.roseiot.system.SystemSettingService;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import java.net.URI;
 
@@ -11,6 +15,23 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class LoggingPasswordResetNotifierTest {
+
+    @Test
+    void isNotCreatedOutsideLocalProfileEvenWhenPropertyIsEnabled() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(NotifierConfiguration.class)
+                .withPropertyValues("roseiot.password-reset.logging.enabled=true")
+                .run(context -> assertThat(context).doesNotHaveBean(LoggingPasswordResetNotifier.class));
+    }
+
+    @Test
+    void isCreatedOnlyWhenLocalProfileAndOptInPropertyAreBothPresent() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(NotifierConfiguration.class)
+                .withInitializer(context -> context.getEnvironment().setActiveProfiles("local"))
+                .withPropertyValues("roseiot.password-reset.logging.enabled=true")
+                .run(context -> assertThat(context).hasSingleBean(LoggingPasswordResetNotifier.class));
+    }
 
     @Test
     void keepsResetTokenOutOfTheHttpRequestPathAndQuery() {
@@ -31,5 +52,15 @@ class LoggingPasswordResetNotifierTest {
         assertThatCode(() -> notifier.sendPasswordResetEmail(
                 new PasswordResetRequestedEvent("person@example.com", "one-time-secret")))
                 .doesNotThrowAnyException();
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @Import(LoggingPasswordResetNotifier.class)
+    static class NotifierConfiguration {
+
+        @Bean
+        SystemSettingService systemSettingService() {
+            return mock(SystemSettingService.class);
+        }
     }
 }

@@ -7,6 +7,14 @@ import com.baomidou.mybatisplus.annotation.TableName;
 @TableName("role_resource")
 class RoleResourceEntity {
 
+    static RoleResourceEntity from(RoleResource assignment) {
+        RoleResourceEntity entity = new RoleResourceEntity();
+        entity.setTenantId(assignment.tenantId());
+        entity.setRoleId(assignment.roleId());
+        entity.setResourceId(assignment.resourceId());
+        return entity;
+    }
+
     private Long tenantId;
     private Long roleId;
     private Long resourceId;

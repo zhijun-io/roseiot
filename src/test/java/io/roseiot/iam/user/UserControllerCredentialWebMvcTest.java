@@ -175,7 +175,7 @@ class UserControllerCredentialWebMvcTest {
     }
 
     @Test
-    void shouldAnswerInvalidResetTokenWithBadRequest() {
+    void shouldAnswerInvalidResetTokenAsInternalError() {
         willThrow(new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN))
                 .given(credentialService)
                 .confirmPasswordReset(any(), any());
@@ -185,7 +185,7 @@ class UserControllerCredentialWebMvcTest {
                 .content("""
                         {"token": "used-token", "password": "Passw0rd!"}
                         """))
-                .hasStatus(HttpStatus.BAD_REQUEST)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .hasHeader("Cache-Control", "no-store")
                 .bodyJson()
                 .extractingPath("$.code")

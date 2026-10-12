@@ -17,6 +17,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ArchitectureTest {
 
@@ -32,6 +33,10 @@ class ArchitectureTest {
         ArchRule noIamFeatureCycles = slices().matching("io.roseiot.iam.(*)..")
                 .should().beFreeOfCycles()
                 .because("IAM feature subpackages must not depend on each other cyclically");
+        ArchRule securityDoesNotDependOnPersistence = noClasses()
+                .that().resideInAPackage("io.roseiot.shared.security..")
+                .should().dependOnClassesThat().resideInAPackage("io.roseiot.shared.mybatis..")
+                .because("security identity contracts must not depend on MyBatis infrastructure");
         ArchRule controllersDoNotDependOnMappers = noClasses()
                 .that().areAnnotatedWith(RestController.class)
                 .should().dependOnClassesThat().areAssignableTo(BaseMapper.class)
@@ -52,6 +57,10 @@ class ArchitectureTest {
                 .that().areAnnotatedWith(Transactional.class)
                 .should().beDeclaredInClassesThat().areAnnotatedWith(Service.class)
                 .because("transaction boundaries belong to application services");
+        ArchRule servicesHaveTransactionalBoundaries = classes()
+                .that().areAnnotatedWith(Service.class)
+                .should().beAnnotatedWith(Transactional.class)
+                .because("services own the transaction boundaries");
         ArchRule noFieldInjection = noFields().should().beAnnotatedWith(Autowired.class)
                 .because("Spring dependencies use constructor injection");
         ArchRule configurationClassesUseConfigSuffix = classes()
@@ -61,11 +70,16 @@ class ArchitectureTest {
 
         noFeatureCycles.check(applicationClasses);
         noIamFeatureCycles.check(applicationClasses);
+        securityDoesNotDependOnPersistence.check(applicationClasses);
         controllersDoNotDependOnMappers.check(applicationClasses);
         controllersDoNotDependOnPersistenceEntities.check(applicationClasses);
         persistenceEntitiesArePackagePrivate.check(applicationClasses);
         mapperInterfacesArePackagePrivate.check(applicationClasses);
         transactionsBelongToServices.check(applicationClasses);
+        servicesHaveTransactionalBoundaries.check(applicationClasses);
+        var services = applicationClasses.stream().filter(type -> type.isAnnotatedWith(Service.class)).toList();
+        assertThat(services).allSatisfy(service ->
+                assertThat(service.getAnnotationOfType(Transactional.class).readOnly()).isTrue());
         noFieldInjection.check(applicationClasses);
         configurationClassesUseConfigSuffix.check(applicationClasses);
     }

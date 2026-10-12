@@ -25,6 +25,13 @@ class ApiExceptionHandlerTest {
     private final ApiExceptionHandler cut =
             new ApiExceptionHandler(new ApiHttpSupport(JsonMapper.builder().build()));
 
+    @Test
+    void mapsBusinessExceptionsToInternalServerErrorWithoutExposingDetails() {
+        assertBody(cut.handleBusinessException(
+                        new BusinessException(ApiErrorCode.VALIDATION_ERROR, "private validation detail")),
+                500, "validation_error", "An unexpected error occurred");
+    }
+
     private void assertBody(ResponseEntity<ProblemDetail> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);
         assertThat(response.getBody())
@@ -47,22 +54,6 @@ class ApiExceptionHandlerTest {
     @Test
     void shouldAnswerRateLimitWithTooManyRequestsAndStableCode() {
         assertBody(cut.handleRateLimit(new RateLimitExceededException()), 429, "rate_limited", "rate_limited");
-    }
-
-    @Test
-    void shouldAnswerMissingResourcesWithNotFoundAndStableCode() {
-        assertBody(cut.handleBusiness(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND)),
-                404, "tenant_not_found", "tenant_not_found");
-    }
-
-    @Test
-    void shouldEchoValidationDetailWhenPresent() {
-        assertBody(
-                cut.handleBusiness(new BusinessException(
-                        ApiErrorCode.VALIDATION_ERROR, "Password must contain letters and digits")),
-                400,
-                "validation_error",
-                "Password must contain letters and digits");
     }
 
     @Test

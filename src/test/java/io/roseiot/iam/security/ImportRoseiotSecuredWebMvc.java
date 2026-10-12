@@ -3,6 +3,7 @@ package io.roseiot.iam.security;
 import io.roseiot.shared.security.SecurityExceptionHandler;
 import io.roseiot.shared.webmvc.ApiHttpSupport;
 import io.roseiot.config.ApiExceptionHandler;
+import io.roseiot.config.JacksonConfig;
 import io.roseiot.config.WebSecurityConfig;
 import org.springframework.context.annotation.Import;
 
@@ -17,6 +18,7 @@ import java.lang.annotation.Target;
 @Import({
     AuthenticationWebMvcTestConfiguration.class,
     WebSecurityConfig.class,
+    JacksonConfig.class,
     SecurityExceptionHandler.class,
     ApiHttpSupport.class,
     ApiExceptionHandler.class

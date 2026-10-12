@@ -30,10 +30,11 @@ class DatabaseBaselinePostgresTest {
 
             JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
                     postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()));
-            assertThat(flyway.info().applied()).hasSize(3);
+            assertThat(flyway.info().applied()).hasSize(4);
             assertThat(flyway.info().applied()[0].getVersion().getVersion()).isEqualTo("1");
             assertThat(flyway.info().applied()[1].getVersion().getVersion()).isEqualTo("2");
             assertThat(flyway.info().applied()[2].getVersion().getVersion()).isEqualTo("3");
+            assertThat(flyway.info().applied()[3].getVersion().getVersion()).isEqualTo("4");
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM resource WHERE code IN ('tenant.read', 'system.setting.manage')",
                     Integer.class)).isEqualTo(2);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns"
@@ -65,8 +66,9 @@ class DatabaseBaselinePostgresTest {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pg_indexes"
                             + " WHERE schemaname = current_schema() AND indexname IN ("
                             + "'users_tenant_id_id_idx', 'role_tenant_id_id_idx',"
-                            + "'user_role_user_id_tenant_id_idx', 'user_role_role_id_tenant_id_idx')",
-                    Integer.class)).isEqualTo(4);
+                            + "'user_role_user_id_tenant_id_idx', 'user_role_role_id_tenant_id_idx',"
+                            + "'user_role_one_role_per_user_uq')",
+                    Integer.class)).isEqualTo(5);
         }
     }
 }

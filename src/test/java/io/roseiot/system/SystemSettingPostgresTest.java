@@ -1,7 +1,6 @@
 package io.roseiot.system;
 
 import io.roseiot.TestcontainersConfig;
-import io.roseiot.system.SystemSettingType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,7 +8,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @WithMockUser(authorities = "system.setting.manage")
 class SystemSettingPostgresTest {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @Autowired
     private SystemSettingService systemSettingService;
@@ -30,6 +31,9 @@ class SystemSettingPostgresTest {
                 {"baseUrl":"https://roseiot.example","locale":"en"}
                 """));
         assertThat(general.id()).isPositive();
+        assertThat(general.createdAt()).isNotNull();
+        assertThat(general.updatedAt()).isEqualTo(general.createdAt());
+        Instant createdAt = general.createdAt();
         systemSettingService.create(SystemSettingType.SETUP, json("""
                 {"complete":false}
                 """));
@@ -39,7 +43,10 @@ class SystemSettingPostgresTest {
         assertThat(systemSettingService.find(SystemSettingType.SETUP).orElseThrow().setting())
                 .isEqualTo(json("{\"complete\":false}"));
 
-        systemSettingService.update(general.id(), json("{\"baseUrl\":\"https://new.example\"}"));
+        SystemSetting updated = systemSettingService.update(
+                general.id(), json("{\"baseUrl\":\"https://new.example\"}"));
+        assertThat(updated.updatedAt()).isAfter(createdAt);
+        assertThat(systemSettingService.get(general.id()).updatedAt()).isEqualTo(updated.updatedAt());
         assertThat(systemSettingService.requireGeneralBaseUrl()).isEqualTo("https://new.example");
         assertThat(systemSettingService.find(SystemSettingType.GENERAL).orElseThrow().setting().size()).isEqualTo(1);
     }

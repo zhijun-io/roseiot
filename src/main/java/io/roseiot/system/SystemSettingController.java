@@ -3,7 +3,14 @@ package io.roseiot.system;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 import java.util.List;
@@ -44,5 +51,10 @@ class SystemSettingController {
         systemSettingService.delete(id);
     }
 
-    record CreateSystemSettingRequest(@NotNull SystemSettingType type, @NotNull JsonNode setting) {}
+    record CreateSystemSettingRequest(@NotNull SystemSettingType type, @NotNull JsonNode setting) {
+        @Override
+        public String toString() {
+            return "CreateSystemSettingRequest[type=" + type + ", setting=redacted]";
+        }
+    }
 }

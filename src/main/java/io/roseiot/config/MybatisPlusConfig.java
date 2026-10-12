@@ -1,17 +1,23 @@
 package io.roseiot.config;
 
-import io.roseiot.shared.mybatis.RoseiotTenantLineHandler;
+import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
-import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
-import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+import io.roseiot.shared.mybatis.RoseiotTenantLineHandler;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan(basePackages = {"io.roseiot"}, markerInterface = BaseMapper.class)
+@MapperScan(basePackages = {
+        "io.roseiot.iam.resource",
+        "io.roseiot.iam.role",
+        "io.roseiot.iam.user",
+        "io.roseiot.system",
+        "io.roseiot.tenant"
+}, markerInterface = BaseMapper.class)
 public class MybatisPlusConfig {
     @Bean
     MybatisPlusInterceptor mybatisPlusInterceptor() {

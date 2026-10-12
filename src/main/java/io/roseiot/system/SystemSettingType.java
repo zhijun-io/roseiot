@@ -1,6 +1,6 @@
 package io.roseiot.system;
 
-public enum SystemSettingType {
+enum SystemSettingType {
     SETUP,
     GENERAL
 }

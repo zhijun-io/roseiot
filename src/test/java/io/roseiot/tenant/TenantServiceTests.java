@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
-import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,7 +30,7 @@ class TenantServiceTests {
         Configuration configuration = new MybatisConfiguration();
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), TenantEntity.class);
         tenantMapper = mock(TenantMapper.class);
-        service = new TenantService(tenantMapper, Clock.systemUTC());
+        service = new TenantService(tenantMapper);
     }
 
     @Test
@@ -49,7 +48,7 @@ class TenantServiceTests {
 
     @Test
     void updateByIdRejectsUnknownTenant() {
-        when(tenantMapper.selectById(TENANT_ID)).thenReturn(null);
+        when(tenantMapper.selectByIdForUpdate(TENANT_ID)).thenReturn(null);
         assertThatThrownBy(() -> service.update(TENANT_ID, "Name", null))
                 .isInstanceOf(BusinessException.class);
         verify(tenantMapper, never()).updateById(any(TenantEntity.class));
@@ -59,7 +58,7 @@ class TenantServiceTests {
     void updateByIdDoesNotAllowChangingDefaultTenant() {
         TenantEntity entity = new TenantEntity();
         entity.setId(Tenant.DEFAULT_TENANT_ID);
-        when(tenantMapper.selectById(Tenant.DEFAULT_TENANT_ID)).thenReturn(entity);
+        when(tenantMapper.selectByIdForUpdate(Tenant.DEFAULT_TENANT_ID)).thenReturn(entity);
         assertThatThrownBy(() -> service.update(Tenant.DEFAULT_TENANT_ID, "Name", null))
                 .isInstanceOf(AccessDeniedException.class);
         verify(tenantMapper, never()).updateById(any(TenantEntity.class));
@@ -73,7 +72,7 @@ class TenantServiceTests {
         entity.setName("Acme HVAC");
         entity.setCreatedAt(Instant.now());
         entity.setStatus(TenantStatus.ACTIVE);
-        when(tenantMapper.selectById(TENANT_ID)).thenReturn(entity);
+        when(tenantMapper.selectByIdForUpdate(TENANT_ID)).thenReturn(entity);
         Tenant updated = service.update(TENANT_ID, "Acme Climate", true);
         assertThat(updated.name()).isEqualTo("Acme Climate");
         assertThat(updated.status()).isEqualTo(TenantStatus.DISABLED);

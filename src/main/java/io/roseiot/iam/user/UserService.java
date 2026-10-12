@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.mybatis.TenantContext;
+import io.roseiot.shared.security.SecurityUser;
+import io.roseiot.shared.security.SecurityUserLoader;
 import io.roseiot.iam.role.RoleService;
 import io.roseiot.tenant.TenantService;
 import org.springframework.dao.DuplicateKeyException;
@@ -16,16 +18,20 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.Clock;
 import java.util.List;
-import java.util.Optional;
 
 @Service
-public class UserService {
+@Transactional(readOnly = true)
+public class UserService implements UserDetailsService, SecurityUserLoader {
 
     private final UserMapper userMapper;
     private final UserCredentialMapper credentialMapper;
@@ -49,42 +55,54 @@ public class UserService {
 
     @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
             + " and #p0 == authentication.principal.userId()")
-    public UserProfile getProfile(Long userId) {
+    public User getProfile(Long userId) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
-        return UserProfile.from(user);
+        return User.from(user);
     }
 
     @Transactional
     @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
             + " and #p0 == authentication.principal.userId()")
-    public UserProfile updateProfile(Long userId, String name) {
+    public User updateProfile(Long userId, String name) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
         user.setName(name.trim());
-        user.setUpdatedAt(Instant.now(clock));
         userMapper.updateById(user);
-        return UserProfile.from(user);
+        return User.from(user);
     }
 
-    Optional<UserAuthentication> findForAuthentication(String email) {
+    @Override
+    public UserDetails loadUserByUsername(String username) {
+        String email = username == null ? "" : username.trim().toLowerCase(java.util.Locale.ROOT);
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email));
-        if (!isActive(user)) return Optional.empty();
-        UserCredentialEntity credential = credentialMapper.selectById(user.getId());
-        if (credential == null || credential.getPassword() == null) return Optional.empty();
-        return Optional.of(authenticationData(user, credential.getPassword()));
+        if (!isActive(user) || !tenantService.isActive(user.getTenantId())) {
+            throw new UsernameNotFoundException(email);
+        }
+        UserCredentialEntity credentialEntity = credentialMapper.selectById(user.getId());
+        UserCredential credential = credentialEntity == null ? null : UserCredential.from(credentialEntity);
+        if (credential == null || credential.password() == null) {
+            throw new UsernameNotFoundException(email);
+        }
+        return securityUser(user, credential.password());
     }
 
-    Optional<UserAuthentication> findForAccessToken(Long userId) {
+    @Override
+    public SecurityUser loadByUserId(Long userId) {
         UserEntity user = userMapper.selectById(userId);
-        return isActive(user) ? Optional.of(authenticationData(user, null)) : Optional.empty();
+        if (!isActive(user) || !tenantService.isActive(user.getTenantId())) {
+            throw new UsernameNotFoundException(userId.toString());
+        }
+        return securityUser(user, null);
     }
 
-    private UserAuthentication authenticationData(UserEntity user, String passwordHash) {
-        List<String> permissions = TenantContext.call(user.getTenantId(),
-                () -> userRoleMapper.listPermissionCodesForUser(user.getId()));
-        User userModel = User.from(user);
-        return new UserAuthentication(userModel, passwordHash, permissions);
+    private SecurityUser securityUser(UserEntity user, String passwordHash) {
+        List<SimpleGrantedAuthority> authorities = TenantContext.call(user.getTenantId(),
+                () -> userRoleMapper.listPermissionCodesForUser(user.getId()).stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .toList());
+        return new SecurityUser(user.getId(), user.getTenantId(), user.getEmail(),
+                user.getStatus() == UserStatus.ACTIVE, passwordHash, authorities);
     }
 
     private static boolean isActive(UserEntity user) {
@@ -97,11 +115,11 @@ public class UserService {
     }
 
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    public org.springframework.data.domain.Page<UserInfo> list(Long tenantId, Pageable pageable) {
+    public org.springframework.data.domain.Page<UserResponse> list(Long tenantId, Pageable pageable) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
         Pageable checkedPageable = checkedPageable(pageable);
-        IPage<UserInfo> result = userRoleMapper.list(
+        IPage<UserResponse> result = userRoleMapper.list(
                 new Page<>(checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()), tenantId);
         return new PageImpl<>(result.getRecords(), checkedPageable, result.getTotal());
     }
@@ -115,17 +133,17 @@ public class UserService {
     }
 
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    public UserInfo get(Long tenantId, Long userId) {
+    public UserResponse get(Long tenantId, Long userId) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
-        UserInfo user = userRoleMapper.get(tenantId, userId);
+        UserResponse user = userRoleMapper.get(tenantId, userId);
         if (user == null) throw new BusinessException(ApiErrorCode.TENANT_USER_NOT_FOUND);
         return user;
     }
 
     @Transactional
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    public UserInfo create(Long tenantId, String email, String name, String password, Long roleId) {
+    public UserResponse create(Long tenantId, String email, String name, String password, Long roleId) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
         String normalizedEmail = email.trim().toLowerCase(java.util.Locale.ROOT);
@@ -134,14 +152,11 @@ public class UserService {
         }
         roleService.requireAssignable(tenantId, roleId);
 
-        Instant now = Instant.now(clock);
         UserEntity user = new UserEntity();
         user.setTenantId(tenantId);
         user.setEmail(normalizedEmail);
         user.setName(name.trim());
         user.setStatus(UserStatus.ACTIVE);
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException exception) {
@@ -150,7 +165,7 @@ public class UserService {
         credentialService.createInitialPassword(user.getId(), password);
         userRoleMapper.insertAssignment(user.getId(), roleId, tenantId);
         roleService.ensureAdministrator(tenantId);
-        return new UserInfo(user.getId(), user.getEmail(), user.getName(), roleId, false);
+        return new UserResponse(user.getId(), user.getEmail(), user.getName(), roleId, false);
     }
 
     @Transactional

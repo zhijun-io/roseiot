@@ -50,20 +50,20 @@ class RoleControllerWebMvcTest {
     @Test
     void shouldListTenantRoles() {
         given(roleService.list(org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(Pageable.class)))
-                .willReturn(new PageImpl<>(List.of(new RoleInfo(ROLE_ID, "Operator", List.of("device.read"))),
+                .willReturn(new PageImpl<>(List.of(new Role(ROLE_ID, TENANT_ID, "Operator")),
                         PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/roles").with(roleManager()))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .extractingPath("$.content[0].actionCodes[0]")
-                .isEqualTo("device.read");
+                .extractingPath("$.content[0].name")
+                .isEqualTo("Operator");
     }
 
     @Test
     void shouldCreateRoleForAuthenticatedTenant() {
         given(roleService.create(TENANT_ID, "Operator", Set.of("device.read")))
-                .willReturn(new RoleInfo(ROLE_ID, "Operator", List.of("device.read")));
+                .willReturn(new Role(ROLE_ID, TENANT_ID, "Operator"));
 
         assertThat(mvc.post().uri("/roles")
                 .with(roleManager())
@@ -73,6 +73,20 @@ class RoleControllerWebMvcTest {
                 .bodyJson()
                 .extractingPath("$.id")
                 .isEqualTo(ROLE_ID.intValue());
+
+        verify(roleService).create(TENANT_ID, "Operator", Set.of("device.read"));
+    }
+
+    @Test
+    void shouldTreatDuplicateActionCodesAsOneAssignment() {
+        given(roleService.create(TENANT_ID, "Operator", Set.of("device.read")))
+                .willReturn(new Role(ROLE_ID, TENANT_ID, "Operator"));
+
+        assertThat(mvc.post().uri("/roles")
+                .with(roleManager())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Operator\",\"actionCodes\":[\"device.read\",\"device.read\"]}"))
+                .hasStatus(HttpStatus.OK);
 
         verify(roleService).create(TENANT_ID, "Operator", Set.of("device.read"));
     }
@@ -91,6 +105,34 @@ class RoleControllerWebMvcTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("validation_error");
+
+        verifyNoInteractions(roleService);
+    }
+
+    @Test
+    void shouldRejectUnknownRequestFields() {
+        assertThat(mvc.post().uri("/roles")
+                .with(roleManager())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Operator\",\"actionCodes\":[],\"actionCode\":\"device.read\"}"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("bad_request");
+
+        verifyNoInteractions(roleService);
+    }
+
+    @Test
+    void shouldRejectDuplicateJsonObjectKeys() {
+        assertThat(mvc.post().uri("/roles")
+                .with(roleManager())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Operator\",\"name\":\"Administrator\",\"actionCodes\":[]}"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("bad_request");
 
         verifyNoInteractions(roleService);
     }

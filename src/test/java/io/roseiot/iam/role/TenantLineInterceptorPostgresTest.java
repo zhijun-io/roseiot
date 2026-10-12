@@ -5,7 +5,7 @@ import io.roseiot.shared.mybatis.TenantContext;
 import io.roseiot.tenant.Tenant;
 import io.roseiot.tenant.TenantService;
 import io.roseiot.iam.user.UserService;
-import io.roseiot.iam.user.UserInfo;
+import io.roseiot.iam.user.UserResponse;
 import io.roseiot.shared.security.SecurityUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +23,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.sql.Timestamp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -120,10 +121,105 @@ class TenantLineInterceptorPostgresTest {
     }
 
     @Test
+    void scopesCustomAssignmentQueryToBothSqlTenantAndAuthenticatedTenant() {
+        Tenant firstTenant = tenantService.create("First assignment tenant");
+        Tenant secondTenant = tenantService.create("Second assignment tenant");
+        long secondRoleId = insertRole(secondTenant.id(), "Assigned role");
+        long secondUserId = insertUser(secondTenant.id(), "assignment@example.test");
+        jdbcTemplate.update("INSERT INTO user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)",
+                secondTenant.id(), secondUserId, secondRoleId);
+
+        assertThat(TenantContext.call(firstTenant.id(),
+                () -> roleMapper.hasAssignments(secondTenant.id(), secondRoleId))).isZero();
+        assertThat(TenantContext.call(secondTenant.id(),
+                () -> roleMapper.hasAssignments(secondTenant.id(), secondRoleId))).isEqualTo(1);
+    }
+
+    @Test
+    void preventsAssigningMultipleRolesToOneTenantUser() {
+        Tenant tenant = tenantService.create("Single role tenant");
+        long firstRoleId = insertRole(tenant.id(), "First role");
+        long secondRoleId = insertRole(tenant.id(), "Second role");
+        long userId = insertUser(tenant.id(), "single-role@example.test");
+        jdbcTemplate.update("INSERT INTO user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)",
+                tenant.id(), userId, firstRoleId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)",
+                tenant.id(), userId, secondRoleId))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+    }
+
+    @Test
+    void loadsOnlyPermissionsFromTheUsersTenant() {
+        Tenant firstTenant = tenantService.create("First permission tenant");
+        Tenant secondTenant = tenantService.create("Second permission tenant");
+        Role firstRole = TenantContext.call(firstTenant.id(),
+                () -> roleService.create(firstTenant.id(), "First role",
+                        java.util.Set.of("device.read", "tenant.user.manage")));
+        Role secondRole = TenantContext.call(secondTenant.id(),
+                () -> roleService.create(secondTenant.id(), "Second role", java.util.Set.of("device.command.issue")));
+        UserResponse firstUser = TenantContext.call(firstTenant.id(),
+                () -> userService.create(firstTenant.id(), "first-permission@example.test", "First user",
+                        "StrongPass123!", firstRole.id()));
+
+        SecurityUser loaded = userService.loadByUserId(firstUser.id());
+
+        assertThat(loaded.getAuthorities()).extracting(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrder("device.read", "tenant.user.manage")
+                .doesNotContain("device.command.issue");
+    }
+
+    @Test
+    void rejectsCrossTenantRoleAssignmentsAtTheDatabaseBoundary() {
+        Tenant firstTenant = tenantService.create("First constrained tenant");
+        Tenant secondTenant = tenantService.create("Second constrained tenant");
+        long secondRoleId = insertRole(secondTenant.id(), "Second tenant role");
+        long firstUserId = insertUser(firstTenant.id(), "first-constrained@example.test");
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO user_role (tenant_id, user_id, role_id) VALUES (?, ?, ?)",
+                secondTenant.id(), firstUserId, secondRoleId))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void fillsUserAuditTimestampsOnInsertAndEntityUpdate() {
+        Tenant tenant = tenantService.create("Audit metadata tenant");
+        Role role = TenantContext.call(tenant.id(),
+                () -> roleService.create(tenant.id(), "Member manager", java.util.Set.of("tenant.user.manage")));
+        UserResponse user = TenantContext.call(tenant.id(),
+                () -> userService.create(tenant.id(), "audit-user@example.test", "Audit user",
+                        "StrongPass123!", role.id()));
+        Timestamp createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM users WHERE id = ?", Timestamp.class, user.id());
+        Timestamp originalUpdatedAt = jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM users WHERE id = ?", Timestamp.class, user.id());
+
+        SecurityUser principal = new SecurityUser(user.id(), tenant.id(), user.email(), true, null, List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
+        try {
+            userService.updateProfile(user.id(), "Updated audit user");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        Timestamp updatedAt = jdbcTemplate.queryForObject(
+                "SELECT updated_at FROM users WHERE id = ?", Timestamp.class, user.id());
+        assertThat(createdAt).isNotNull();
+        assertThat(originalUpdatedAt).isNotNull();
+        assertThat(updatedAt).isAfter(originalUpdatedAt);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT created_at FROM user_credential WHERE user_id = ?", Timestamp.class, user.id()))
+                .isNotNull();
+    }
+
+    @Test
     void createsRoleWithTenantFromScopedServiceOperation() {
         Tenant tenant = tenantService.create("Scoped tenant");
 
-        RoleInfo role = TenantContext.call(tenant.id(),
+        Role role = TenantContext.call(tenant.id(),
                 () -> roleService.create(tenant.id(), "Scoped role", java.util.Set.of()));
 
         assertThat(jdbcTemplate.queryForObject(
@@ -135,7 +231,7 @@ class TenantLineInterceptorPostgresTest {
     void paginatesRoleAndUserResponsesAgainstPostgres() {
         Tenant tenant = tenantService.create("Paged tenant");
         TenantContext.call(tenant.id(), () -> {
-            RoleInfo role = roleService.create(tenant.id(), "Member manager", java.util.Set.of("tenant.user.manage"));
+            Role role = roleService.create(tenant.id(), "Member manager", java.util.Set.of("tenant.user.manage"));
             for (int index = 0; index < 3; index++) {
                 userService.create(tenant.id(), "member" + index + "@roseiot.test", "Member " + index,
                         "StrongPass123!", role.id());
@@ -143,15 +239,15 @@ class TenantLineInterceptorPostgresTest {
             return null;
         });
 
-        Page<RoleInfo> firstRolePage = TenantContext.call(tenant.id(),
+        Page<Role> firstRolePage = TenantContext.call(tenant.id(),
                 () -> roleService.list(tenant.id(), PageRequest.of(0, 2, Sort.by("id"))));
-        Page<UserInfo> firstUserPage = TenantContext.call(tenant.id(),
+        Page<UserResponse> firstUserPage = TenantContext.call(tenant.id(),
                 () -> userService.list(tenant.id(), PageRequest.of(0, 2, Sort.by("id"))));
-        Page<UserInfo> secondUserPage = TenantContext.call(tenant.id(),
+        Page<UserResponse> secondUserPage = TenantContext.call(tenant.id(),
                 () -> userService.list(tenant.id(), PageRequest.of(1, 2, Sort.by("id"))));
 
         assertThat(firstRolePage.getTotalElements()).isEqualTo(1);
-        assertThat(firstRolePage.getContent()).extracting(RoleInfo::name).containsExactly("Member manager");
+        assertThat(firstRolePage.getContent()).extracting(Role::name).containsExactly("Member manager");
         assertThat(firstUserPage.getTotalElements()).isEqualTo(3);
         assertThat(firstUserPage.getContent()).hasSize(2);
         assertThat(secondUserPage.getContent()).hasSize(1);
@@ -164,5 +260,13 @@ class TenantLineInterceptorPostgresTest {
                 Long.class,
                 tenantId,
                 name);
+    }
+
+    private long insertUser(Long tenantId, String email) {
+        return jdbcTemplate.queryForObject(
+                "INSERT INTO users (tenant_id, email) VALUES (?, ?) RETURNING id",
+                Long.class,
+                tenantId,
+                email);
     }
 }

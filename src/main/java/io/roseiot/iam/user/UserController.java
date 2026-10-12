@@ -14,7 +14,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Locale;
 
@@ -29,12 +34,12 @@ class UserController {
     }
 
     @GetMapping("/me")
-    UserProfile me(@AuthenticationPrincipal SecurityUser user) {
+    User me(@AuthenticationPrincipal SecurityUser user) {
         return userService.getProfile(user.userId());
     }
 
     @PutMapping("/me")
-    UserProfile updateMe(
+    User updateMe(
             @AuthenticationPrincipal SecurityUser user,
             @Valid @RequestBody UpdateMeRequest request) {
         return userService.updateProfile(user.userId(), request.name());
@@ -48,7 +53,7 @@ class UserController {
 
     @GetMapping("/users")
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    Page<UserInfo> list(
+    Page<UserResponse> list(
             @AuthenticationPrincipal SecurityUser user,
             @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         Long tenantId = user.requireTenantId();
@@ -57,13 +62,13 @@ class UserController {
 
     @GetMapping("/users/{userId}")
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    UserInfo get(@AuthenticationPrincipal SecurityUser user, @PathVariable Long userId) {
+    UserResponse get(@AuthenticationPrincipal SecurityUser user, @PathVariable Long userId) {
         return userService.get(user.requireTenantId(), userId);
     }
 
     @PostMapping("/users")
     @PreAuthorize("hasAuthority('tenant.user.manage')")
-    UserInfo create(
+    UserResponse create(
             @AuthenticationPrincipal SecurityUser user,
             @Valid @RequestBody CreateUserRequest request) {
         return userService.create(user.requireTenantId(), request.email(), request.name(),
@@ -99,21 +104,47 @@ class UserController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).build();
     }
 
-    record UpdateMeRequest(@NotBlank @Size(max = 255) String name) {}
+    record UpdateMeRequest(@NotBlank @Size(max = 255) String name) {
+    }
     record ChangePasswordRequest(
             @NotBlank String currentPassword,
-            @NotBlank @Size(max = 72) String newPassword) {}
-    record ResetPasswordRequest(@NotBlank String email) {}
+            @NotBlank @Size(max = 72) String newPassword) {
+        @Override
+        public String toString() {
+            return "ChangePasswordRequest[credentials=redacted]";
+        }
+    }
+    record ResetPasswordRequest(@NotBlank String email) {
+        @Override
+        public String toString() {
+            return "ResetPasswordRequest[email=redacted]";
+        }
+    }
     record UpdateUserRequest(@NotNull Boolean disabled, @NotNull Long roleId) {}
     record CreateUserRequest(
             @NotBlank @Email @Size(max = 320) String email,
             @NotBlank @Size(max = 255) String name,
             @NotBlank @Size(max = 72) String password,
-            @NotNull Long roleId) {}
-    record ResetTokenRequest(@NotBlank String token) {}
+            @NotNull Long roleId) {
+        @Override
+        public String toString() {
+            return "CreateUserRequest[personalDataAndCredentials=redacted, roleId=" + roleId + "]";
+        }
+    }
+    record ResetTokenRequest(@NotBlank String token) {
+        @Override
+        public String toString() {
+            return "ResetTokenRequest[token=redacted]";
+        }
+    }
     record ResetTokenValidationResponse(String status) {}
     record ConfirmPasswordResetRequest(
             @NotBlank String token,
-            @NotBlank @Size(max = 72) String password) {}
+            @NotBlank @Size(max = 72) String password) {
+        @Override
+        public String toString() {
+            return "ConfirmPasswordResetRequest[credentials=redacted]";
+        }
+    }
 
 }

@@ -42,7 +42,7 @@ interface UserRoleMapper extends BaseMapper<UserRoleEntity> {
             WHERE u.tenant_id = #{tenantId}
             ORDER BY u.id
             """)
-    IPage<UserInfo> list(IPage<?> page, @Param("tenantId") Long tenantId);
+    IPage<UserResponse> list(IPage<?> page, @Param("tenantId") Long tenantId);
 
     @ConstructorArgs({
             @Arg(column = "id", javaType = Long.class),
@@ -58,13 +58,9 @@ interface UserRoleMapper extends BaseMapper<UserRoleEntity> {
             JOIN "role" r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
             WHERE u.tenant_id = #{tenantId} AND u.id = #{userId}
             """)
-    UserInfo get(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+    UserResponse get(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
     default void insertAssignment(Long userId, Long roleId, Long tenantId) {
-        UserRoleEntity assignment = new UserRoleEntity();
-        assignment.setUserId(userId);
-        assignment.setRoleId(roleId);
-        assignment.setTenantId(tenantId);
-        insert(assignment);
+        insert(UserRoleEntity.from(new UserRole(userId, roleId, tenantId)));
     }
 }

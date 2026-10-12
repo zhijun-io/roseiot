@@ -10,6 +10,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -72,5 +74,13 @@ class SecurityExceptionHandlerTest {
     void shouldAnswerInvalidCredentialsWithUnauthorizedOnMvcPath() {
         assertBody(cut.handleAuthentication(new BadCredentialsException("secret detail")),
                 401, "invalid_credentials", "invalid_credentials");
+    }
+
+    @Test
+    void shouldPreserveInvalidTokenCodeWithoutExposingDecoderDetails() {
+        OAuth2AuthenticationException exception = new OAuth2AuthenticationException(
+                new OAuth2Error("invalid_token", "signature and token details", null));
+
+        assertBody(cut.handleAuthentication(exception), 401, "invalid_token", "invalid_token");
     }
 }

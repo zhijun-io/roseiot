@@ -66,7 +66,7 @@ class TenantLifecycleMockMvcTests {
     @Test
     void shouldListTenantsForPlatformReader() {
         given(tenantService.list(org.mockito.ArgumentMatchers.any(Pageable.class)))
-                .willReturn(new PageImpl<>(List.of(new TenantInfo(TENANT_ID, TENANT_CODE, "Acme HVAC", false)),
+                .willReturn(new PageImpl<>(List.of(tenant(false)),
                         PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/tenants")
@@ -76,6 +76,13 @@ class TenantLifecycleMockMvcTests {
                 .bodyJson()
                 .extractingPath("$.content[0].code")
                 .isEqualTo(TENANT_CODE);
+
+        assertThat(mvc.get().uri("/tenants")
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken, RoseiotWebMvcTestSupport.action("tenant.read"))))
+                .bodyJson()
+                .extractingPath("$.content[0].status")
+                .isEqualTo("ACTIVE");
     }
 
     @Test
@@ -124,7 +131,7 @@ class TenantLifecycleMockMvcTests {
                           "id": 42,
                           "code": "customer-42",
                           "name": "Acme HVAC",
-                          "disabled": false
+                          "status": "ACTIVE"
                         }
                         """);
 
@@ -191,8 +198,8 @@ class TenantLifecycleMockMvcTests {
                         """))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
-                .extractingPath("$.disabled")
-                .isEqualTo(true);
+                .extractingPath("$.status")
+                .isEqualTo("DISABLED");
 
         verify(tenantService).update(TENANT_ID, "Acme HVAC", true);
     }
@@ -214,7 +221,7 @@ class TenantLifecycleMockMvcTests {
     }
 
     @Test
-    void shouldAnswerUnknownTenantWithNotFoundWithoutLeakingExistenceElsewhere() {
+    void shouldAnswerUnknownTenantBusinessFailureWithInternalError() {
         willThrow(new BusinessException(ApiErrorCode.TENANT_NOT_FOUND))
                 .given(tenantService).update(any(), any(), any());
 
@@ -224,7 +231,7 @@ class TenantLifecycleMockMvcTests {
                 .content("""
                         {"name": "Acme HVAC", "disabled": true}
                         """))
-                .hasStatus(HttpStatus.NOT_FOUND)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("tenant_not_found");

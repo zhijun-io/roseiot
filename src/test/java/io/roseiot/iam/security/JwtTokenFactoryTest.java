@@ -28,7 +28,7 @@ class JwtTokenFactoryTest {
         SecretKey key = new SecretKeySpec("test-secret-with-a-full-256-bit-minimum-value".getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         JwtEncoder encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
         decoder = NimbusJwtDecoder.withSecretKey(key).build();
-        factory = new JwtTokenFactory(encoder);
+        factory = new JwtTokenFactory(encoder, "https://roseiot.local", "roseiot-api");
     }
 
     @Test
@@ -36,6 +36,8 @@ class JwtTokenFactoryTest {
         Instant now = Instant.now();
         var jwt = decoder.decode(factory.createAccessToken(USER_ID, TENANT_ID, now));
         assertThat(jwt.getSubject()).isEqualTo(USER_ID.toString());
+        assertThat(jwt.getIssuer().toString()).isEqualTo("https://roseiot.local");
+        assertThat(jwt.getAudience()).containsExactly("roseiot-api");
         assertThat(jwt.getClaimAsString(JwtTokenFactory.TENANT_ID)).isEqualTo(TENANT_ID.toString());
         assertThat(jwt.getClaims()).doesNotContainKeys("sid", "type", "family");
         assertThat(jwt.getExpiresAt()).isEqualTo(now.truncatedTo(ChronoUnit.SECONDS).plus(15, ChronoUnit.MINUTES));

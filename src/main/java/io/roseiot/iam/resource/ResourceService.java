@@ -10,11 +10,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
 
 @Service
+@Transactional(readOnly = true)
 public class ResourceService {
 
     private final ResourceMapper resourceMapper;
@@ -32,7 +34,7 @@ public class ResourceService {
     }
 
     @PreAuthorize("isAuthenticated()")
-    public org.springframework.data.domain.Page<ResourceInfo> list(Pageable pageable) {
+    public org.springframework.data.domain.Page<Resource> list(Pageable pageable) {
         Pageable checkedPageable = checkedPageable(pageable);
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<ResourceEntity> result = resourceMapper.selectPage(
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
@@ -41,8 +43,7 @@ public class ResourceService {
                         .eq(ResourceEntity::getTenantId, Tenant.DEFAULT_TENANT_ID)
                         .eq(ResourceEntity::getStatus, ResourceStatus.ACTIVE)
                         .orderByAsc(ResourceEntity::getId));
-        List<ResourceInfo> items = result.getRecords().stream()
-                .map(Resource::from).map(ResourceInfo::from).toList();
+        List<Resource> items = result.getRecords().stream().map(Resource::from).toList();
         return new PageImpl<>(items, checkedPageable, result.getTotal());
     }
 

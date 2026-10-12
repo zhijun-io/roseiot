@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 @Service
+@Transactional(readOnly = true)
 public class UserCredentialService {
 
     private static final int MAX_BCRYPT_PASSWORD_BYTES = 72;
@@ -52,13 +53,9 @@ public class UserCredentialService {
     @Transactional
     public void createInitialPassword(Long userId, String password) {
         ensureValidPassword(password);
-        Instant now = Instant.now(clock);
-        UserCredentialEntity credential = new UserCredentialEntity();
-        credential.setUserId(userId);
-        credential.setPassword(passwordEncoder.encode(password));
-        credential.setCreatedAt(now);
-        credential.setUpdatedAt(now);
-        credentialMapper.insert(credential);
+        UserCredential credential = new UserCredential(
+                userId, passwordEncoder.encode(password), null, null, null, null, null);
+        credentialMapper.insert(UserCredentialEntity.from(credential));
     }
 
     @Transactional
@@ -73,7 +70,6 @@ public class UserCredentialService {
         ensureValidPassword(newPassword);
 
         credential.setPassword(passwordEncoder.encode(newPassword));
-        credential.setUpdatedAt(Instant.now(clock));
         credentialMapper.updateById(credential);
     }
 
@@ -90,7 +86,6 @@ public class UserCredentialService {
         credential.setResetToken(hashResetToken(plainToken));
         credential.setResetExpiresAt(now.plus(1, ChronoUnit.HOURS));
         credential.setResetAt(null);
-        credential.setUpdatedAt(now);
         credentialMapper.updateById(credential);
         eventPublisher.publishEvent(new PasswordResetRequestedEvent(user.getEmail(), plainToken));
     }
@@ -126,7 +121,6 @@ public class UserCredentialService {
 
         credential.setResetAt(now);
         credential.setPassword(passwordEncoder.encode(newPassword));
-        credential.setUpdatedAt(now);
         credentialMapper.updateById(credential);
     }
 

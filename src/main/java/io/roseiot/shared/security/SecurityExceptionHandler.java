@@ -14,6 +14,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -60,9 +61,14 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
     }
 
     private static String authenticationErrorCode(AuthenticationException exception) {
-        return exception instanceof BadCredentialsException
-                ? ApiErrorCode.INVALID_CREDENTIALS.code()
-                : "unauthorized";
+        if (exception instanceof BadCredentialsException) {
+            return ApiErrorCode.INVALID_CREDENTIALS.code();
+        }
+        if (exception instanceof OAuth2AuthenticationException oauth2Exception
+                && "invalid_token".equals(oauth2Exception.getError().getErrorCode())) {
+            return "invalid_token";
+        }
+        return "unauthorized";
     }
 
     @ExceptionHandler(AccessDeniedException.class)

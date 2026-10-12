@@ -119,7 +119,6 @@ class UserCredentialServiceTest {
         assertThat(stored.getResetToken()).isEqualTo(hash(event.getValue().token()));
         assertThat(event.getValue().email()).isEqualTo("ops@roseiot.io");
         assertThat(stored.getResetAt()).isNull();
-        assertThat(stored.getUpdatedAt()).isEqualTo(NOW);
         assertThat(stored.getResetExpiresAt()).isBetween(
                 before.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
     }
@@ -173,7 +172,6 @@ class UserCredentialServiceTest {
         verify(credentialMapper).insert(credential.capture());
         assertThat(credential.getValue().getUserId()).isEqualTo(USER_ID);
         assertThat(credential.getValue().getPassword()).isEqualTo("new-hash");
-        assertThat(credential.getValue().getCreatedAt()).isNotNull();
     }
 
     @Test

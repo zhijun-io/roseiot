@@ -1,6 +1,8 @@
 package io.roseiot.system;
 
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
+import io.roseiot.shared.ApiErrorCode;
+import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
 @WebMvcTest(controllers = SystemSettingController.class)
@@ -62,6 +65,20 @@ class SystemSettingControllerWebMvcTest {
         assertThat(mvc.get().uri("/system-settings")
                 .with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::systemToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void shouldReturnInternalErrorForBusinessException() {
+        willThrow(new BusinessException(ApiErrorCode.SYSTEM_SETTING_NOT_FOUND))
+                .given(systemSettingService).get(999L);
+
+        assertThat(mvc.get().uri("/system-settings/999")
+                .with(RoseiotWebMvcTestSupport.jwtWithAuthorities(
+                        this::systemToken, RoseiotWebMvcTestSupport.action("system.setting.manage"))))
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("system_setting_not_found");
     }
 
     private Jwt.Builder systemToken(Jwt.Builder builder) {

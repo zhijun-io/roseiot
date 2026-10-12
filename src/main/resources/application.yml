@@ -23,6 +23,9 @@ spring:
       pageable:
         default-page-size: 50
         max-page-size: 100
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   flyway:
     enabled: true
 management:
@@ -76,6 +79,8 @@ roseiot:
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}
+      issuer: ${ROSEIOT_AUTH_JWT_ISSUER:https://roseiot.local}
+      audience: ${ROSEIOT_AUTH_JWT_AUDIENCE:roseiot-api}
 
 mybatis-plus:
   type-handlers-package: io.roseiot.shared.mybatis

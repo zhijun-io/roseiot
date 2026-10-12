@@ -58,7 +58,7 @@ class TenantUsersMockMvcTests {
     void shouldListMembers() {
         given(userService.list(org.mockito.ArgumentMatchers.eq(TENANT_ID),
                 org.mockito.ArgumentMatchers.any(Pageable.class)))
-                .willReturn(new PageImpl<>(List.of(new UserInfo(
+                .willReturn(new PageImpl<>(List.of(new UserResponse(
                         MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false)),
                         PageRequest.of(0, 50, Sort.by("id")), 1));
 
@@ -72,7 +72,7 @@ class TenantUsersMockMvcTests {
     @Test
     void shouldGetMemberDetailsWithinTheCurrentTenant() {
         given(userService.get(TENANT_ID, MANAGED_USER_ID))
-                .willReturn(new UserInfo(MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false));
+                .willReturn(new UserResponse(MANAGED_USER_ID, "member@roseiot.io", "Member", ROLE_ID, false));
 
         assertThat(mvc.get().uri("/users/" + MANAGED_USER_ID)
                 .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken)))
@@ -86,7 +86,7 @@ class TenantUsersMockMvcTests {
     void shouldCreateTenantUserWithInitialPassword() {
         given(userService.create(
                 TENANT_ID, "new@roseiot.io", "New Member", "first-password-123", ROLE_ID))
-                .willReturn(new UserInfo(MANAGED_USER_ID, "new@roseiot.io", "New Member", ROLE_ID, false));
+                .willReturn(new UserResponse(MANAGED_USER_ID, "new@roseiot.io", "New Member", ROLE_ID, false));
 
         assertThat(mvc.post().uri("/users")
                 .with(RoseiotWebMvcTestSupport.jwtWithTenantAdmin(this::tenantToken))
@@ -162,7 +162,7 @@ class TenantUsersMockMvcTests {
                         .content("""
                                 {"disabled": true, "roleId": 1006}
                                 """))
-                .hasStatus(HttpStatus.CONFLICT)
+                .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("last_tenant_admin");

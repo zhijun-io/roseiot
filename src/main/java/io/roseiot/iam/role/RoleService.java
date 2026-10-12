@@ -1,7 +1,6 @@
 package io.roseiot.iam.role;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.roseiot.iam.resource.ResourceType;
 import io.roseiot.iam.resource.Resource;
 import io.roseiot.iam.resource.ResourceService;
 import io.roseiot.tenant.TenantService;
@@ -15,9 +14,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 @Service
+@Transactional(readOnly = true)
 public class RoleService {
     private final RoleMapper roleMapper;
     private final RoleResourceMapper roleResourceMapper;
@@ -37,7 +39,7 @@ public class RoleService {
     }
 
     @PreAuthorize("hasAuthority('tenant.role.manage')")
-    public org.springframework.data.domain.Page<RoleInfo> list(Long tenantId, Pageable pageable) {
+    public org.springframework.data.domain.Page<Role> list(Long tenantId, Pageable pageable) {
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActive(tenantId);
         Pageable checkedPageable = checkedPageable(pageable);
@@ -47,7 +49,8 @@ public class RoleService {
                 Wrappers.lambdaQuery(RoleEntity.class)
                         .eq(RoleEntity::getTenantId, tenantId)
                         .orderByAsc(RoleEntity::getId));
-        return new PageImpl<>(views(result.getRecords()), checkedPageable, result.getTotal());
+        return new PageImpl<>(result.getRecords().stream().map(Role::from).toList(),
+                checkedPageable, result.getTotal());
     }
 
     private static Pageable checkedPageable(Pageable pageable) {
@@ -59,37 +62,37 @@ public class RoleService {
     }
 
     @PreAuthorize("hasAuthority('tenant.role.manage')")
-    public RoleInfo get(Long tenantId, Long roleId) {
-        return view(requireEntity(tenantId, roleId));
+    public Role get(Long tenantId, Long roleId) {
+        return Role.from(requireEntity(tenantId, roleId));
     }
 
     @Transactional
     @PreAuthorize("hasAuthority('tenant.role.manage')")
-    public RoleInfo create(Long tenantId, String name, Set<String> actionCodes) {
+    public Role create(Long tenantId, String name, Set<String> actionCodes) {
         validateActionCodes(actionCodes);
+        String validatedName = validateName(name);
         tenantService.requireCustomerTenant(tenantId);
         tenantService.requireActiveForUpdate(tenantId);
-        if (name == null || name.isBlank() || name.length() > 255)
-            throw new IllegalArgumentException("Invalid role name");
         RoleEntity roleEntity = new RoleEntity();
         roleEntity.setTenantId(tenantId);
-        roleEntity.setName(name.trim());
+        roleEntity.setName(validatedName);
         roleMapper.insert(roleEntity);
         replaceActions(roleEntity, actionCodes);
-        return view(roleEntity);
+        return Role.from(roleEntity);
     }
 
     @Transactional
     @PreAuthorize("hasAuthority('tenant.role.manage')")
-    public RoleInfo update(Long tenantId, Long id, String name, Set<String> actionCodes) {
+    public Role update(Long tenantId, Long id, String name, Set<String> actionCodes) {
         validateActionCodes(actionCodes);
+        String validatedName = validateName(name);
         tenantService.requireActiveForUpdate(tenantId);
         RoleEntity roleEntity = requireEntity(tenantId, id);
-        roleEntity.setName(name.trim());
+        roleEntity.setName(validatedName);
         roleMapper.updateById(roleEntity);
         replaceActions(roleEntity, actionCodes);
         ensureAdministrator(tenantId);
-        return view(roleEntity);
+        return Role.from(roleEntity);
     }
 
     @Transactional
@@ -97,7 +100,7 @@ public class RoleService {
     public void delete(Long tenantId, Long id) {
         tenantService.requireActiveForUpdate(tenantId);
         RoleEntity roleEntity = requireEntity(tenantId, id);
-        if (roleMapper.hasAssignments(id) > 0)
+        if (roleMapper.hasAssignments(tenantId, id) > 0)
             throw new BusinessException(ApiErrorCode.ROLE_IN_USE);
         roleResourceMapper.delete(Wrappers.lambdaQuery(RoleResourceEntity.class).eq(RoleResourceEntity::getRoleId, id));
         roleMapper.deleteById(id);
@@ -123,11 +126,8 @@ public class RoleService {
         if (!byCode.keySet().containsAll(codes)) throw new BusinessException(ApiErrorCode.INVALID_ACTION);
         roleResourceMapper.delete(Wrappers.lambdaQuery(RoleResourceEntity.class).eq(RoleResourceEntity::getRoleId, role.getId()));
         for (String code : codes) {
-            RoleResourceEntity link = new RoleResourceEntity();
-            link.setTenantId(role.getTenantId());
-            link.setRoleId(role.getId());
-            link.setResourceId(byCode.get(code).id());
-            roleResourceMapper.insert(link);
+            RoleResource assignment = new RoleResource(role.getTenantId(), role.getId(), byCode.get(code).id());
+            roleResourceMapper.insert(RoleResourceEntity.from(assignment));
         }
     }
 
@@ -138,30 +138,11 @@ public class RoleService {
         }
     }
 
-    private RoleInfo view(RoleEntity roleEntity) {
-        return views(List.of(roleEntity)).getFirst();
+    private static String validateName(String name) {
+        if (name == null || name.isBlank() || name.trim().length() > 255) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Role name must contain 1 to 255 characters");
+        }
+        return name.trim();
     }
 
-    private List<RoleInfo> views(List<RoleEntity> roles) {
-        if (roles.isEmpty()) return List.of();
-
-        Map<Long, Set<Long>> resourceIdsByRole = new HashMap<>();
-        roleResourceMapper.selectList(Wrappers.lambdaQuery(RoleResourceEntity.class)
-                        .in(RoleResourceEntity::getRoleId, roles.stream().map(RoleEntity::getId).toList()))
-                .forEach(assignment -> resourceIdsByRole
-                        .computeIfAbsent(assignment.getRoleId(), ignored -> new HashSet<>())
-                        .add(assignment.getResourceId()));
-
-        List<Resource> catalogue = resourceService.catalog();
-        return roles.stream().map(role -> {
-            Set<Long> assignedResourceIds = resourceIdsByRole.getOrDefault(role.getId(), Set.of());
-            List<String> actionCodes = catalogue.stream()
-                    .filter(resource -> assignedResourceIds.contains(resource.id())
-                            && resource.type() == ResourceType.ACTION)
-                    .map(Resource::code)
-                    .sorted()
-                    .toList();
-            return new RoleInfo(role.getId(), role.getName(), actionCodes);
-        }).toList();
-    }
 }

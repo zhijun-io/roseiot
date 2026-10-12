@@ -4,6 +4,7 @@ import io.roseiot.system.SystemSettingService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -12,6 +13,7 @@ import java.net.URI;
 import java.util.Locale;
 
 @Component
+@Profile("local")
 @ConditionalOnProperty(name = "roseiot.password-reset.logging.enabled", havingValue = "true")
 class LoggingPasswordResetNotifier {
 

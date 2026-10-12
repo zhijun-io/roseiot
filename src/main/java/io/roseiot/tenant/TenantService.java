@@ -13,21 +13,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.time.Instant;
-import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)
 public class TenantService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TenantMapper tenantMapper;
-    private final Clock clock;
-    public TenantService(TenantMapper tenantMapper, Clock clock) {
+    public TenantService(TenantMapper tenantMapper) {
         this.tenantMapper = tenantMapper;
-        this.clock = clock;
     }
 
     public void requireCustomerTenant(Long tenantId) {
@@ -45,13 +42,13 @@ public class TenantService {
     }
 
     @PreAuthorize("hasAuthority('tenant.read')")
-    public org.springframework.data.domain.Page<TenantInfo> list(Pageable pageable) {
+    public org.springframework.data.domain.Page<Tenant> list(Pageable pageable) {
         Pageable checkedPageable = checkedPageable(pageable);
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<TenantEntity> result = tenantMapper.selectPage(
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
                         checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()),
                 Wrappers.lambdaQuery(TenantEntity.class).orderByAsc(TenantEntity::getId));
-        List<TenantInfo> items = result.getRecords().stream().map(Tenant::from).map(TenantInfo::from).toList();
+        List<Tenant> items = result.getRecords().stream().map(Tenant::from).toList();
         return new PageImpl<>(items, checkedPageable, result.getTotal());
     }
 
@@ -77,12 +74,10 @@ public class TenantService {
     @Transactional
     @PreAuthorize("hasAuthority('tenant.create')")
     public Tenant create(String name) {
-        Instant now = Instant.now(clock);
         TenantEntity tenant = new TenantEntity();
         tenant.setCode(generateCode());
         tenant.setName(name.trim());
         tenant.setStatus(TenantStatus.ACTIVE);
-        tenant.setCreatedAt(now);
 
         tenantMapper.insert(tenant);
         return Tenant.from(tenant);
@@ -92,7 +87,7 @@ public class TenantService {
     @PreAuthorize("(#p2 == null or (#p2 ? hasAuthority('tenant.disable') : hasAuthority('tenant.enable')))"
             + " and (#p1 == null or #p1.isBlank() or hasAuthority('tenant.create'))")
     public Tenant update(Long tenantId, String name, Boolean disabled) {
-        TenantEntity tenant = tenantMapper.selectById(tenantId);
+        TenantEntity tenant = tenantMapper.selectByIdForUpdate(tenantId);
         if (tenant == null) throw new BusinessException(ApiErrorCode.TENANT_NOT_FOUND);
         requireCustomerTenant(tenantId);
         TenantStatus status = tenant.getStatus();

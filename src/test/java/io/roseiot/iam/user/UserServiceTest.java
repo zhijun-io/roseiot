@@ -5,11 +5,14 @@ package io.roseiot.iam.user;
 
 
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.roseiot.iam.role.RoleService;
+import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.tenant.TenantService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.List;
 import java.time.Clock;
@@ -51,7 +54,7 @@ class UserServiceTest {
         user.setEmail("ops@roseiot.io");
         when(userMapper.selectById(USER_ID)).thenReturn(user);
 
-        UserProfile profile = cut.getProfile(USER_ID);
+        User profile = cut.getProfile(USER_ID);
 
         assertThat(profile.id()).isEqualTo(USER_ID);
         assertThat(profile.email()).isEqualTo("ops@roseiot.io");
@@ -65,33 +68,72 @@ class UserServiceTest {
     }
 
     @Test
-    void shouldLoadAccessTokenDataWithoutReadingCredentials() {
+    void shouldLoadUserByNormalizedEmailWithCurrentAuthorities() {
+        UserEntity user = new UserEntity();
+        user.setId(USER_ID);
+        user.setTenantId(42L);
+        user.setEmail("ops@roseiot.io");
+        user.setStatus(UserStatus.ACTIVE);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(tenantService.isActive(42L)).thenReturn(true);
+        UserCredentialEntity credential = new UserCredentialEntity();
+        credential.setPassword("encoded-password");
+        when(credentialMapper.selectById(USER_ID)).thenReturn(credential);
+        when(userRoleMapper.listPermissionCodesForUser(USER_ID)).thenReturn(List.of("device:read"));
+
+        SecurityUser principal = (SecurityUser) cut.loadUserByUsername(" OPS@ROSEIOT.IO ");
+
+        assertThat(principal.userId()).isEqualTo(user.getId());
+        assertThat(principal.getUsername()).isEqualTo(user.getEmail());
+        assertThat(principal.getPassword()).isEqualTo("encoded-password");
+        assertThat(principal.getAuthorities()).extracting("authority").containsExactly("device:read");
+        verify(userRoleMapper).listPermissionCodesForUser(USER_ID);
+    }
+
+    @Test
+    void shouldLoadJwtPrincipalByStableUserIdWithoutLoadingPasswordHash() {
         UserEntity user = new UserEntity();
         user.setId(USER_ID);
         user.setTenantId(42L);
         user.setEmail("ops@roseiot.io");
         user.setStatus(UserStatus.ACTIVE);
         when(userMapper.selectById(USER_ID)).thenReturn(user);
+        when(tenantService.isActive(42L)).thenReturn(true);
         when(userRoleMapper.listPermissionCodesForUser(USER_ID)).thenReturn(List.of("device:read"));
 
-        UserAuthentication authenticationUser = cut.findForAccessToken(USER_ID).orElseThrow();
+        SecurityUser principal = cut.loadByUserId(USER_ID);
 
-        assertThat(authenticationUser.user().id()).isEqualTo(user.getId());
-        assertThat(authenticationUser.user().email()).isEqualTo(user.getEmail());
-        assertThat(authenticationUser.password()).isNull();
-        assertThat(authenticationUser.permissions()).containsExactly("device:read");
+        assertThat(principal.userId()).isEqualTo(USER_ID);
+        assertThat(principal.getUsername()).isEqualTo("ops@roseiot.io");
+        assertThat(principal.getPassword()).isNull();
+        assertThat(principal.getAuthorities()).extracting("authority").containsExactly("device:read");
         org.mockito.Mockito.verifyNoInteractions(credentialMapper);
-        verify(userRoleMapper).listPermissionCodesForUser(USER_ID);
     }
 
     @Test
-    void shouldNotLoadAuthenticationDataForInactiveUser() {
+    void shouldRejectInactiveUser() {
         UserEntity user = new UserEntity();
         user.setId(USER_ID);
         user.setStatus(UserStatus.DISABLED);
-        when(userMapper.selectById(USER_ID)).thenReturn(user);
+        user.setEmail("ops@roseiot.io");
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
 
-        assertThat(cut.findForAccessToken(USER_ID)).isEmpty();
+        assertThatThrownBy(() -> cut.loadUserByUsername("ops@roseiot.io"))
+                .isInstanceOf(UsernameNotFoundException.class);
+    }
+
+    @Test
+    void shouldRejectUserOfDisabledTenant() {
+        UserEntity user = new UserEntity();
+        user.setId(USER_ID);
+        user.setTenantId(42L);
+        user.setEmail("ops@roseiot.io");
+        user.setStatus(UserStatus.ACTIVE);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(tenantService.isActive(42L)).thenReturn(false);
+
+        assertThatThrownBy(() -> cut.loadUserByUsername("ops@roseiot.io"))
+                .isInstanceOf(UsernameNotFoundException.class);
     }
 
     @Test
@@ -103,9 +145,9 @@ class UserServiceTest {
             return 1;
         });
 
-        UserInfo created = cut.create(42L, " NEW@EXAMPLE.TEST ", " New User ", "passphrase1234", 7L);
+        UserResponse created = cut.create(42L, " NEW@EXAMPLE.TEST ", " New User ", "passphrase1234", 7L);
 
-        assertThat(created).isEqualTo(new UserInfo(USER_ID, "new@example.test", "New User", 7L, false));
+        assertThat(created).isEqualTo(new UserResponse(USER_ID, "new@example.test", "New User", 7L, false));
         verify(tenantService).requireCustomerTenant(42L);
         verify(tenantService).requireActiveForUpdate(42L);
         verify(roleService).requireAssignable(42L, 7L);

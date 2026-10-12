@@ -7,9 +7,8 @@ import org.apache.ibatis.annotations.Select;
 
 interface RoleMapper extends BaseMapper<RoleEntity> {
 
-    @com.baomidou.mybatisplus.annotation.InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT COUNT(*) FROM user_role WHERE role_id = #{roleId}")
-    int hasAssignments(@Param("roleId") Long roleId);
+    @Select("SELECT COUNT(*) FROM user_role WHERE tenant_id = #{tenantId} AND role_id = #{roleId}")
+    int hasAssignments(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
 
     @Select("""
             SELECT COUNT(*)

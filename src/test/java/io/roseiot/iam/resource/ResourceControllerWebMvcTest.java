@@ -42,8 +42,9 @@ class ResourceControllerWebMvcTest {
     @Test
     void shouldReturnReadOnlyCatalogToAuthenticatedUsers() {
         given(resourceService.list(PageRequest.of(0, 50, Sort.by("id"))))
-                .willReturn(new PageImpl<>(List.of(new ResourceInfo(
-                        1L, "device.read", "Read devices", ResourceType.ACTION, null, null, null, 1)),
+                .willReturn(new PageImpl<>(List.of(new Resource(
+                        1L, 1L, "device.read", "Read devices", ResourceType.ACTION, null,
+                        ResourceStatus.ACTIVE, null, null, 1)),
                         PageRequest.of(0, 50, Sort.by("id")), 1));
 
         assertThat(mvc.get().uri("/resources")
@@ -52,6 +53,17 @@ class ResourceControllerWebMvcTest {
                 .bodyJson()
                 .extractingPath("$.content[0].code")
                 .isEqualTo("device.read");
+
+        assertThat(mvc.get().uri("/resources")
+                .with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
+                .bodyJson()
+                .extractingPath("$.content[0].tenantId")
+                .isEqualTo(1);
+        assertThat(mvc.get().uri("/resources")
+                .with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
+                .bodyJson()
+                .extractingPath("$.content[0].status")
+                .isEqualTo("ACTIVE");
     }
 
     @Test

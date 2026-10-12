@@ -1,11 +1,14 @@
 package io.roseiot.system;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
+
 @TableName(value = "system_setting", autoResultMap = true)
 class SystemSettingEntity {
 
@@ -13,7 +16,10 @@ class SystemSettingEntity {
     private Long id;
     private SystemSettingType type;
     private JsonNode setting;
+    @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
 
     Long getId() { return id; }
