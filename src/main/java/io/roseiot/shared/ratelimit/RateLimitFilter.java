@@ -18,6 +18,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 
@@ -69,14 +73,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         for (RateLimitProperties.Rule rule : matchingRules) {
             String keyPart = rule.bodyField() == null
-                    ? request.getRemoteAddr()
+                    ? clientAddressKey(request)
                     : JsonRequestBodyFields.readTextField(body, rule.bodyField(), jsonMapper)
                             .map(value -> value.trim().toLowerCase(Locale.ROOT))
                             .filter(value -> !value.isEmpty())
-                            .orElse(null);
-            if (keyPart == null || keyPart.isBlank()) {
-                continue;
-            }
+                            .map(RateLimitFilter::subjectKey)
+                            .orElseGet(() -> clientAddressKey(request));
             try {
                 rateLimiter.checkAllowed(rule.keyPrefix() + keyPart, rule.maxAttempts());
             } catch (RateLimitCapacityExceededException exception) {
@@ -98,6 +100,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static boolean matches(RateLimitProperties.Rule rule, HttpServletRequest request) {
         return rule.method().equalsIgnoreCase(request.getMethod())
                 && PATH_MATCHER.match(rule.path(), request.getRequestURI());
+    }
+
+    private static String clientAddressKey(HttpServletRequest request) {
+        return "client:" + request.getRemoteAddr();
+    }
+
+    private static String subjectKey(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return "subject:" + HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 
     private void writeRequestTooLarge(HttpServletResponse response) throws IOException {

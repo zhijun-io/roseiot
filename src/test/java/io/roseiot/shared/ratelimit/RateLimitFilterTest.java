@@ -113,6 +113,23 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void shouldKeepRawEmailOutOfTheRateLimitKey() throws Exception {
+        stubLoginRequest();
+        SlidingWindowRateLimiter rateLimiter = org.mockito.Mockito.spy(
+                new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+        RateLimitFilter cut = cut(rateLimiter);
+
+        cut.doFilterInternal(request, response, filterChain);
+
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(rateLimiter).checkAllowed(key.capture(), eq(1));
+        assertThat(key.getValue())
+                .startsWith("auth:login:subject:")
+                .doesNotContain("ops@roseiot.io")
+                .hasSize("auth:login:subject:".length() + 64);
+    }
+
+    @Test
     void shouldRejectSecondAttemptBeyondTheLimitWithStableErrorBody() throws Exception {
         stubLoginRequest();
         SlidingWindowRateLimiter rateLimiter = new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC());
@@ -135,18 +152,37 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void shouldNotCountRequestsWhoseRateLimitKeyIsMissing() throws Exception {
+    void shouldRateLimitRequestsWhoseBodyKeyIsMissingByClientAddress() throws Exception {
         stubRequest("POST", LOGIN_PATH, """
                 {"password":"correct horse 42"}
                 """.getBytes(StandardCharsets.UTF_8));
+        when(request.getRemoteAddr()).thenReturn("192.0.2.20");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
+        verify(filterChain).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        clearInvocations(filterChain, response);
         cut.doFilterInternal(request, response, filterChain);
 
-        verify(filterChain, times(2))
+        verify(response).setStatus(429);
+        verify(filterChain, never())
                 .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
-        assertThat(responseBody.asText()).isEmpty();
+    }
+
+    @Test
+    void shouldRateLimitMalformedBodyByClientAddressWhenBodyKeyCannotBeRead() throws Exception {
+        stubRequest("POST", LOGIN_PATH, "{".getBytes(StandardCharsets.UTF_8));
+        when(request.getRemoteAddr()).thenReturn("192.0.2.21");
+        RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+
+        cut.doFilterInternal(request, response, filterChain);
+        verify(filterChain).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        clearInvocations(filterChain, response);
+        cut.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(429);
+        verify(filterChain, never())
+                .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     @Test

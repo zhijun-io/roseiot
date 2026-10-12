@@ -6,11 +6,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Optional;
 
-public final class JsonRequestBodyFields {
+final class JsonRequestBodyFields {
 
     private JsonRequestBodyFields() {}
 
-    public static Optional<String> readTextField(byte[] body, String fieldName, JsonMapper jsonMapper) {
+    static Optional<String> readTextField(byte[] body, String fieldName, JsonMapper jsonMapper) {
         if (body == null || body.length == 0) {
             return Optional.empty();
         }
