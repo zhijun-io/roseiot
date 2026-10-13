@@ -5,6 +5,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,15 +18,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.core.JacksonException;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.time.Clock;
-
-/** Handles {@code POST /login}. */
+/** Handles {@code POST /api/login}. */
 public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final PathPatternRequestMatcher LOGIN = PathPatternRequestMatcher.withDefaults()
-            .matcher(HttpMethod.POST, "/login");
+    private static final PathPatternRequestMatcher LOGIN =
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/login");
 
     private final AuthenticationManager authenticationManager;
     private final SecurityExceptionHandler securityExceptionHandler;
@@ -60,13 +59,14 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         if (body == null || !StringUtils.hasText(body.email()) || !StringUtils.hasText(body.password())) {
-            apiHttpSupport.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "validation_error", "Validation failed");
+            apiHttpSupport.writeError(
+                    response, HttpServletResponse.SC_BAD_REQUEST, "validation_error", "Validation failed");
             return;
         }
 
         try {
-            Authentication result = authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(
-                    body.email(), body.password()));
+            Authentication result = authenticationManager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(body.email(), body.password()));
             SecurityUser principal = (SecurityUser) result.getPrincipal();
             String token = jwtTokenFactory.createAccessToken(
                     principal.userId(), principal.requireTenantId(), Instant.now(clock));
@@ -91,5 +91,4 @@ public final class RestLoginAuthenticationFilter extends OncePerRequestFilter {
             return "LoginResponse[accessToken=redacted]";
         }
     }
-
 }

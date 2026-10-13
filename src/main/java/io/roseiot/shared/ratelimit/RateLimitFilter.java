@@ -1,22 +1,12 @@
 package io.roseiot.shared.ratelimit;
 
+import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.webmvc.ApiHttpSupport;
 import io.roseiot.shared.webmvc.CachedBodyHttpServletRequest;
-import io.roseiot.shared.ApiErrorCode;
-import org.springframework.http.HttpStatus;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
-import org.springframework.web.filter.OncePerRequestFilter;
-import tools.jackson.databind.json.JsonMapper;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -24,6 +14,15 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
+import tools.jackson.databind.json.JsonMapper;
 
 @Component
 @EnableConfigurationProperties(RateLimitProperties.class)
@@ -54,9 +53,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        List<RateLimitProperties.Rule> matchingRules = rules.stream()
-                .filter(rule -> matches(rule, request))
-                .toList();
+        List<RateLimitProperties.Rule> matchingRules =
+                rules.stream().filter(rule -> matches(rule, request)).toList();
         if (matchingRules.isEmpty()) {
             filterChain.doFilter(request, response);
             return;
@@ -82,7 +80,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             try {
                 rateLimiter.checkAllowed(rule.keyPrefix() + keyPart, rule.maxAttempts());
             } catch (RateLimitCapacityExceededException exception) {
-                apiHttpSupport.writeError(response, HttpStatus.SERVICE_UNAVAILABLE.value(),
+                apiHttpSupport.writeError(
+                        response,
+                        HttpStatus.SERVICE_UNAVAILABLE.value(),
                         ApiErrorCode.RATE_LIMIT_CAPACITY_EXHAUSTED.code(),
                         "Rate limiting capacity is temporarily unavailable");
                 return;
@@ -99,7 +99,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static boolean matches(RateLimitProperties.Rule rule, HttpServletRequest request) {
         return rule.method().equalsIgnoreCase(request.getMethod())
-                && PATH_MATCHER.match(rule.path(), request.getRequestURI());
+                && PATH_MATCHER.match(rule.path(), request.getServletPath());
     }
 
     private static String clientAddressKey(HttpServletRequest request) {
@@ -116,7 +116,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private void writeRequestTooLarge(HttpServletResponse response) throws IOException {
-        apiHttpSupport.writeError(response, HttpStatus.PAYLOAD_TOO_LARGE.value(),
-                ApiErrorCode.REQUEST_TOO_LARGE.code(), ApiErrorCode.REQUEST_TOO_LARGE.code());
+        apiHttpSupport.writeError(
+                response,
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                ApiErrorCode.REQUEST_TOO_LARGE.code(),
+                ApiErrorCode.REQUEST_TOO_LARGE.code());
     }
 }

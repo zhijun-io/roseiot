@@ -15,7 +15,7 @@ Roseiot 是一个面向物联网场景的多租户后端项目。目前处于建
 
 当前限流使用进程内滑动窗口，只适用于单实例演示；应用重启会清空计数，多副本之间也不共享额度。部署多副本或用于生产时，应在网关或共享限流存储中执行跨实例策略。
 
-HTTP 请求体有独立于限流开关的 1 MiB 默认上限，可通过 `roseiot.http.max-request-body-bytes` 调整；登录和密码重置路由另有 16 KiB 限制，由 `roseiot.rate-limit.max-request-body-bytes` 配置。超过对应上限的请求返回 `413 Payload Too Large`。
+HTTP 请求体有独立于限流开关的 1 MiB 默认上限，可通过 `roseiot.http.max-request-body-bytes` 调整；登录和密码重置路由另有独立的 16 KiB 限制，可通过 `roseiot.http.max-authentication-request-body-bytes` 调整。超过对应上限的请求返回 `413 Payload Too Large`。
 
 当前还没有首位管理员创建入口，因此全新数据库尚不能通过应用 API 创建第一个登录用户。用户邀请功能已移除。密码重置通知目前没有邮件投递服务；只有显式激活 `local` profile 并设置 `ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED=true` 时，应用才会把重置链接写入日志。该选项包含一次性凭证，只能用于本地演示，禁止在共享或生产环境启用。重置链接依赖 `system_setting` 中的通用 `baseUrl` 设置，并将 token 放在 URL fragment 中；客户端应从 fragment 读取令牌，再通过请求体调用重置验证与确认接口。
 
@@ -55,15 +55,15 @@ SPRING_PROFILES_ACTIVE=local ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED=true ./mvnw 
 应用启动后，可检查健康状态：
 
 ```bash
-curl -fsS http://localhost:8080/actuator/health/liveness
-curl -fsS http://localhost:8080/actuator/health/readiness
+curl -fsS http://localhost:8080/api/actuator/health/liveness
+curl -fsS http://localhost:8080/api/actuator/health/readiness
 ```
 
 如果使用已有 PostgreSQL 而不启动 Compose，在 `.env` 中设置 `SPRING_DOCKER_COMPOSE_ENABLED=false`，并提供 `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME` 和 `SPRING_DATASOURCE_PASSWORD`，然后运行相同的启动命令。
 
-当前 Flyway 保留从空数据库创建结构的 V1 基线，并使用后续版本化迁移添加管理权限。该项目不包含早期开发版本的完整升级路径；使用已有数据库前，请确认其 Flyway 历史与当前迁移兼容。
+当前 Flyway 保留从空数据库创建结构的 V1 基线，并使用后续版本化迁移添加管理权限。V6 将遗留复数表名 `users` 重命名为 PostgreSQL 保留字 `user`，DDL、SQL 和 MyBatis-Plus 映射均对表名加双引号。该项目不包含更早开发版本数据库的完整升级路径；使用已有数据库前，请确认其 Flyway 历史与当前迁移兼容。
 
-V4 为每个租户用户最多分配一个角色添加唯一索引；V5 为租户、用户凭据、用户角色、角色资源和资源父子关系添加外键约束。升级已有数据库前，先检查重复角色关系和孤立关联；迁移不会自动删除或合并数据。
+V4 为每个租户用户最多分配一个角色添加唯一索引；V5 为租户、用户凭据、用户角色、角色资源和资源父子关系添加外键约束；V6 将 `users` 改名为单数 `"user"`。升级已有数据库前，先检查重复角色关系和孤立关联；迁移不会自动删除或合并数据。
 
 ```sql
 SELECT tenant_id, user_id, COUNT(*)
@@ -81,6 +81,8 @@ HAVING COUNT(*) > 1;
 ```bash
 ./mvnw -q verify
 ```
+
+GitHub Actions 在 push、pull request 和手动触发时运行相同的 Maven Wrapper 验证，并保留 Surefire 与 Failsafe 报告。
 
 ## 代码组织
 

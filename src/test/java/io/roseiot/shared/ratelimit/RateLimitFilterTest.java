@@ -1,37 +1,36 @@
 package io.roseiot.shared.ratelimit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import io.roseiot.shared.webmvc.ApiHttpSupport;
-import jakarta.servlet.ReadListener;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.WriteListener;
+import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import tools.jackson.databind.json.JsonMapper;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.json.JsonMapper;
 
 class RateLimitFilterTest {
 
-    private static final String LOGIN_PATH = "/login";
+    private static final String LOGIN_PATH = "/api/login";
     private static final byte[] LOGIN_BODY = """
             {"email":"ops@roseiot.io","password":"correct horse 42"}
             """.getBytes(StandardCharsets.UTF_8);
@@ -61,7 +60,10 @@ class RateLimitFilterTest {
     }
 
     private RateLimitFilter cut(SlidingWindowRateLimiter rateLimiter) {
-        return new RateLimitFilter(rateLimiter, properties, JsonMapper.builder().build(),
+        return new RateLimitFilter(
+                rateLimiter,
+                properties,
+                JsonMapper.builder().build(),
                 new ApiHttpSupport(JsonMapper.builder().build()));
     }
 
@@ -73,13 +75,14 @@ class RateLimitFilterTest {
     private void stubRequest(String method, String path, byte[] body) throws IOException {
         when(request.getMethod()).thenReturn(method);
         when(request.getRequestURI()).thenReturn(path);
+        when(request.getServletPath()).thenReturn(path);
         when(request.getInputStream()).thenAnswer(invocation -> new StubInputStream(body));
     }
 
     @Test
     void shouldPassRequestThroughWhenNoRuleMatches() throws Exception {
         when(request.getMethod()).thenReturn("GET");
-        when(request.getRequestURI()).thenReturn("/me");
+        when(request.getRequestURI()).thenReturn("/api/me");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
         cut.doFilterInternal(request, response, filterChain);
@@ -115,8 +118,8 @@ class RateLimitFilterTest {
     @Test
     void shouldKeepRawEmailOutOfTheRateLimitKey() throws Exception {
         stubLoginRequest();
-        SlidingWindowRateLimiter rateLimiter = org.mockito.Mockito.spy(
-                new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
+        SlidingWindowRateLimiter rateLimiter =
+                org.mockito.Mockito.spy(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
         RateLimitFilter cut = cut(rateLimiter);
 
         cut.doFilterInternal(request, response, filterChain);
@@ -165,8 +168,7 @@ class RateLimitFilterTest {
         cut.doFilterInternal(request, response, filterChain);
 
         verify(response).setStatus(429);
-        verify(filterChain, never())
-                .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     @Test
@@ -181,14 +183,13 @@ class RateLimitFilterTest {
         cut.doFilterInternal(request, response, filterChain);
 
         verify(response).setStatus(429);
-        verify(filterChain, never())
-                .doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+        verify(filterChain, never()).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
     }
 
     @Test
     void shouldRateLimitResetTokenValidationByClientAddressAndBufferBoundedBody() throws Exception {
-        properties = withRules(List.of(tokenRule("POST", "/password-resets/validations", 1)));
-        stubRequest("POST", "/password-resets/validations", new byte[0]);
+        properties = withRules(List.of(tokenRule("POST", "/api/password-resets/validations", 1)));
+        stubRequest("POST", "/api/password-resets/validations", new byte[0]);
         when(request.getRemoteAddr()).thenReturn("192.0.2.10");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
@@ -218,8 +219,9 @@ class RateLimitFilterTest {
 
     @Test
     void shouldBoundBodiesForClientAddressKeyedRoutesToo() throws Exception {
-        properties = withRulesAndMaxRequestBodyBytes(List.of(tokenRule("POST", "/password-resets/validations", 20)), 16);
-        stubRequest("POST", "/password-resets/validations", new byte[32]);
+        properties =
+                withRulesAndMaxRequestBodyBytes(List.of(tokenRule("POST", "/api/password-resets/validations", 20)), 16);
+        stubRequest("POST", "/api/password-resets/validations", new byte[32]);
         when(request.getContentLengthLong()).thenReturn(-1L);
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
 
@@ -232,8 +234,8 @@ class RateLimitFilterTest {
 
     @Test
     void shouldAnswerServiceUnavailableWhenLimiterTrackingCapacityIsExhausted() throws Exception {
-        properties = withRulesAndMaxTrackedKeys(List.of(tokenRule("POST", "/password-resets/validations", 20)), 1);
-        stubRequest("POST", "/password-resets/validations", new byte[0]);
+        properties = withRulesAndMaxTrackedKeys(List.of(tokenRule("POST", "/api/password-resets/validations", 20)), 1);
+        stubRequest("POST", "/api/password-resets/validations", new byte[0]);
         when(request.getRemoteAddr()).thenReturn("192.0.2.10", "192.0.2.11");
         RateLimitFilter cut = cut(new SlidingWindowRateLimiter(properties, java.time.Clock.systemUTC()));
         cut.doFilterInternal(request, response, filterChain);
@@ -247,24 +249,22 @@ class RateLimitFilterTest {
     }
 
     private RateLimitProperties withRules(List<RateLimitProperties.Rule> rules) {
-        return new RateLimitProperties(properties.windowMinutes(), properties.maxRequestBodyBytes(),
-                properties.maxTrackedKeys(), rules);
+        return new RateLimitProperties(
+                properties.windowMinutes(), properties.maxRequestBodyBytes(), properties.maxTrackedKeys(), rules);
     }
 
     private RateLimitProperties withMaxRequestBodyBytes(int maxBytes) {
-        return new RateLimitProperties(properties.windowMinutes(), maxBytes, properties.maxTrackedKeys(),
-                properties.rules());
+        return new RateLimitProperties(
+                properties.windowMinutes(), maxBytes, properties.maxTrackedKeys(), properties.rules());
     }
 
-    private RateLimitProperties withRulesAndMaxRequestBodyBytes(
-            List<RateLimitProperties.Rule> rules, int maxBytes) {
+    private RateLimitProperties withRulesAndMaxRequestBodyBytes(List<RateLimitProperties.Rule> rules, int maxBytes) {
         return new RateLimitProperties(properties.windowMinutes(), maxBytes, properties.maxTrackedKeys(), rules);
     }
 
-    private RateLimitProperties withRulesAndMaxTrackedKeys(
-            List<RateLimitProperties.Rule> rules, int maxTrackedKeys) {
-        return new RateLimitProperties(properties.windowMinutes(), properties.maxRequestBodyBytes(),
-                maxTrackedKeys, rules);
+    private RateLimitProperties withRulesAndMaxTrackedKeys(List<RateLimitProperties.Rule> rules, int maxTrackedKeys) {
+        return new RateLimitProperties(
+                properties.windowMinutes(), properties.maxRequestBodyBytes(), maxTrackedKeys, rules);
     }
 
     private static final class StubInputStream extends ServletInputStream {

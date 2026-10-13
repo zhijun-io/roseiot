@@ -5,10 +5,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
-
-import java.util.List;
 
 @Validated
 @ConfigurationProperties(prefix = "roseiot.rate-limit")
@@ -23,7 +22,9 @@ public record RateLimitProperties(
     }
 
     public record Rule(
-            @NotBlank @Pattern(regexp = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS") String method,
+            @NotBlank @Pattern(regexp = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS")
+            String method,
+
             @NotBlank String path,
             String bodyField,
             @NotBlank String keyPrefix,

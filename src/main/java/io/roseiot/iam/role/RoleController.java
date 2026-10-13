@@ -1,28 +1,32 @@
 package io.roseiot.iam.role;
 
+import io.roseiot.shared.ApiErrorCode;
+import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.security.SecurityUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Set;
-
 @RestController
+@RequestMapping("/api")
 class RoleController {
 
     private final RoleService roleService;
@@ -68,10 +72,13 @@ class RoleController {
 
     record RoleRequest(
             @NotBlank @Size(max = 255) String name,
-            @NotNull @Size(max = 100) List<@NotBlank @Size(max = 128) String> actionCodes) {
-    }
+            @NotNull @Size(max = 100) List<@NotBlank @Size(max = 128) String> actionCodes) {}
 
     private static Set<String> actionCodes(RoleRequest request) {
-        return Set.copyOf(request.actionCodes());
+        Set<String> actionCodes = new LinkedHashSet<>(request.actionCodes());
+        if (actionCodes.size() != request.actionCodes().size()) {
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Action codes must be unique");
+        }
+        return Set.copyOf(actionCodes);
     }
 }

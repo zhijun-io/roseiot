@@ -1,31 +1,30 @@
 package io.roseiot.iam.role;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 import io.roseiot.iam.security.ImportRoseiotSecuredWebMvc;
-import io.roseiot.shared.security.JwtAuthenticationConverter;
 import io.roseiot.iam.security.RoseiotWebMvcTestSupport;
+import io.roseiot.shared.security.JwtAuthenticationConverter;
+import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.Set;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import java.util.stream.IntStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(controllers = RoleController.class)
 @TestPropertySource(properties = "roseiot.rate-limit.enabled=false")
@@ -49,11 +48,12 @@ class RoleControllerWebMvcTest {
 
     @Test
     void shouldListTenantRoles() {
-        given(roleService.list(org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(Pageable.class)))
-                .willReturn(new PageImpl<>(List.of(new Role(ROLE_ID, TENANT_ID, "Operator")),
-                        PageRequest.of(0, 50, Sort.by("id")), 1));
+        given(roleService.list(
+                        org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(Pageable.class)))
+                .willReturn(new PageImpl<>(
+                        List.of(new Role(ROLE_ID, TENANT_ID, "Operator")), PageRequest.of(0, 50, Sort.by("id")), 1));
 
-        assertThat(mvc.get().uri("/roles").with(roleManager()))
+        assertThat(mvc.get().uri("/api/roles").with(roleManager()))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.content[0].name")
@@ -65,10 +65,11 @@ class RoleControllerWebMvcTest {
         given(roleService.create(TENANT_ID, "Operator", Set.of("device.read")))
                 .willReturn(new Role(ROLE_ID, TENANT_ID, "Operator"));
 
-        assertThat(mvc.post().uri("/roles")
-                .with(roleManager())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Operator\",\"actionCodes\":[\"device.read\"]}"))
+        assertThat(mvc.post()
+                        .uri("/api/roles")
+                        .with(roleManager())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Operator\",\"actionCodes\":[\"device.read\"]}"))
                 .hasStatus(HttpStatus.OK)
                 .bodyJson()
                 .extractingPath("$.id")
@@ -82,10 +83,11 @@ class RoleControllerWebMvcTest {
         given(roleService.create(TENANT_ID, "Operator", Set.of("device.read")))
                 .willReturn(new Role(ROLE_ID, TENANT_ID, "Operator"));
 
-        assertThat(mvc.post().uri("/roles")
-                .with(roleManager())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Operator\",\"actionCodes\":[\"device.read\",\"device.read\"]}"))
+        assertThat(mvc.post()
+                        .uri("/api/roles")
+                        .with(roleManager())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Operator\",\"actionCodes\":[\"device.read\",\"device.read\"]}"))
                 .hasStatus(HttpStatus.OK);
 
         verify(roleService).create(TENANT_ID, "Operator", Set.of("device.read"));
@@ -97,10 +99,11 @@ class RoleControllerWebMvcTest {
                 .mapToObj(index -> "\"device.read\"")
                 .collect(java.util.stream.Collectors.joining(","));
 
-        assertThat(mvc.post().uri("/roles")
-                .with(roleManager())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Operator\",\"actionCodes\":[" + actionCodes + "]}"))
+        assertThat(mvc.post()
+                        .uri("/api/roles")
+                        .with(roleManager())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Operator\",\"actionCodes\":[" + actionCodes + "]}"))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .extractingPath("$.code")
@@ -111,10 +114,11 @@ class RoleControllerWebMvcTest {
 
     @Test
     void shouldRejectUnknownRequestFields() {
-        assertThat(mvc.post().uri("/roles")
-                .with(roleManager())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Operator\",\"actionCodes\":[],\"actionCode\":\"device.read\"}"))
+        assertThat(mvc.post()
+                        .uri("/api/roles")
+                        .with(roleManager())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Operator\",\"actionCodes\":[],\"actionCode\":\"device.read\"}"))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .extractingPath("$.code")
@@ -125,10 +129,11 @@ class RoleControllerWebMvcTest {
 
     @Test
     void shouldRejectDuplicateJsonObjectKeys() {
-        assertThat(mvc.post().uri("/roles")
-                .with(roleManager())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Operator\",\"name\":\"Administrator\",\"actionCodes\":[]}"))
+        assertThat(mvc.post()
+                        .uri("/api/roles")
+                        .with(roleManager())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Operator\",\"name\":\"Administrator\",\"actionCodes\":[]}"))
                 .hasStatus(HttpStatus.BAD_REQUEST)
                 .bodyJson()
                 .extractingPath("$.code")
@@ -139,7 +144,7 @@ class RoleControllerWebMvcTest {
 
     @Test
     void shouldRequireRoleManagementPermission() {
-        assertThat(mvc.get().uri("/roles").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
+        assertThat(mvc.get().uri("/api/roles").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.FORBIDDEN);
     }
 
@@ -151,7 +156,10 @@ class RoleControllerWebMvcTest {
     private org.springframework.security.oauth2.jwt.Jwt.Builder tenantToken(
             org.springframework.security.oauth2.jwt.Jwt.Builder builder) {
         Instant now = Instant.now();
-        return builder.header("alg", "none").subject("1001").claim("tid", TENANT_ID.toString())
-                .issuedAt(now).expiresAt(now.plusSeconds(60));
+        return builder.header("alg", "none")
+                .subject("1001")
+                .claim("tid", TENANT_ID.toString())
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60));
     }
 }

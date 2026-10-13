@@ -6,4 +6,5 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties(prefix = "roseiot.http")
-public record RequestBodyProperties(@Min(1) int maxRequestBodyBytes) {}
+public record RequestBodyProperties(
+        @Min(1) int maxRequestBodyBytes, @Min(1) int maxAuthenticationRequestBodyBytes) {}

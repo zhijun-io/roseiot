@@ -5,12 +5,12 @@ import io.roseiot.shared.security.JwtTokenFactory;
 import io.roseiot.shared.security.RestLoginAuthenticationFilter;
 import io.roseiot.shared.security.SecurityExceptionHandler;
 import io.roseiot.shared.webmvc.ApiHttpSupport;
+import java.time.Clock;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import java.time.Clock;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -49,25 +49,21 @@ public class WebSecurityConfig {
      */
     @Bean
     @Order(1)
-    SecurityFilterChain publicSecurityFilterChain(HttpSecurity http, RestLoginAuthenticationFilter restLoginAuthenticationFilter)
-            throws Exception {
-        http.securityMatcher(
-                        "/actuator/health",
-                        "/actuator/health/**",
-                        "/login",
-                        "/password-resets/**")
+    SecurityFilterChain publicSecurityFilterChain(
+            HttpSecurity http, RestLoginAuthenticationFilter restLoginAuthenticationFilter) throws Exception {
+        http.securityMatcher("/api/actuator/health", "/api/actuator/health/**", "/api/login", "/api/password-resets/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/login")
-                        .permitAll()
-                        .requestMatchers("/password-resets/**")
-                        .permitAll()
-                        .anyRequest()
-                        .denyAll())
+                .authorizeHttpRequests(
+                        auth -> auth.requestMatchers(HttpMethod.GET, "/api/actuator/health", "/api/actuator/health/**")
+                                .permitAll()
+                                .requestMatchers(HttpMethod.POST, "/api/login")
+                                .permitAll()
+                                .requestMatchers("/api/password-resets/**")
+                                .permitAll()
+                                .anyRequest()
+                                .denyAll())
                 .addFilterBefore(restLoginAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -83,10 +79,8 @@ public class WebSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationEntryPoint(securityExceptionHandler)
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint(securityExceptionHandler)
                         .accessDeniedHandler(securityExceptionHandler)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(securityExceptionHandler)

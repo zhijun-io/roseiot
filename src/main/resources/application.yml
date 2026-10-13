@@ -31,6 +31,7 @@ spring:
 management:
   endpoints:
     web:
+      base-path: /api/actuator
       exposure:
         include: health
   endpoint:
@@ -49,6 +50,7 @@ server:
 roseiot:
   http:
     max-request-body-bytes: 1048576
+    max-authentication-request-body-bytes: 16384
   rate-limit:
     enabled: ${ROSEIOT_RATE_LIMIT_ENABLED:true}
     window-minutes: 15
@@ -56,21 +58,21 @@ roseiot:
     max-tracked-keys: 10000
     rules:
       - method: POST
-        path: /login
+        path: /api/login
         body-field: email
         key-prefix: "auth:login:"
         max-attempts: 10
       - method: POST
-        path: /password-resets
+        path: /api/password-resets
         body-field: email
         key-prefix: "auth:reset-email:"
         max-attempts: 5
       - method: POST
-        path: /password-resets/validations
+        path: /api/password-resets/validations
         key-prefix: "auth:reset-token-check:"
         max-attempts: 20
       - method: POST
-        path: /password-resets/confirmations
+        path: /api/password-resets/confirmations
         key-prefix: "auth:reset-token-use:"
         max-attempts: 20
   password-reset:

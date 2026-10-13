@@ -80,7 +80,7 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 | `IAM-009` | 租户停用是用户访问、设备认证、异步任务、实时订阅和外部投递的持续资格条件，各执行边界必须重新检查。 |
 | `IAM-010` | 租户删除首版不提供即时级联删除；导出、保留、擦除和管理员恢复必须走独立、可审计流程。 |
 | `IAM-015` | 每个 User 仅保留最新一条有效密码重置请求；新请求使该用户此前发出的重置链接立即失效。重置 token 只保存摘要，且只能成功消费一次。 |
-| `IAM-016` | HTTP API 使用资源路径定位，不添加 `/api`、`/noauth` 或 `/internal` 认证边界前缀；登录保留 `/login`，当前用户操作使用 `/me`。Spring Security 按具体资源配置认证边界；密码重置须校验一次性 token。业务 API 默认拒绝并继续执行资源授权。 |
+| `IAM-016` | 所有 Roseiot HTTP 请求统一位于 `/api` 下；业务端点由 Controller 显式映射此前缀，Actuator 也使用 `/api/actuator`。API 使用资源路径定位，不添加 `/noauth` 或 `/internal` 认证边界前缀。登录使用 `/api/login`，当前用户操作使用 `/api/me`。Spring Security 按具体资源配置认证边界；密码重置须校验一次性 token。业务 API 默认拒绝并继续执行资源授权。 |
 
 来源：访谈 Q2、Q6、Q38～Q46、Q56～Q63、Q179～Q232、Q471～Q488、Q507～Q510；现行决策见 [IAM ADR](../adr/2026-10-10-iam.md)。
 
@@ -210,24 +210,25 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 
 ### 5.1 HTTP API
 
-- API 使用资源路径和稳定资源 ID，不添加通用 `/api`、`/noauth` 或 `/internal` 前缀；当前 HTTP API 不使用 PATCH，也不以 201、202 或 204 作为响应状态。成功的创建、更新和删除使用 200；列表与详情返回 200。
+- 所有 Roseiot HTTP 请求（包括 Actuator）均位于 `/api` 下；业务端点通过 Controller 路由映射设置前缀，Actuator 使用 `/api/actuator`。API 使用资源路径和稳定资源 ID，不添加 `/noauth` 或 `/internal` 前缀；当前 HTTP API 不使用 PATCH，也不以 201、202 或 204 作为响应状态。成功的创建、更新和删除使用 200；列表与详情返回 200。
 - 创建接口定义幂等行为；修改接口使用版本或条件请求防止丢失更新。
 - 支持分页的列表使用 Spring `Pageable` 的 `page`、`size` 和 `sort` 查询参数，并返回 Spring `Page`，其中内容均为响应 DTO。页码从 0 开始，默认 `size` 为 50、最大 100；当前列表只允许按 ID 升序排序。MyBatis-Plus 分页插件负责数据库分页并设置 100 条的 `maxLimit`。ID 升序用于稳定排序，不代表业务创建时间顺序；页码分页在列表持续变化时可能发生跨页重复或遗漏。当前租户、用户、角色和资源目录列表使用该契约；SystemSetting 的类型固定且数量有界，列表不分页。
 - 当前 IAM、租户和系统设置 HTTP 资源如下：
 
   | 资源 | 路径与方法 | 行为及边界 |
   | --- | --- | --- |
-  | 租户 | `GET /tenants`, `GET /tenants/{tenantId}` | 需要 `tenant.read`；分页列表及按 ID 查询。 |
-  | 租户 | `POST /tenants`, `PUT /tenants/{tenantId}` | 需要相应平台权限；创建租户，或更新名称及启停状态。租户停用通过状态更新，不提供级联删除。 |
-  | 用户 | `GET /users`, `GET /users/{userId}` | 仅当前租户的 `tenant.user.manage` 用户可访问；用户 ID 与当前租户不匹配时按不存在处理。列表分页。 |
-  | 用户 | `POST /users`, `PUT /users/{userId}` | 租户管理员创建用户并提交初始密码和角色；更新角色或启停状态。无用户物理删除接口。 |
-  | 当前用户 | `GET /me`, `PUT /me`, `PUT /me/password` | 读取和更新自己的资料、修改自己的密码；目标身份取自认证主体。 |
-  | 密码重置 | `POST /password-resets`, `POST /password-resets/validations`, `POST /password-resets/confirmations` | 重置请求提交邮箱；验证和确认提交请求体中的一次性 token，响应使用 `Cache-Control: no-store`。令牌不得放在 URL 中。 |
-  | 角色 | `GET /roles`, `GET /roles/{roleId}`, `POST /roles`, `PUT /roles/{roleId}`, `DELETE /roles/{roleId}` | 仅当前租户的 `tenant.role.manage` 用户可操作；列表分页。角色有成员时拒绝删除，角色更新不得移除租户最后一名管理员。 |
-  | 资源目录 | `GET /resources` | 认证后只读查询系统维护的资源目录；支持分页，不提供资源写接口。 |
-  | 系统设置 | `GET /system-settings`, `GET /system-settings/{id}`, `POST /system-settings`, `PUT /system-settings/{id}`, `DELETE /system-settings/{id}` | 需要 `system.setting.manage`；设置类型为 `SETUP` 或 `GENERAL`，设置内容为 JSON 对象。`GENERAL.baseUrl` 是生成邮件链接时使用的站点基础 URL。 |
+  | 租户 | `GET /api/tenants`, `GET /api/tenants/{tenantId}` | 需要 `tenant.read`；分页列表及按 ID 查询。 |
+  | 租户 | `POST /api/tenants`, `PUT /api/tenants/{tenantId}` | 需要相应平台权限；创建租户，或更新名称及启停状态。租户停用通过状态更新，不提供级联删除。 |
+  | 用户 | `GET /api/users`, `GET /api/users/{userId}` | 仅当前租户的 `tenant.user.manage` 用户可访问；用户 ID 与当前租户不匹配时按不存在处理。列表分页。 |
+  | 用户 | `POST /api/users`, `PUT /api/users/{userId}` | 租户管理员创建用户并提交初始密码和角色；更新角色或启停状态。无用户物理删除接口。 |
+  | 当前用户 | `GET /api/me`, `PUT /api/me`, `PUT /api/me/password` | 读取和更新自己的资料、修改自己的密码；目标身份取自认证主体。 |
+  | 密码重置 | `POST /api/password-resets`, `POST /api/password-resets/validations`, `POST /api/password-resets/confirmations` | 重置请求提交邮箱；验证和确认提交请求体中的一次性 token，响应使用 `Cache-Control: no-store`。令牌不得放在 URL 中。 |
+  | 角色 | `GET /api/roles`, `GET /api/roles/{roleId}`, `POST /api/roles`, `PUT /api/roles/{roleId}`, `DELETE /api/roles/{roleId}` | 仅当前租户的 `tenant.role.manage` 用户可操作；列表分页。角色有成员时拒绝删除，角色更新不得移除租户最后一名管理员。 |
+  | 资源目录 | `GET /api/resources` | 认证后只读查询系统维护的资源目录；支持分页，不提供资源写接口。 |
+  | 系统设置 | `GET /api/system-settings`, `GET /api/system-settings/{id}`, `POST /api/system-settings`, `PUT /api/system-settings/{id}`, `DELETE /api/system-settings/{id}` | 需要 `system.setting.manage`；设置类型为 `SETUP` 或 `GENERAL`，设置内容为 JSON 对象。`GENERAL.baseUrl` 是生成邮件链接时使用的站点基础 URL。 |
 
 - 资源授权、租户隔离和统一 RFC 9457 `ProblemDetail` 错误响应由服务端执行；错误响应以 `application/problem+json` 返回，稳定错误码作为扩展属性 `code`，响应包含关联 ID，拒绝请求不得泄露秘密或跨租户资源是否存在。
+- 错误状态按类别返回：认证凭证错误为 401，输入校验或无效重置令牌为 400，资源不存在为 404，唯一性或当前状态冲突为 409，超大请求为 413，限流为 429，限流容量不可用为 503；服务器故障才返回 500。跨租户资源仍按不存在处理。
 - 请求拒绝未知或不可写字段；响应允许兼容新增字段，敏感响应默认 `no-store`。
 - 对跨租户访问隐藏资源存在性；验证错误不得回显秘密或未脱敏载荷。
 
