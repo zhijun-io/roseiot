@@ -5,10 +5,9 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-
 import java.time.Instant;
 
-@TableName("users")
+@TableName("\"user\"")
 class UserEntity {
 
     @TableId(type = IdType.AUTO)
@@ -83,5 +82,4 @@ class UserEntity {
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
-
 }

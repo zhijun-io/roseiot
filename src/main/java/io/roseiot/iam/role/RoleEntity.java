@@ -4,12 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-
-@TableName("role")
+@TableName("\"role\"")
 class RoleEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private Long tenantId;
     private String name;
 
@@ -36,5 +36,4 @@ class RoleEntity {
     public void setName(String name) {
         this.name = name;
     }
-
 }

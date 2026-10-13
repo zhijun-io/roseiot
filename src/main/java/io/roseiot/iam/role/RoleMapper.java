@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
-
 interface RoleMapper extends BaseMapper<RoleEntity> {
 
     @Select("SELECT COUNT(*) FROM user_role WHERE tenant_id = #{tenantId} AND role_id = #{roleId}")
@@ -12,7 +11,7 @@ interface RoleMapper extends BaseMapper<RoleEntity> {
 
     @Select("""
             SELECT COUNT(*)
-            FROM users u
+            FROM "user" u
             JOIN user_role ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
             JOIN "role" r ON r.id = ur.role_id AND r.tenant_id = u.tenant_id
             WHERE u.tenant_id = #{tenantId}
@@ -22,5 +21,4 @@ interface RoleMapper extends BaseMapper<RoleEntity> {
                   AND a.code = 'tenant.user.manage')
             """)
     int countActiveTenantUsersWithRole(@Param("tenantId") Long tenantId);
-
 }
