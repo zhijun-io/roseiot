@@ -1,10 +1,9 @@
 package io.roseiot.shared.ratelimit;
 
+import java.util.Optional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.util.Optional;
 
 final class JsonRequestBodyFields {
 

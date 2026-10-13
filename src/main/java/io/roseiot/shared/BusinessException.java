@@ -22,5 +22,4 @@ public class BusinessException extends RuntimeException {
     public ApiErrorCode errorCode() {
         return errorCode;
     }
-
 }

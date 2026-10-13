@@ -3,15 +3,14 @@ package io.roseiot.system;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
+import java.net.URI;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
-
-import java.net.URI;
-import java.util.List;
-import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -25,10 +24,11 @@ public class SystemSettingService {
 
     @PreAuthorize("hasAuthority('system.setting.manage')")
     public List<SystemSetting> list() {
-        return systemSettingMapper.selectList(
-                        Wrappers.lambdaQuery(SystemSettingEntity.class)
-                                .orderByAsc(SystemSettingEntity::getType))
-                .stream().map(SystemSetting::from).toList();
+        return systemSettingMapper
+                .selectList(Wrappers.lambdaQuery(SystemSettingEntity.class).orderByAsc(SystemSettingEntity::getType))
+                .stream()
+                .map(SystemSetting::from)
+                .toList();
     }
 
     @PreAuthorize("hasAuthority('system.setting.manage')")
@@ -39,14 +39,12 @@ public class SystemSettingService {
     }
 
     public Optional<SystemSetting> find(SystemSettingType type) {
-        return Optional.ofNullable(systemSettingMapper.selectByType(type))
-                .map(SystemSetting::from);
+        return Optional.ofNullable(systemSettingMapper.selectByType(type)).map(SystemSetting::from);
     }
 
     public String requireGeneralBaseUrl() {
-        JsonNode generalSetting = find(SystemSettingType.GENERAL)
-                .map(SystemSetting::setting)
-                .orElse(null);
+        JsonNode generalSetting =
+                find(SystemSettingType.GENERAL).map(SystemSetting::setting).orElse(null);
         JsonNode baseUrl = generalSetting == null ? null : generalSetting.get("baseUrl");
         if (baseUrl == null || !baseUrl.isTextual() || baseUrl.textValue().isBlank()) {
             throw new IllegalStateException("GENERAL setting baseUrl is required");
@@ -106,14 +104,18 @@ public class SystemSettingService {
         try {
             URI uri = URI.create(baseUrl.textValue());
             String scheme = uri.getScheme();
-            if (!uri.isAbsolute() || uri.getHost() == null || scheme == null
+            if (!uri.isAbsolute()
+                    || uri.getHost() == null
+                    || scheme == null
                     || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
-                    || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+                    || uri.getRawUserInfo() != null
+                    || uri.getRawQuery() != null
+                    || uri.getRawFragment() != null) {
                 throw new IllegalArgumentException();
             }
         } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR,
-                    "GENERAL setting baseUrl must be an absolute HTTP(S) URL");
+            throw new BusinessException(
+                    ApiErrorCode.VALIDATION_ERROR, "GENERAL setting baseUrl must be an absolute HTTP(S) URL");
         }
     }
 }

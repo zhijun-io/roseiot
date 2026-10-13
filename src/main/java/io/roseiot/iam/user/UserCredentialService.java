@@ -3,24 +3,23 @@ package io.roseiot.iam.user;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -53,8 +52,8 @@ public class UserCredentialService {
     @Transactional
     public void createInitialPassword(Long userId, String password) {
         ensureValidPassword(password);
-        UserCredential credential = new UserCredential(
-                userId, passwordEncoder.encode(password), null, null, null, null, null);
+        UserCredential credential =
+                new UserCredential(userId, passwordEncoder.encode(password), null, null, null, null, null);
         credentialMapper.insert(UserCredentialEntity.from(credential));
     }
 
@@ -63,7 +62,8 @@ public class UserCredentialService {
             + " and #p0 == authentication.principal.userId()")
     public void changePassword(Long userId, String currentPassword, String newPassword) {
         UserCredentialEntity credential = credentialMapper.selectById(userId);
-        if (credential == null || currentPassword == null
+        if (credential == null
+                || currentPassword == null
                 || !passwordEncoder.matches(currentPassword, credential.getPassword())) {
             throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
         }
@@ -93,10 +93,11 @@ public class UserCredentialService {
     public ResetTokenState checkResetToken(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return ResetTokenState.INVALID;
         String tokenHash = hashResetToken(rawToken);
-        UserCredentialEntity credential = credentialMapper.selectOne(new LambdaQueryWrapper<UserCredentialEntity>()
-                .eq(UserCredentialEntity::getResetToken, tokenHash));
+        UserCredentialEntity credential = credentialMapper.selectOne(
+                new LambdaQueryWrapper<UserCredentialEntity>().eq(UserCredentialEntity::getResetToken, tokenHash));
         if (credential == null || credential.getResetAt() != null) return ResetTokenState.INVALID;
-        if (credential.getResetExpiresAt() == null || !credential.getResetExpiresAt().isAfter(Instant.now(clock))) {
+        if (credential.getResetExpiresAt() == null
+                || !credential.getResetExpiresAt().isAfter(Instant.now(clock))) {
             return ResetTokenState.EXPIRED;
         }
         return ResetTokenState.VALID;
@@ -115,7 +116,8 @@ public class UserCredentialService {
                 .eq(UserCredentialEntity::getResetToken, tokenHash)
                 .isNull(UserCredentialEntity::getResetAt)
                 .gt(UserCredentialEntity::getResetExpiresAt, now));
-        if (credential == null || credentialMapper.consumeResetTokenIfActive(credential.getUserId(), tokenHash, now) != 1) {
+        if (credential == null
+                || credentialMapper.consumeResetTokenIfActive(credential.getUserId(), tokenHash, now) != 1) {
             throw new BusinessException(ApiErrorCode.INVALID_RESET_TOKEN);
         }
 
@@ -124,7 +126,11 @@ public class UserCredentialService {
         credentialMapper.updateById(credential);
     }
 
-    public enum ResetTokenState { VALID, EXPIRED, INVALID }
+    public enum ResetTokenState {
+        VALID,
+        EXPIRED,
+        INVALID
+    }
 
     private static String generateResetToken() {
         byte[] bytes = new byte[32];
@@ -134,8 +140,8 @@ public class UserCredentialService {
 
     private static String hashResetToken(String token) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 not available", exception);
         }
@@ -146,8 +152,7 @@ public class UserCredentialService {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must be at least 12 characters");
         }
         if (password.getBytes(StandardCharsets.UTF_8).length > MAX_BCRYPT_PASSWORD_BYTES) {
-            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR,
-                    "Password must not exceed 72 UTF-8 bytes");
+            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must not exceed 72 UTF-8 bytes");
         }
         if (!HAS_LETTER.matcher(password).find() || !HAS_DIGIT.matcher(password).find()) {
             throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Password must contain letters and digits");

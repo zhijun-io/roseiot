@@ -1,16 +1,15 @@
 package io.roseiot.iam.user;
 
 import io.roseiot.system.SystemSettingService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import java.net.URI;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.net.URI;
-import java.util.Locale;
 
 @Component
 @Profile("local")
@@ -29,8 +28,10 @@ class LoggingPasswordResetNotifier {
     public void sendPasswordResetEmail(PasswordResetRequestedEvent event) {
         try {
             String link = createLink(systemSettingService.requireGeneralBaseUrl(), event.token());
-            log.warn("Local password-reset delivery for {} — open link: {}. Do not enable this notifier outside local development.",
-                    event.email(), link);
+            log.warn(
+                    "Local password-reset delivery for {} — open link: {}. Do not enable this notifier outside local development.",
+                    event.email(),
+                    link);
         } catch (RuntimeException exception) {
             log.error("Local password-reset delivery failed", exception);
         }
@@ -44,8 +45,12 @@ class LoggingPasswordResetNotifier {
             throw invalidBaseUrl();
         }
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-        if (!uri.isAbsolute() || uri.getHost() == null || (!scheme.equals("http") && !scheme.equals("https"))
-                || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+        if (!uri.isAbsolute()
+                || uri.getHost() == null
+                || (!scheme.equals("http") && !scheme.equals("https"))
+                || uri.getRawUserInfo() != null
+                || uri.getRawQuery() != null
+                || uri.getRawFragment() != null) {
             throw invalidBaseUrl();
         }
 

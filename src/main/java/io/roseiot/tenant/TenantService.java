@@ -3,18 +3,17 @@ package io.roseiot.tenant;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -23,6 +22,7 @@ public class TenantService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TenantMapper tenantMapper;
+
     public TenantService(TenantMapper tenantMapper) {
         this.tenantMapper = tenantMapper;
     }
@@ -53,9 +53,12 @@ public class TenantService {
     }
 
     private static Pageable checkedPageable(Pageable pageable) {
-        if (pageable.isUnpaged() || pageable.getPageSize() < 1 || pageable.getPageSize() > 100
+        if (pageable.isUnpaged()
+                || pageable.getPageSize() < 1
+                || pageable.getPageSize() > 100
                 || !Sort.by(Sort.Order.asc("id")).equals(pageable.getSort())) {
-            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
+            throw new BusinessException(
+                    ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
         }
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id"));
     }

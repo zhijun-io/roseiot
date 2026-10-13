@@ -1,18 +1,17 @@
 package io.roseiot.iam.user;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import io.roseiot.system.SystemSettingService;
+import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import java.net.URI;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class LoggingPasswordResetNotifierTest {
 
@@ -35,8 +34,7 @@ class LoggingPasswordResetNotifierTest {
 
     @Test
     void keepsResetTokenOutOfTheHttpRequestPathAndQuery() {
-        URI link = URI.create(LoggingPasswordResetNotifier.createLink(
-                "https://roseiot.example/", "abc_DEF-123"));
+        URI link = URI.create(LoggingPasswordResetNotifier.createLink("https://roseiot.example/", "abc_DEF-123"));
 
         assertThat(link.getPath()).isEqualTo("/password-resets");
         assertThat(link.getQuery()).isNull();
@@ -50,7 +48,7 @@ class LoggingPasswordResetNotifierTest {
         LoggingPasswordResetNotifier notifier = new LoggingPasswordResetNotifier(settings);
 
         assertThatCode(() -> notifier.sendPasswordResetEmail(
-                new PasswordResetRequestedEvent("person@example.com", "one-time-secret")))
+                        new PasswordResetRequestedEvent("person@example.com", "one-time-secret")))
                 .doesNotThrowAnyException();
     }
 

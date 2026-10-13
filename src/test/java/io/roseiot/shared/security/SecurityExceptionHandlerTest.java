@@ -1,10 +1,14 @@
 package io.roseiot.shared.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+
 import io.roseiot.shared.webmvc.ApiHttpSupport;
 import jakarta.servlet.ServletException;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -14,11 +18,6 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.io.IOException;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
 class SecurityExceptionHandlerTest {
 
     private final SecurityExceptionHandler cut =
@@ -26,14 +25,12 @@ class SecurityExceptionHandlerTest {
 
     private void assertBody(ResponseEntity<ProblemDetail> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);
-        assertThat(response.getBody())
-                .isNotNull()
-                .satisfies(problem -> {
-                    assertThat(problem.getStatus()).isEqualTo(status);
-                    assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:" + code);
-                    assertThat(problem.getDetail()).isEqualTo(message);
-                    assertThat(problem.getProperties()).containsEntry("code", code);
-                });
+        assertThat(response.getBody()).isNotNull().satisfies(problem -> {
+            assertThat(problem.getStatus()).isEqualTo(status);
+            assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:" + code);
+            assertThat(problem.getDetail()).isEqualTo(message);
+            assertThat(problem.getProperties()).containsEntry("code", code);
+        });
     }
 
     @Test
@@ -66,14 +63,16 @@ class SecurityExceptionHandlerTest {
 
     @Test
     void shouldAnswerAccessDeniedWithForbiddenOnMvcPath() {
-        assertBody(cut.handleAccessDenied(new AccessDeniedException("denied")),
-                403, "forbidden", "Forbidden");
+        assertBody(cut.handleAccessDenied(new AccessDeniedException("denied")), 403, "forbidden", "Forbidden");
     }
 
     @Test
     void shouldAnswerInvalidCredentialsWithUnauthorizedOnMvcPath() {
-        assertBody(cut.handleAuthentication(new BadCredentialsException("secret detail")),
-                401, "invalid_credentials", "invalid_credentials");
+        assertBody(
+                cut.handleAuthentication(new BadCredentialsException("secret detail")),
+                401,
+                "invalid_credentials",
+                "invalid_credentials");
     }
 
     @Test

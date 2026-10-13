@@ -1,13 +1,12 @@
 package io.roseiot.shared.ratelimit;
 
-import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-import java.time.Clock;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.Clock;
+import java.time.Instant;
+import org.junit.jupiter.api.Test;
 
 class SlidingWindowRateLimiterTest {
 
@@ -20,10 +19,11 @@ class SlidingWindowRateLimiterTest {
         SlidingWindowRateLimiter cut = new SlidingWindowRateLimiter(properties(), Clock.systemUTC());
 
         assertThatCode(() -> {
-            cut.checkAllowed("login:a@b.co", 3);
-            cut.checkAllowed("login:a@b.co", 3);
-            cut.checkAllowed("login:a@b.co", 3);
-        }).doesNotThrowAnyException();
+                    cut.checkAllowed("login:a@b.co", 3);
+                    cut.checkAllowed("login:a@b.co", 3);
+                    cut.checkAllowed("login:a@b.co", 3);
+                })
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -31,8 +31,7 @@ class SlidingWindowRateLimiterTest {
         SlidingWindowRateLimiter cut = new SlidingWindowRateLimiter(properties(), Clock.systemUTC());
         cut.checkAllowed("login:a@b.co", 1);
 
-        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1))
-                .isInstanceOf(RateLimitExceededException.class);
+        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1)).isInstanceOf(RateLimitExceededException.class);
     }
 
     @Test
@@ -49,8 +48,7 @@ class SlidingWindowRateLimiterTest {
         cut.checkAllowed("recovery:a@b.co", 2);
         cut.checkAllowed("recovery:a@b.co", 2);
 
-        assertThatThrownBy(() -> cut.checkAllowed("recovery:a@b.co", 2))
-                .isInstanceOf(RateLimitExceededException.class);
+        assertThatThrownBy(() -> cut.checkAllowed("recovery:a@b.co", 2)).isInstanceOf(RateLimitExceededException.class);
         assertThatCode(() -> cut.checkAllowed("recovery:a@b.co", 5)).doesNotThrowAnyException();
     }
 
@@ -60,10 +58,8 @@ class SlidingWindowRateLimiterTest {
         cut.checkAllowed("login:a@b.co", 1);
 
         // A blocked caller must stay blocked, not get one free attempt per try.
-        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1))
-                .isInstanceOf(RateLimitExceededException.class);
-        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1))
-                .isInstanceOf(RateLimitExceededException.class);
+        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1)).isInstanceOf(RateLimitExceededException.class);
+        assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1)).isInstanceOf(RateLimitExceededException.class);
     }
 
     @Test
@@ -73,7 +69,8 @@ class SlidingWindowRateLimiterTest {
         cut.checkAllowed("login:a@b.co", 1, start);
 
         assertThatThrownBy(() -> cut.checkAllowed("login:a@b.co", 1, start.plusSeconds(30 * 60L)))
-                .isInstanceOfSatisfying(RateLimitExceededException.class,
+                .isInstanceOfSatisfying(
+                        RateLimitExceededException.class,
                         exception -> assertThat(exception.retryAfterSeconds()).isEqualTo(30 * 60L));
     }
 

@@ -1,12 +1,11 @@
 package io.roseiot.shared.ratelimit;
 
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 class JsonRequestBodyFieldsTest {
 
@@ -33,7 +32,8 @@ class JsonRequestBodyFieldsTest {
                 {"password":"correct horse 42"}
                 """);
 
-        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
@@ -42,7 +42,8 @@ class JsonRequestBodyFieldsTest {
                 {"email":null}
                 """);
 
-        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
@@ -51,7 +52,8 @@ class JsonRequestBodyFieldsTest {
                 {"email":"   "}
                 """);
 
-        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(body, "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
@@ -73,25 +75,31 @@ class JsonRequestBodyFieldsTest {
                 {"email":{"work":"a@b.co"}}
                 """);
 
-        assertThat(JsonRequestBodyFields.readTextField(text, "email", jsonMapper)).contains("a@b.co");
-        assertThat(JsonRequestBodyFields.readTextField(object, "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(text, "email", jsonMapper))
+                .contains("a@b.co");
+        assertThat(JsonRequestBodyFields.readTextField(object, "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
     void shouldSwallowMalformedJsonBecauseRateLimitingMustNotBreakTheRequest() {
-        assertThat(JsonRequestBodyFields.readTextField(body("{not json"), "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(body("{not json"), "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
     void shouldReturnEmptyForNullAndEmptyBody() {
-        assertThat(JsonRequestBodyFields.readTextField(null, "email", jsonMapper)).isEmpty();
-        assertThat(JsonRequestBodyFields.readTextField(new byte[0], "email", jsonMapper)).isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(null, "email", jsonMapper))
+                .isEmpty();
+        assertThat(JsonRequestBodyFields.readTextField(new byte[0], "email", jsonMapper))
+                .isEmpty();
     }
 
     @Test
     void shouldReturnEmptyWhenRootIsNotAnObject() {
         assertThat(JsonRequestBodyFields.readTextField(body("""
                 [1,2,3]
-                """), "email", jsonMapper)).isEmpty();
+                """), "email", jsonMapper))
+                .isEmpty();
     }
 }

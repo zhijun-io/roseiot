@@ -1,20 +1,18 @@
 package io.roseiot.shared.webmvc;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 class CachedBodyHttpServletRequestTest {
 
     @Test
     void shouldServeCachedBodyFromInputStream() throws IOException {
         byte[] body = "{\"email\":\"ops@roseiot.io\"}".getBytes(StandardCharsets.UTF_8);
-        CachedBodyHttpServletRequest cut =
-                new CachedBodyHttpServletRequest(new MockHttpServletRequest(), body);
+        CachedBodyHttpServletRequest cut = new CachedBodyHttpServletRequest(new MockHttpServletRequest(), body);
 
         try (var in = cut.getInputStream()) {
             assertThat(in.isFinished()).isFalse();
@@ -27,8 +25,7 @@ class CachedBodyHttpServletRequestTest {
 
     @Test
     void shouldTreatNullBodyAsEmptyStream() throws IOException {
-        CachedBodyHttpServletRequest cut =
-                new CachedBodyHttpServletRequest(new MockHttpServletRequest(), null);
+        CachedBodyHttpServletRequest cut = new CachedBodyHttpServletRequest(new MockHttpServletRequest(), null);
 
         try (var in = cut.getInputStream()) {
             assertThat(in.isFinished()).isTrue();
@@ -39,8 +36,7 @@ class CachedBodyHttpServletRequestTest {
     @Test
     void shouldAllowRepeatedReadsOfSameBody() throws IOException {
         byte[] body = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
-        CachedBodyHttpServletRequest cut =
-                new CachedBodyHttpServletRequest(new MockHttpServletRequest(), body);
+        CachedBodyHttpServletRequest cut = new CachedBodyHttpServletRequest(new MockHttpServletRequest(), body);
 
         assertThat(cut.getInputStream().readAllBytes()).isEqualTo(body);
         assertThat(cut.getInputStream().readAllBytes()).isEqualTo(body);

@@ -3,7 +3,6 @@ package io.roseiot.tenant;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
-
 interface TenantMapper extends BaseMapper<TenantEntity> {
 
     default TenantEntity selectByIdForUpdate(Long tenantId) {

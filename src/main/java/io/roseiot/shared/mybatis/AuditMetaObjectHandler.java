@@ -1,11 +1,10 @@
 package io.roseiot.shared.mybatis;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
-import org.apache.ibatis.reflection.MetaObject;
-import org.springframework.stereotype.Component;
-
 import java.time.Clock;
 import java.time.Instant;
+import org.apache.ibatis.reflection.MetaObject;
+import org.springframework.stereotype.Component;
 
 /** Fills mutable-row audit timestamps for MyBatis-Plus insert and entity-update operations. */
 @Component

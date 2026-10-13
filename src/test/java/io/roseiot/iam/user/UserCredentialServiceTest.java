@@ -1,21 +1,5 @@
 package io.roseiot.iam.user;
 
-import io.roseiot.shared.ApiErrorCode;
-import io.roseiot.shared.BusinessException;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.Instant;
-import java.time.Clock;
-import java.time.temporal.ChronoUnit;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +9,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import io.roseiot.shared.ApiErrorCode;
+import io.roseiot.shared.BusinessException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 class UserCredentialServiceTest {
 
@@ -42,7 +41,11 @@ class UserCredentialServiceTest {
         credentialMapper = mock(UserCredentialMapper.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        cut = new UserCredentialService(userMapper, credentialMapper, eventPublisher, passwordEncoder,
+        cut = new UserCredentialService(
+                userMapper,
+                credentialMapper,
+                eventPublisher,
+                passwordEncoder,
                 Clock.fixed(NOW, java.time.ZoneOffset.UTC));
     }
 
@@ -62,8 +65,7 @@ class UserCredentialServiceTest {
 
     @Test
     void shouldRejectMissingResetTokenBeforeAnyOtherCheck() {
-        assertThatThrownBy(() -> cut.confirmPasswordReset(null, "short1"))
-                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> cut.confirmPasswordReset(null, "short1")).isInstanceOf(BusinessException.class);
         verifyNoInteractions(credentialMapper, userMapper, passwordEncoder);
     }
 
@@ -119,8 +121,8 @@ class UserCredentialServiceTest {
         assertThat(stored.getResetToken()).isEqualTo(hash(event.getValue().token()));
         assertThat(event.getValue().email()).isEqualTo("ops@roseiot.io");
         assertThat(stored.getResetAt()).isNull();
-        assertThat(stored.getResetExpiresAt()).isBetween(
-                before.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
+        assertThat(stored.getResetExpiresAt())
+                .isBetween(before.plus(1, ChronoUnit.HOURS), NOW.plus(1, ChronoUnit.HOURS));
     }
 
     @Test
@@ -144,8 +146,10 @@ class UserCredentialServiceTest {
 
         ArgumentCaptor<PasswordResetRequestedEvent> events = ArgumentCaptor.forClass(PasswordResetRequestedEvent.class);
         verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(events.capture());
-        assertThat(credential.getResetToken()).isEqualTo(hash(events.getAllValues().get(1).token()));
-        assertThat(credential.getResetToken()).isNotEqualTo(hash(events.getAllValues().get(0).token()));
+        assertThat(credential.getResetToken())
+                .isEqualTo(hash(events.getAllValues().get(1).token()));
+        assertThat(credential.getResetToken())
+                .isNotEqualTo(hash(events.getAllValues().get(0).token()));
     }
 
     @Test
@@ -233,8 +237,8 @@ class UserCredentialServiceTest {
 
     private static String hash(String token) {
         try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of()
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }

@@ -2,21 +2,20 @@ package io.roseiot.shared.webmvc;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.slf4j.MDC;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.slf4j.MDC;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.net.URI;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /** Reads and writes JSON at the HTTP API boundary. */
 @Component
@@ -28,8 +27,7 @@ public class ApiHttpSupport {
         this.jsonMapper = jsonMapper;
     }
 
-    public <T> T readBody(HttpServletRequest request, Class<T> bodyType)
-            throws IOException {
+    public <T> T readBody(HttpServletRequest request, Class<T> bodyType) throws IOException {
         return jsonMapper.readValue(request.getInputStream(), bodyType);
     }
 

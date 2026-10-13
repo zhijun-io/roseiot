@@ -1,16 +1,15 @@
 package io.roseiot.shared.webmvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletResponse;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ApiHttpSupportTest {
 
@@ -40,14 +39,12 @@ class ApiHttpSupportTest {
         ResponseEntity<ProblemDetail> entity = cut.errorResponse(400, "bad_request", "Malformed request body");
 
         assertThat(entity.getStatusCode().value()).isEqualTo(400);
-        assertThat(entity.getBody())
-                .isNotNull()
-                .satisfies(problem -> {
-                    assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:bad_request");
-                    assertThat(problem.getTitle()).isEqualTo("Bad Request");
-                    assertThat(problem.getDetail()).isEqualTo("Malformed request body");
-                    assertThat(problem.getProperties()).containsEntry("code", "bad_request");
-                });
+        assertThat(entity.getBody()).isNotNull().satisfies(problem -> {
+            assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:bad_request");
+            assertThat(problem.getTitle()).isEqualTo("Bad Request");
+            assertThat(problem.getDetail()).isEqualTo("Malformed request body");
+            assertThat(problem.getProperties()).containsEntry("code", "bad_request");
+        });
         assertThat(entity.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(entity.getHeaders().getCacheControl()).isEqualTo("no-store");
     }

@@ -1,11 +1,10 @@
 package io.roseiot.tenant;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.FieldFill;
-import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-
 import java.time.Instant;
 
 @TableName("tenant")
@@ -31,8 +30,13 @@ class TenantEntity {
         this.id = id;
     }
 
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
 
     public String getName() {
         return name;

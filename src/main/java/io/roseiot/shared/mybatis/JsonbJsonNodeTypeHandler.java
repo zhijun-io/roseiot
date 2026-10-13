@@ -1,17 +1,16 @@
 package io.roseiot.shared.mybatis;
 
 import com.baomidou.mybatisplus.extension.handlers.Jackson3TypeHandler;
-import org.apache.ibatis.type.BaseTypeHandler;
-import org.apache.ibatis.type.JdbcType;
-import org.apache.ibatis.type.MappedJdbcTypes;
-import org.apache.ibatis.type.MappedTypes;
-import tools.jackson.databind.JsonNode;
-
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+import org.apache.ibatis.type.MappedJdbcTypes;
+import org.apache.ibatis.type.MappedTypes;
+import tools.jackson.databind.JsonNode;
 
 @MappedTypes(JsonNode.class)
 @MappedJdbcTypes(value = JdbcType.OTHER, includeNullJdbcType = true)

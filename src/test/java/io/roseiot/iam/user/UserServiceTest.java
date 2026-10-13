@@ -1,27 +1,21 @@
 package io.roseiot.iam.user;
 
-
-
-
-
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import io.roseiot.iam.role.RoleService;
-import io.roseiot.shared.security.SecurityUser;
-import io.roseiot.tenant.TenantService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-
-import java.util.List;
-import java.time.Clock;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.roseiot.iam.role.RoleService;
+import io.roseiot.shared.security.SecurityUser;
+import io.roseiot.tenant.TenantService;
+import java.time.Clock;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 class UserServiceTest {
 
@@ -42,8 +36,14 @@ class UserServiceTest {
         roleService = mock(RoleService.class);
         tenantService = mock(TenantService.class);
         credentialService = mock(UserCredentialService.class);
-        cut = new UserService(userMapper, credentialMapper, userRoleMapper,
-                roleService, tenantService, credentialService, Clock.systemUTC());
+        cut = new UserService(
+                userMapper,
+                credentialMapper,
+                userRoleMapper,
+                roleService,
+                tenantService,
+                credentialService,
+                Clock.systemUTC());
     }
 
     @Test
@@ -74,7 +74,8 @@ class UserServiceTest {
         user.setTenantId(42L);
         user.setEmail("ops@roseiot.io");
         user.setStatus(UserStatus.ACTIVE);
-        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class)))
+                .thenReturn(user);
         when(tenantService.isActive(42L)).thenReturn(true);
         UserCredentialEntity credential = new UserCredentialEntity();
         credential.setPassword("encoded-password");
@@ -116,7 +117,8 @@ class UserServiceTest {
         user.setId(USER_ID);
         user.setStatus(UserStatus.DISABLED);
         user.setEmail("ops@roseiot.io");
-        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class)))
+                .thenReturn(user);
 
         assertThatThrownBy(() -> cut.loadUserByUsername("ops@roseiot.io"))
                 .isInstanceOf(UsernameNotFoundException.class);
@@ -129,7 +131,8 @@ class UserServiceTest {
         user.setTenantId(42L);
         user.setEmail("ops@roseiot.io");
         user.setStatus(UserStatus.ACTIVE);
-        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.any(LambdaQueryWrapper.class)))
+                .thenReturn(user);
         when(tenantService.isActive(42L)).thenReturn(false);
 
         assertThatThrownBy(() -> cut.loadUserByUsername("ops@roseiot.io"))
@@ -139,11 +142,12 @@ class UserServiceTest {
     @Test
     void shouldCreateUserAndInitialCredentialInCurrentTenant() {
         when(userMapper.selectCount(org.mockito.ArgumentMatchers.any())).thenReturn(0L);
-        when(userMapper.insert(org.mockito.ArgumentMatchers.any(UserEntity.class))).thenAnswer(invocation -> {
-            UserEntity user = invocation.getArgument(0);
-            user.setId(USER_ID);
-            return 1;
-        });
+        when(userMapper.insert(org.mockito.ArgumentMatchers.any(UserEntity.class)))
+                .thenAnswer(invocation -> {
+                    UserEntity user = invocation.getArgument(0);
+                    user.setId(USER_ID);
+                    return 1;
+                });
 
         UserResponse created = cut.create(42L, " NEW@EXAMPLE.TEST ", " New User ", "passphrase1234", 7L);
 

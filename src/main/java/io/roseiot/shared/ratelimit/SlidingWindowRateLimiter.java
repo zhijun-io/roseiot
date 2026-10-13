@@ -1,10 +1,8 @@
 package io.roseiot.shared.ratelimit;
 
-import org.springframework.stereotype.Component;
-
-import java.time.Instant;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -12,6 +10,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.stereotype.Component;
 
 @Component
 public class SlidingWindowRateLimiter {
@@ -46,8 +45,8 @@ public class SlidingWindowRateLimiter {
         }
         discardExpired(activeAttempts, cutoff);
         if (activeAttempts.size() >= maxAttempts) {
-            Instant firstAttemptExpiresAt = activeAttempts.peekFirst()
-                    .plus(properties.windowMinutes(), ChronoUnit.MINUTES);
+            Instant firstAttemptExpiresAt =
+                    activeAttempts.peekFirst().plus(properties.windowMinutes(), ChronoUnit.MINUTES);
             throw new RateLimitExceededException(Duration.between(now, firstAttemptExpiresAt));
         }
         activeAttempts.addLast(now);
@@ -58,7 +57,8 @@ public class SlidingWindowRateLimiter {
 
     private void cleanupExpiredKeys(Instant cutoff, Instant now) {
         if (lastCapacityCleanup != null && now.isBefore(lastCapacityCleanup.plusSeconds(30))) return;
-        Iterator<Map.Entry<String, Deque<Instant>>> entries = attemptsByKey.entrySet().iterator();
+        Iterator<Map.Entry<String, Deque<Instant>>> entries =
+                attemptsByKey.entrySet().iterator();
         while (entries.hasNext()) {
             Deque<Instant> attempts = entries.next().getValue();
             discardExpired(attempts, cutoff);

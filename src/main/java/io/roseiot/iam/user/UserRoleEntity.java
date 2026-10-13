@@ -2,7 +2,6 @@ package io.roseiot.iam.user;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 
-
 @TableName("user_role")
 class UserRoleEntity {
 

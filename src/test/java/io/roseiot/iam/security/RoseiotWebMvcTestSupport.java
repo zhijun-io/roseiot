@@ -1,15 +1,14 @@
 package io.roseiot.iam.security;
 
 import io.roseiot.shared.security.SecurityUser;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
-
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /** Authorities in WebMvc slices are ACTION codes only; personal endpoints need authentication, not actions. */
 public final class RoseiotWebMvcTestSupport {
@@ -21,19 +20,13 @@ public final class RoseiotWebMvcTestSupport {
     }
 
     public static SimpleGrantedAuthority[] platformAdminAuthorities() {
-        return Stream.of("tenant.create",
-                        "tenant.disable",
-                        "tenant.enable",
-                        "tenant.read",
-                        "system.setting.manage")
+        return Stream.of("tenant.create", "tenant.disable", "tenant.enable", "tenant.read", "system.setting.manage")
                 .map(SimpleGrantedAuthority::new)
                 .toArray(SimpleGrantedAuthority[]::new);
     }
 
     public static SimpleGrantedAuthority[] tenantAdminAuthorities() {
-        return Stream.of("tenant.user.manage")
-                .map(SimpleGrantedAuthority::new)
-                .toArray(SimpleGrantedAuthority[]::new);
+        return Stream.of("tenant.user.manage").map(SimpleGrantedAuthority::new).toArray(SimpleGrantedAuthority[]::new);
     }
 
     public static RequestPostProcessor jwtWithTenantUser(Consumer<Jwt.Builder> jwtCustomizer) {
@@ -68,9 +61,11 @@ public final class RoseiotWebMvcTestSupport {
             SecurityUser principal = new SecurityUser(
                     Long.parseLong(jwt.getSubject()),
                     tenantId == null || tenantId.isBlank() ? null : Long.valueOf(tenantId),
-                    "test-user", true, null, Arrays.asList(authorities));
+                    "test-user",
+                    true,
+                    null,
+                    Arrays.asList(authorities));
             return SecurityMockMvcRequestPostProcessors.user(principal).postProcessRequest(request);
         };
     }
-
 }

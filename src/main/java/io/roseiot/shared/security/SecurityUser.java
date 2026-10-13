@@ -1,11 +1,10 @@
 package io.roseiot.shared.security;
 
+import java.util.Collection;
+import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-
-import java.util.Collection;
-import java.util.List;
 
 /** Current user and authorities loaded for an authenticated request. */
 public final class SecurityUser implements UserDetails, TenantPrincipal {

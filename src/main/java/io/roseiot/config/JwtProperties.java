@@ -1,16 +1,18 @@
 package io.roseiot.config;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
+import java.net.URI;
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
-import java.net.URI;
-import java.util.Locale;
-
 @Validated
 @ConfigurationProperties("roseiot.auth.jwt")
-public record JwtProperties(@NotBlank String secret, @NotBlank String issuer, @NotBlank String audience) {
+public record JwtProperties(
+        @NotBlank String secret,
+        @NotBlank String issuer,
+        @NotBlank String audience) {
 
     @AssertTrue(message = "issuer must be an absolute HTTP(S) URL")
     public boolean isIssuerValid() {
@@ -18,7 +20,8 @@ public record JwtProperties(@NotBlank String secret, @NotBlank String issuer, @N
         try {
             URI uri = URI.create(issuer);
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            return uri.isAbsolute() && uri.getHost() != null
+            return uri.isAbsolute()
+                    && uri.getHost() != null
                     && (scheme.equals("http") || scheme.equals("https"))
                     && uri.getRawUserInfo() == null;
         } catch (IllegalArgumentException exception) {

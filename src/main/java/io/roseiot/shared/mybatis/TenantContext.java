@@ -9,8 +9,7 @@ import java.util.function.Supplier;
 public final class TenantContext {
     private static final ThreadLocal<Long> CURRENT = new ThreadLocal<>();
 
-    private TenantContext() {
-    }
+    private TenantContext() {}
 
     public static Long current() {
         return CURRENT.get();

@@ -1,33 +1,32 @@
 package io.roseiot.iam.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.roseiot.iam.role.RoleService;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.mybatis.TenantContext;
 import io.roseiot.shared.security.SecurityUser;
 import io.roseiot.shared.security.SecurityUserLoader;
-import io.roseiot.iam.role.RoleService;
 import io.roseiot.tenant.TenantService;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
-import java.time.Clock;
-import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -41,9 +40,14 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
     private final UserCredentialService credentialService;
     private final Clock clock;
 
-    public UserService(UserMapper userMapper, UserCredentialMapper credentialMapper, UserRoleMapper userRoleMapper,
-                       RoleService roleService, TenantService tenantService, UserCredentialService credentialService,
-                       Clock clock) {
+    public UserService(
+            UserMapper userMapper,
+            UserCredentialMapper credentialMapper,
+            UserRoleMapper userRoleMapper,
+            RoleService roleService,
+            TenantService tenantService,
+            UserCredentialService credentialService,
+            Clock clock) {
         this.userMapper = userMapper;
         this.credentialMapper = credentialMapper;
         this.userRoleMapper = userRoleMapper;
@@ -97,12 +101,18 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
     }
 
     private SecurityUser securityUser(UserEntity user, String passwordHash) {
-        List<SimpleGrantedAuthority> authorities = TenantContext.call(user.getTenantId(),
+        List<SimpleGrantedAuthority> authorities = TenantContext.call(
+                user.getTenantId(),
                 () -> userRoleMapper.listPermissionCodesForUser(user.getId()).stream()
                         .map(SimpleGrantedAuthority::new)
                         .toList());
-        return new SecurityUser(user.getId(), user.getTenantId(), user.getEmail(),
-                user.getStatus() == UserStatus.ACTIVE, passwordHash, authorities);
+        return new SecurityUser(
+                user.getId(),
+                user.getTenantId(),
+                user.getEmail(),
+                user.getStatus() == UserStatus.ACTIVE,
+                passwordHash,
+                authorities);
     }
 
     private static boolean isActive(UserEntity user) {
@@ -111,7 +121,10 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
 
     private boolean emailExists(String email) {
         return userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getEmail, email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT))) > 0;
+                        .eq(
+                                UserEntity::getEmail,
+                                email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT)))
+                > 0;
     }
 
     @PreAuthorize("hasAuthority('tenant.user.manage')")
@@ -125,9 +138,12 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
     }
 
     private static Pageable checkedPageable(Pageable pageable) {
-        if (pageable.isUnpaged() || pageable.getPageSize() < 1 || pageable.getPageSize() > 100
+        if (pageable.isUnpaged()
+                || pageable.getPageSize() < 1
+                || pageable.getPageSize() > 100
                 || !Sort.by(Sort.Order.asc("id")).equals(pageable.getSort())) {
-            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
+            throw new BusinessException(
+                    ApiErrorCode.VALIDATION_ERROR, "Use a page size from 1 to 100 and sort by id ascending");
         }
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("id"));
     }
@@ -181,19 +197,21 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
         if (roleId != null) {
             roleService.requireAssignable(tenantId, roleId);
             userRoleMapper.delete(Wrappers.lambdaQuery(UserRoleEntity.class)
-                    .eq(UserRoleEntity::getUserId, userId).eq(UserRoleEntity::getTenantId, tenantId));
+                    .eq(UserRoleEntity::getUserId, userId)
+                    .eq(UserRoleEntity::getTenantId, tenantId));
             userRoleMapper.insertAssignment(userId, roleId, tenantId);
         }
         if (disabled != null) {
             Instant now = Instant.now(clock);
             UserStatus status = disabled ? UserStatus.DISABLED : UserStatus.ACTIVE;
-            userMapper.update(null, Wrappers.lambdaUpdate(UserEntity.class)
-                    .eq(UserEntity::getId, userId)
-                    .eq(UserEntity::getTenantId, tenantId)
-                    .set(UserEntity::getStatus, status)
-                    .set(UserEntity::getUpdatedAt, now));
+            userMapper.update(
+                    null,
+                    Wrappers.lambdaUpdate(UserEntity.class)
+                            .eq(UserEntity::getId, userId)
+                            .eq(UserEntity::getTenantId, tenantId)
+                            .set(UserEntity::getStatus, status)
+                            .set(UserEntity::getUpdatedAt, now));
         }
         roleService.ensureAdministrator(tenantId);
     }
-
 }

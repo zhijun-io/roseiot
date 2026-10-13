@@ -11,13 +11,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan(basePackages = {
-        "io.roseiot.iam.resource",
-        "io.roseiot.iam.role",
-        "io.roseiot.iam.user",
-        "io.roseiot.system",
-        "io.roseiot.tenant"
-}, markerInterface = BaseMapper.class)
+@MapperScan(
+        basePackages = {
+            "io.roseiot.iam.resource",
+            "io.roseiot.iam.role",
+            "io.roseiot.iam.user",
+            "io.roseiot.system",
+            "io.roseiot.tenant"
+        },
+        markerInterface = BaseMapper.class)
 public class MybatisPlusConfig {
     @Bean
     MybatisPlusInterceptor mybatisPlusInterceptor() {

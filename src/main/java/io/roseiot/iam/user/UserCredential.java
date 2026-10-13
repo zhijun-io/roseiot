@@ -12,8 +12,14 @@ record UserCredential(
         Instant updatedAt) {
 
     static UserCredential from(UserCredentialEntity entity) {
-        return new UserCredential(entity.getUserId(), entity.getPassword(), entity.getResetToken(),
-                entity.getResetExpiresAt(), entity.getResetAt(), entity.getCreatedAt(), entity.getUpdatedAt());
+        return new UserCredential(
+                entity.getUserId(),
+                entity.getPassword(),
+                entity.getResetToken(),
+                entity.getResetExpiresAt(),
+                entity.getResetAt(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt());
     }
 
     @Override

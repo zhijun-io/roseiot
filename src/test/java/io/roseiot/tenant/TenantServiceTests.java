@@ -1,16 +1,5 @@
 package io.roseiot.tenant;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import io.roseiot.shared.BusinessException;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.apache.ibatis.session.Configuration;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.security.access.AccessDeniedException;
-
-import java.time.Instant;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,6 +7,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import io.roseiot.shared.BusinessException;
+import java.time.Instant;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.apache.ibatis.session.Configuration;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 
 class TenantServiceTests {
     private static final long TENANT_ID = 42L;
@@ -49,8 +48,7 @@ class TenantServiceTests {
     @Test
     void updateByIdRejectsUnknownTenant() {
         when(tenantMapper.selectByIdForUpdate(TENANT_ID)).thenReturn(null);
-        assertThatThrownBy(() -> service.update(TENANT_ID, "Name", null))
-                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.update(TENANT_ID, "Name", null)).isInstanceOf(BusinessException.class);
         verify(tenantMapper, never()).updateById(any(TenantEntity.class));
     }
 
