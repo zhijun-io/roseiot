@@ -51,12 +51,12 @@ public class WebSecurityConfig {
     @Order(1)
     SecurityFilterChain publicSecurityFilterChain(
             HttpSecurity http, RestLoginAuthenticationFilter restLoginAuthenticationFilter) throws Exception {
-        http.securityMatcher("/api/actuator/health", "/api/actuator/health/**", "/api/login", "/api/password-resets/**")
+        http.securityMatcher("/actuator/health", "/actuator/health/**", "/api/login", "/api/password-resets/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
-                        auth -> auth.requestMatchers(HttpMethod.GET, "/api/actuator/health", "/api/actuator/health/**")
+                        auth -> auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                                 .permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/login")
                                 .permitAll()

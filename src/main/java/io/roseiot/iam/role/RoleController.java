@@ -1,13 +1,10 @@
 package io.roseiot.iam.role;
 
-import io.roseiot.shared.ApiErrorCode;
-import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.security.SecurityUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.Page;
@@ -75,10 +72,6 @@ class RoleController {
             @NotNull @Size(max = 100) List<@NotBlank @Size(max = 128) String> actionCodes) {}
 
     private static Set<String> actionCodes(RoleRequest request) {
-        Set<String> actionCodes = new LinkedHashSet<>(request.actionCodes());
-        if (actionCodes.size() != request.actionCodes().size()) {
-            throw new BusinessException(ApiErrorCode.VALIDATION_ERROR, "Action codes must be unique");
-        }
-        return Set.copyOf(actionCodes);
+        return Set.copyOf(request.actionCodes());
     }
 }

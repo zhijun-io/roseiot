@@ -55,8 +55,8 @@ SPRING_PROFILES_ACTIVE=local ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED=true ./mvnw 
 应用启动后，可检查健康状态：
 
 ```bash
-curl -fsS http://localhost:8080/api/actuator/health/liveness
-curl -fsS http://localhost:8080/api/actuator/health/readiness
+curl -fsS http://localhost:8080/actuator/health/liveness
+curl -fsS http://localhost:8080/actuator/health/readiness
 ```
 
 如果使用已有 PostgreSQL 而不启动 Compose，在 `.env` 中设置 `SPRING_DOCKER_COMPOSE_ENABLED=false`，并提供 `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME` 和 `SPRING_DATASOURCE_PASSWORD`，然后运行相同的启动命令。

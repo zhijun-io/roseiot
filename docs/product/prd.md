@@ -80,7 +80,7 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 | `IAM-009` | 租户停用是用户访问、设备认证、异步任务、实时订阅和外部投递的持续资格条件，各执行边界必须重新检查。 |
 | `IAM-010` | 租户删除首版不提供即时级联删除；导出、保留、擦除和管理员恢复必须走独立、可审计流程。 |
 | `IAM-015` | 每个 User 仅保留最新一条有效密码重置请求；新请求使该用户此前发出的重置链接立即失效。重置 token 只保存摘要，且只能成功消费一次。 |
-| `IAM-016` | 所有 Roseiot HTTP 请求统一位于 `/api` 下；业务端点由 Controller 显式映射此前缀，Actuator 也使用 `/api/actuator`。API 使用资源路径定位，不添加 `/noauth` 或 `/internal` 认证边界前缀。登录使用 `/api/login`，当前用户操作使用 `/api/me`。Spring Security 按具体资源配置认证边界；密码重置须校验一次性 token。业务 API 默认拒绝并继续执行资源授权。 |
+| `IAM-016` | 业务 API 统一位于 `/api` 下，由 Controller 显式映射此前缀；Actuator 等运维端点不使用该前缀。API 使用资源路径定位，不添加 `/noauth` 或 `/internal` 认证边界前缀。登录使用 `/api/login`，当前用户操作使用 `/api/me`。Spring Security 按具体资源配置认证边界；密码重置须校验一次性 token。业务 API 默认拒绝并继续执行资源授权。 |
 
 来源：访谈 Q2、Q6、Q38～Q46、Q56～Q63、Q179～Q232、Q471～Q488、Q507～Q510；现行决策见 [IAM ADR](../adr/2026-10-10-iam.md)。
 
@@ -210,7 +210,7 @@ Roseiot 是一个用于学习真实 IoT 场景、验证工程取舍并展示工�
 
 ### 5.1 HTTP API
 
-- 所有 Roseiot HTTP 请求（包括 Actuator）均位于 `/api` 下；业务端点通过 Controller 路由映射设置前缀，Actuator 使用 `/api/actuator`。API 使用资源路径和稳定资源 ID，不添加 `/noauth` 或 `/internal` 前缀；当前 HTTP API 不使用 PATCH，也不以 201、202 或 204 作为响应状态。成功的创建、更新和删除使用 200；列表与详情返回 200。
+- 业务 API 均位于 `/api` 下，并通过 Controller 路由映射设置前缀；Actuator 等运维端点保持 `/actuator` 路径。API 使用资源路径和稳定资源 ID，不添加 `/noauth` 或 `/internal` 前缀；当前 HTTP API 不使用 PATCH，也不以 201、202 或 204 作为响应状态。成功的创建、更新和删除使用 200；列表与详情返回 200。
 - 创建接口定义幂等行为；修改接口使用版本或条件请求防止丢失更新。
 - 支持分页的列表使用 Spring `Pageable` 的 `page`、`size` 和 `sort` 查询参数，并返回 Spring `Page`，其中内容均为响应 DTO。页码从 0 开始，默认 `size` 为 50、最大 100；当前列表只允许按 ID 升序排序。MyBatis-Plus 分页插件负责数据库分页并设置 100 条的 `maxLimit`。ID 升序用于稳定排序，不代表业务创建时间顺序；页码分页在列表持续变化时可能发生跨页重复或遗漏。当前租户、用户、角色和资源目录列表使用该契约；SystemSetting 的类型固定且数量有界，列表不分页。
 - 当前 IAM、租户和系统设置 HTTP 资源如下：

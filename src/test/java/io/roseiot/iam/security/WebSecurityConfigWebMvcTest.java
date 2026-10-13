@@ -126,6 +126,6 @@ class WebSecurityConfigWebMvcTest {
     void deniesAuthenticatedCallersUnknownRoutesAndNonPostLoginRequests() {
         assertThat(mvc.get().uri("/api/devices").with(user("someone"))).hasStatus(404);
         assertThat(mvc.get().uri("/api/login").with(user("someone"))).hasStatus(403);
-        assertThat(mvc.get().uri("/login")).hasStatus(404);
+        assertThat(mvc.get().uri("/login").with(user("someone"))).hasStatus(404);
     }
 }
