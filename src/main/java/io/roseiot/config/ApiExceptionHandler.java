@@ -6,11 +6,12 @@ import io.roseiot.shared.ratelimit.RateLimitCapacityExceededException;
 import io.roseiot.shared.ratelimit.RateLimitExceededException;
 import io.roseiot.shared.webmvc.ApiHttpSupport;
 import io.roseiot.shared.webmvc.RequestCorrelationFilter;
+import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -25,8 +26,6 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.util.WebUtils;
 
-import java.net.URI;
-
 @RestControllerAdvice(basePackages = "io.roseiot")
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -40,11 +39,42 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<ProblemDetail> handleBusinessException(BusinessException exception) {
-        log.error("Business exception requestId={}", MDC.get(RequestCorrelationFilter.MDC_KEY), exception);
-        return apiHttpSupport.errorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                exception.errorCode().code(),
-                "An unexpected error occurred");
+        ApiErrorCode code = exception.errorCode();
+        HttpStatus status = businessStatus(code);
+        log.warn(
+                "Business request rejected code={} requestId={}",
+                code.code(),
+                MDC.get(RequestCorrelationFilter.MDC_KEY));
+        return apiHttpSupport.errorResponse(status.value(), code.code(), businessDetail(code));
+    }
+
+    private static HttpStatus businessStatus(ApiErrorCode code) {
+        return switch (code) {
+            case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
+            case INVALID_RESET_TOKEN, VALIDATION_ERROR, INVALID_ACTION -> HttpStatus.BAD_REQUEST;
+            case TENANT_NOT_FOUND, TENANT_USER_NOT_FOUND, ROLE_NOT_FOUND, SYSTEM_SETTING_NOT_FOUND ->
+                HttpStatus.NOT_FOUND;
+            case EMAIL_ALREADY_EXISTS, ROLE_IN_USE, SYSTEM_SETTING_EXISTS, LAST_TENANT_ADMIN -> HttpStatus.CONFLICT;
+            case REQUEST_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
+            case RATE_LIMIT_CAPACITY_EXHAUSTED -> HttpStatus.SERVICE_UNAVAILABLE;
+        };
+    }
+
+    private static String businessDetail(ApiErrorCode code) {
+        return switch (code) {
+            case VALIDATION_ERROR -> "Request validation failed";
+            case INVALID_RESET_TOKEN -> "Reset token is invalid or expired";
+            case INVALID_ACTION -> "One or more actions are invalid";
+            case TENANT_NOT_FOUND, TENANT_USER_NOT_FOUND, ROLE_NOT_FOUND, SYSTEM_SETTING_NOT_FOUND ->
+                "Resource not found";
+            case EMAIL_ALREADY_EXISTS, ROLE_IN_USE, SYSTEM_SETTING_EXISTS, LAST_TENANT_ADMIN ->
+                "The request conflicts with the current resource state";
+            case INVALID_CREDENTIALS -> "Invalid credentials";
+            case REQUEST_TOO_LARGE -> "Request body is too large";
+            case RATE_LIMITED -> "Too many requests";
+            case RATE_LIMIT_CAPACITY_EXHAUSTED -> "Request capacity is temporarily unavailable";
+        };
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
@@ -54,31 +84,37 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         headers.setContentType(MediaType.APPLICATION_PROBLEM_JSON);
         headers.setCacheControl(CacheControl.noStore());
         headers.set("Retry-After", Long.toString(exception.retryAfterSeconds()));
-        return new ResponseEntity<>(apiHttpSupport.problemDetail(
-                HttpStatus.TOO_MANY_REQUESTS.value(), code, code), headers, HttpStatus.TOO_MANY_REQUESTS);
+        return new ResponseEntity<>(
+                apiHttpSupport.problemDetail(HttpStatus.TOO_MANY_REQUESTS.value(), code, code),
+                headers,
+                HttpStatus.TOO_MANY_REQUESTS);
     }
 
     @ExceptionHandler(RateLimitCapacityExceededException.class)
     ResponseEntity<ProblemDetail> handleRateLimitCapacity(RateLimitCapacityExceededException exception) {
-        return apiHttpSupport.errorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(),
+        return apiHttpSupport.errorResponse(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
                 ApiErrorCode.RATE_LIMIT_CAPACITY_EXHAUSTED.code(),
                 "Rate limiting capacity is temporarily unavailable");
     }
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException exception,
-            HttpHeaders headers,
-            HttpStatusCode status,
-            WebRequest request) {
+            MethodArgumentNotValidException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         ProblemDetail problem = frameworkProblem(status, "validation_error", "Validation failed", request);
-        problem.setProperty("errors", exception.getBindingResult().getAllErrors().stream()
-                .map(error -> java.util.Map.of(
-                        "field", error instanceof FieldError fieldError
-                                ? fieldError.getField()
-                                : error.getObjectName(),
-                        "message", error.getDefaultMessage() == null ? "Invalid value" : error.getDefaultMessage()))
-                .toList());
+        problem.setProperty(
+                "errors",
+                exception.getBindingResult().getAllErrors().stream()
+                        .map(error -> java.util.Map.of(
+                                "field",
+                                        error instanceof FieldError fieldError
+                                                ? fieldError.getField()
+                                                : error.getObjectName(),
+                                "message",
+                                        error.getDefaultMessage() == null
+                                                ? "Invalid value"
+                                                : error.getDefaultMessage()))
+                        .toList());
         HttpHeaders responseHeaders = new HttpHeaders();
         responseHeaders.putAll(headers);
         responseHeaders.setContentType(MediaType.APPLICATION_PROBLEM_JSON);
@@ -88,11 +124,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(
-            Exception exception,
-            Object body,
-            HttpHeaders headers,
-            HttpStatusCode status,
-            WebRequest request) {
+            Exception exception, Object body, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         if (request instanceof ServletWebRequest servletRequest
                 && servletRequest.getResponse() != null
                 && servletRequest.getResponse().isCommitted()) {
@@ -118,9 +150,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleUnexpected(Exception exception) {
         log.error("Unhandled API exception requestId={}", MDC.get(RequestCorrelationFilter.MDC_KEY), exception);
         return apiHttpSupport.errorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "internal_error",
-                "An unexpected error occurred");
+                HttpStatus.INTERNAL_SERVER_ERROR.value(), "internal_error", "An unexpected error occurred");
     }
 
     private ProblemDetail frameworkProblem(HttpStatusCode status, String code, String detail, WebRequest request) {

@@ -1,24 +1,24 @@
 package io.roseiot.config;
 
-import io.roseiot.shared.webmvc.ApiHttpSupport;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
 import io.roseiot.shared.ratelimit.RateLimitExceededException;
+import io.roseiot.shared.webmvc.ApiHttpSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpInputMessage;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.MapBindingResult;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.context.request.ServletWebRequest;
 import tools.jackson.databind.json.JsonMapper;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ApiExceptionHandlerTest {
 
@@ -26,29 +26,31 @@ class ApiExceptionHandlerTest {
             new ApiExceptionHandler(new ApiHttpSupport(JsonMapper.builder().build()));
 
     @Test
-    void mapsBusinessExceptionsToInternalServerErrorWithoutExposingDetails() {
-        assertBody(cut.handleBusinessException(
+    void mapsBusinessValidationFailuresToBadRequestWithoutExposingInternalDetails() {
+        assertBody(
+                cut.handleBusinessException(
                         new BusinessException(ApiErrorCode.VALIDATION_ERROR, "private validation detail")),
-                500, "validation_error", "An unexpected error occurred");
+                400,
+                "validation_error",
+                "Request validation failed");
     }
 
     private void assertBody(ResponseEntity<ProblemDetail> response, int status, String code, String message) {
         assertThat(response.getStatusCode().value()).isEqualTo(status);
-        assertThat(response.getBody())
-                .isNotNull()
-                .satisfies(problem -> {
-                    assertThat(problem.getStatus()).isEqualTo(status);
-                    assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:" + code);
-                    assertThat(problem.getDetail()).isEqualTo(message);
-                    assertThat(problem.getProperties()).containsEntry("code", code);
-                });
+        assertThat(response.getBody()).isNotNull().satisfies(problem -> {
+            assertThat(problem.getStatus()).isEqualTo(status);
+            assertThat(problem.getType().toString()).isEqualTo("urn:roseiot:problem:" + code);
+            assertThat(problem.getDetail()).isEqualTo(message);
+            assertThat(problem.getProperties()).containsEntry("code", code);
+        });
     }
 
     private ResponseEntity<ProblemDetail> handleFrameworkException(Exception exception) throws Exception {
         MockHttpServletRequest servletRequest = new MockHttpServletRequest();
         servletRequest.setRequestURI("/test");
         ResponseEntity<Object> response = cut.handleException(exception, new ServletWebRequest(servletRequest));
-        return new ResponseEntity<>((ProblemDetail) response.getBody(), response.getHeaders(), response.getStatusCode());
+        return new ResponseEntity<>(
+                (ProblemDetail) response.getBody(), response.getHeaders(), response.getStatusCode());
     }
 
     @Test
@@ -62,8 +64,8 @@ class ApiExceptionHandlerTest {
         bindingResult.rejectValue("name", "NotBlank", "must not be blank");
 
         MethodParameter methodParameter = new MethodParameter(String.class.getMethod("length"), -1);
-        ResponseEntity<ProblemDetail> response = handleFrameworkException(
-                new MethodArgumentNotValidException(methodParameter, bindingResult));
+        ResponseEntity<ProblemDetail> response =
+                handleFrameworkException(new MethodArgumentNotValidException(methodParameter, bindingResult));
         assertBody(response, 400, "validation_error", "Validation failed");
         assertThat(response.getBody().getProperties().get("errors"))
                 .isEqualTo(java.util.List.of(java.util.Map.of("field", "name", "message", "must not be blank")));
@@ -80,13 +82,19 @@ class ApiExceptionHandlerTest {
 
     @Test
     void shouldAnswerParameterBindingFailureWithBadRequest() throws Exception {
-        assertBody(handleFrameworkException(new MissingServletRequestParameterException("limit", "int")),
-                400, "invalid_request", "Request parameters are invalid");
+        assertBody(
+                handleFrameworkException(new MissingServletRequestParameterException("limit", "int")),
+                400,
+                "invalid_request",
+                "Request parameters are invalid");
     }
 
     @Test
     void shouldAnswerUnexpectedFailureWithInternalErrorAndNoLeak() {
-        assertBody(cut.handleUnexpected(new IllegalStateException("jdbc detail")),
-                500, "internal_error", "An unexpected error occurred");
+        assertBody(
+                cut.handleUnexpected(new IllegalStateException("jdbc detail")),
+                500,
+                "internal_error",
+                "An unexpected error occurred");
     }
 }
