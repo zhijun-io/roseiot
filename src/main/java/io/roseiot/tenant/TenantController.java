@@ -29,7 +29,7 @@ class TenantController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('tenant.read')")
-    Page<Tenant> list(@PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+    Page<Tenant> list(@PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         return tenantService.list(pageable);
     }
 

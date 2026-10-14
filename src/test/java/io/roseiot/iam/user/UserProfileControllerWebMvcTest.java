@@ -48,8 +48,7 @@ class UserControllerWebMvcTest {
 
     @Test
     void shouldAnswerProfileWithIdAndEmailOfTheTokenSubject() {
-        given(userService.getProfile(USER_ID))
-                .willReturn(new User(USER_ID, 1L, "ops@roseiot.io", "Ops", UserStatus.ACTIVE));
+        given(userService.getProfile(USER_ID)).willReturn(new UserProfile(USER_ID, "ops@roseiot.io", "Ops"));
 
         assertThat(mvc.get().uri("/api/me").with(RoseiotWebMvcTestSupport.jwtWithSystemAdmin(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
@@ -57,18 +56,15 @@ class UserControllerWebMvcTest {
                 .isLenientlyEqualTo("""
                         {
                           "id": 1007,
-                          "tenantId": 1,
                           "email": "ops@roseiot.io",
-                          "name": "Ops",
-                          "status": "ACTIVE"
+                          "name": "Ops"
                         }
                         """);
     }
 
     @Test
     void shouldAnswerProfileForTenantContextWhenTidMatchesSubject() {
-        given(userService.getProfile(USER_ID))
-                .willReturn(new User(USER_ID, TENANT_ID, "tenant@roseiot.io", null, UserStatus.ACTIVE));
+        given(userService.getProfile(USER_ID)).willReturn(new UserProfile(USER_ID, "tenant@roseiot.io", null));
 
         assertThat(mvc.get().uri("/api/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::tenantToken)))
                 .hasStatus(HttpStatus.OK)
@@ -79,8 +75,7 @@ class UserControllerWebMvcTest {
 
     @Test
     void shouldAnswerProfileForAuthenticatedUserWithoutAnyAuthorities() {
-        given(userService.getProfile(USER_ID))
-                .willReturn(new User(USER_ID, TENANT_ID, "plain@roseiot.io", null, UserStatus.ACTIVE));
+        given(userService.getProfile(USER_ID)).willReturn(new UserProfile(USER_ID, "plain@roseiot.io", null));
 
         assertThat(mvc.get().uri("/api/me").with(RoseiotWebMvcTestSupport.jwtWithTenantUser(this::systemToken)))
                 .hasStatus(HttpStatus.OK)
@@ -99,7 +94,7 @@ class UserControllerWebMvcTest {
     @Test
     void shouldUpdateOnlyTheAuthenticatedUsersName() {
         given(userService.updateProfile(USER_ID, "Ada Lovelace"))
-                .willReturn(new User(USER_ID, TENANT_ID, "ops@roseiot.io", "Ada Lovelace", UserStatus.ACTIVE));
+                .willReturn(new UserProfile(USER_ID, "ops@roseiot.io", "Ada Lovelace"));
 
         assertThat(mvc.put()
                         .uri("/api/me")

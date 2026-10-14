@@ -54,7 +54,7 @@ class UserServiceTest {
         user.setEmail("ops@roseiot.io");
         when(userMapper.selectById(USER_ID)).thenReturn(user);
 
-        User profile = cut.getProfile(USER_ID);
+        UserProfile profile = cut.getProfile(USER_ID);
 
         assertThat(profile.id()).isEqualTo(USER_ID);
         assertThat(profile.email()).isEqualTo("ops@roseiot.io");

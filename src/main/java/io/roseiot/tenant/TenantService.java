@@ -27,6 +27,10 @@ public class TenantService {
         this.tenantMapper = tenantMapper;
     }
 
+    public Long defaultTenantId() {
+        return Tenant.DEFAULT_TENANT_ID;
+    }
+
     public void requireCustomerTenant(Long tenantId) {
         if (Tenant.DEFAULT_TENANT_ID.equals(tenantId)) {
             throw new AccessDeniedException("Reserved tenant");

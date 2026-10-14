@@ -59,21 +59,21 @@ public class UserService implements UserDetailsService, SecurityUserLoader {
 
     @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
             + " and #p0 == authentication.principal.userId()")
-    public User getProfile(Long userId) {
+    public UserProfile getProfile(Long userId) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
-        return User.from(user);
+        return UserProfile.from(user);
     }
 
     @Transactional
     @PreAuthorize("isAuthenticated() and authentication.principal instanceof T(io.roseiot.shared.security.SecurityUser)"
             + " and #p0 == authentication.principal.userId()")
-    public User updateProfile(Long userId, String name) {
+    public UserProfile updateProfile(Long userId, String name) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) throw new BadCredentialsException(ApiErrorCode.INVALID_CREDENTIALS.code());
         user.setName(name.trim());
         userMapper.updateById(user);
-        return User.from(user);
+        return UserProfile.from(user);
     }
 
     @Override

@@ -36,12 +36,12 @@ class UserController {
     }
 
     @GetMapping("/me")
-    User me(@AuthenticationPrincipal SecurityUser user) {
+    UserProfile me(@AuthenticationPrincipal SecurityUser user) {
         return userService.getProfile(user.userId());
     }
 
     @PutMapping("/me")
-    User updateMe(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody UpdateMeRequest request) {
+    UserProfile updateMe(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody UpdateMeRequest request) {
         return userService.updateProfile(user.userId(), request.name());
     }
 
@@ -54,7 +54,7 @@ class UserController {
     @PreAuthorize("hasAuthority('tenant.user.manage')")
     Page<UserResponse> list(
             @AuthenticationPrincipal SecurityUser user,
-            @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         Long tenantId = user.requireTenantId();
         return userService.list(tenantId, pageable);
     }

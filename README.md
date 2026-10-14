@@ -17,7 +17,7 @@ Roseiot 是一个面向物联网场景的多租户后端项目。目前处于建
 
 HTTP 请求体有独立于限流开关的 1 MiB 默认上限，可通过 `roseiot.http.max-request-body-bytes` 调整；登录和密码重置路由另有独立的 16 KiB 限制，可通过 `roseiot.http.max-authentication-request-body-bytes` 调整。超过对应上限的请求返回 `413 Payload Too Large`。
 
-当前还没有首位管理员创建入口，因此全新数据库尚不能通过应用 API 创建第一个登录用户。用户邀请功能已移除。密码重置通知目前没有邮件投递服务；只有显式激活 `local` profile 并设置 `ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED=true` 时，应用才会把重置链接写入日志。该选项包含一次性凭证，只能用于本地演示，禁止在共享或生产环境启用。重置链接依赖 `system_setting` 中的通用 `baseUrl` 设置，并将 token 放在 URL fragment 中；客户端应从 fragment 读取令牌，再通过请求体调用重置验证与确认接口。
+当前还没有首位管理员创建入口，因此全新数据库尚不能通过应用 API 创建第一个登录用户。用户邀请功能已移除。密码重置邮件通知默认关闭；配置 SMTP 并设置 `ROSEIOT_PASSWORD_RESET_EMAIL_ENABLED=true` 与发件人 `ROSEIOT_PASSWORD_RESET_EMAIL_FROM` 后，系统会在重置请求事务提交后异步发送邮件。SMTP 主机、端口、用户名、密码、认证与 STARTTLS 通过 `ROSEIOT_MAIL_*` 环境变量配置。邮件中的重置页面链接依赖 `system_setting` 中的通用 `baseUrl` 设置；一次性 token 作为邮件正文文本提供，客户端应通过请求体调用重置验证与确认接口，token 不放入 URL。SMTP 未送达不会改变密码重置请求结果；队列饱和时调用线程会执行投递并可能延长请求时间，进程异常退出时尚未处理的内存任务可能丢失。
 
 ## 技术栈
 
@@ -32,24 +32,17 @@ HTTP 请求体有独立于限流开关的 1 MiB 默认上限，可通过 `roseio
 
 ## 本地运行
 
-需要 JDK 25 和 Docker。默认启动方式由 Spring Boot Docker Compose 支持启动仓库中的 PostgreSQL 服务。
-Spring Boot 默认在应用退出时停止 Compose 服务；再次启动应用时会重新启动数据库容器。手动管理数据库时可禁用 Compose 集成并使用现有 PostgreSQL。
+需要 JDK 25 和 Docker。默认启动方式由 Spring Boot Docker Compose 支持启动仓库中的 PostgreSQL 与 Mailpit 服务。Mailpit 接收本地邮件但不会向外部地址投递：SMTP 使用 `localhost:1025`，邮件查看界面为 <http://localhost:8025>。Spring Boot 默认在应用退出时停止 Compose 服务；再次启动应用时会重新启动容器。手动管理依赖服务时可禁用 Compose 集成并使用现有 PostgreSQL 与 SMTP 服务。
 
 ```bash
 cp .env.example .env
 ```
 
 编辑 `.env`，为 `ROSEIOT_AUTH_JWT_SECRET` 设置至少 32 字节的随机密钥。JWT 的 `issuer` 和 `audience` 默认分别为 `https://roseiot.local` 与 `roseiot-api`；多环境部署应为每个环境设置独立 issuer。建议同时为本地 PostgreSQL 设置独立密码。
-如需本地演示密码重置，必须同时将 `ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED` 设为 `true` 并激活 `local` profile；默认关闭。
+本地测试邮件时，在 `.env` 中设置 `ROSEIOT_PASSWORD_RESET_EMAIL_ENABLED=true` 和 `ROSEIOT_PASSWORD_RESET_EMAIL_FROM=roseiot@localhost`，其它 SMTP 默认值已指向 Compose 中的 Mailpit（无需认证或 TLS）。通过 <http://localhost:8025> 查看邮件。真实环境应使用部署密钥管理注入 SMTP 凭证，并按服务要求设置认证和 STARTTLS。
 
 ```bash
 ./mvnw spring-boot:run
-```
-
-仅在本地环境演示密码重置时启动：
-
-```bash
-SPRING_PROFILES_ACTIVE=local ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED=true ./mvnw spring-boot:run
 ```
 
 应用启动后，可检查健康状态：

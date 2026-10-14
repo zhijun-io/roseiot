@@ -36,7 +36,7 @@ class RoleController {
     @PreAuthorize("hasAuthority('tenant.role.manage')")
     Page<Role> list(
             @AuthenticationPrincipal SecurityUser user,
-            @PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         return roleService.list(user.requireTenantId(), pageable);
     }
 

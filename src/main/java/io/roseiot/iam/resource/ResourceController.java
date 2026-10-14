@@ -19,7 +19,7 @@ class ResourceController {
     }
 
     @GetMapping("/resources")
-    Page<Resource> list(@PageableDefault(size = 50, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+    Page<Resource> list(@PageableDefault(size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         return resourceService.list(pageable);
     }
 }

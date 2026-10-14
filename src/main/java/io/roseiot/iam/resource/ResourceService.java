@@ -3,7 +3,7 @@ package io.roseiot.iam.resource;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.roseiot.shared.ApiErrorCode;
 import io.roseiot.shared.BusinessException;
-import io.roseiot.tenant.Tenant;
+import io.roseiot.tenant.TenantService;
 import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.PageImpl;
@@ -19,15 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ResourceService {
 
     private final ResourceMapper resourceMapper;
+    private final TenantService tenantService;
 
-    public ResourceService(ResourceMapper resourceMapper) {
+    public ResourceService(ResourceMapper resourceMapper, TenantService tenantService) {
         this.resourceMapper = resourceMapper;
+        this.tenantService = tenantService;
     }
 
     public List<Resource> catalog() {
         return resourceMapper
                 .selectList(Wrappers.lambdaQuery(ResourceEntity.class)
-                        .eq(ResourceEntity::getTenantId, Tenant.DEFAULT_TENANT_ID)
+                        .eq(ResourceEntity::getTenantId, tenantService.defaultTenantId())
                         .eq(ResourceEntity::getStatus, ResourceStatus.ACTIVE)
                         .orderByAsc(ResourceEntity::getSortOrder, ResourceEntity::getCode))
                 .stream()
@@ -42,7 +44,7 @@ public class ResourceService {
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
                         checkedPageable.getPageNumber() + 1L, checkedPageable.getPageSize()),
                 Wrappers.lambdaQuery(ResourceEntity.class)
-                        .eq(ResourceEntity::getTenantId, Tenant.DEFAULT_TENANT_ID)
+                        .eq(ResourceEntity::getTenantId, tenantService.defaultTenantId())
                         .eq(ResourceEntity::getStatus, ResourceStatus.ACTIVE)
                         .orderByAsc(ResourceEntity::getId));
         List<Resource> items = result.getRecords().stream().map(Resource::from).toList();
@@ -68,7 +70,7 @@ public class ResourceService {
             return List.of();
         }
         var query = Wrappers.lambdaQuery(ResourceEntity.class)
-                .eq(ResourceEntity::getTenantId, Tenant.DEFAULT_TENANT_ID)
+                .eq(ResourceEntity::getTenantId, tenantService.defaultTenantId())
                 .eq(ResourceEntity::getType, ResourceType.ACTION)
                 .eq(ResourceEntity::getStatus, ResourceStatus.ACTIVE);
         query.in(ResourceEntity::getCode, actionCodes);

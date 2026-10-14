@@ -8,6 +8,17 @@ spring:
       enabled: true
   config:
     import: optional:file:.env[.properties]
+  mail:
+    host: ${ROSEIOT_MAIL_HOST:localhost}
+    port: ${ROSEIOT_MAIL_PORT:1025}
+    username: ${ROSEIOT_MAIL_USERNAME:}
+    password: ${ROSEIOT_MAIL_PASSWORD:}
+    properties:
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 3000
+      "[mail.smtp.writetimeout]": 5000
+      "[mail.smtp.auth]": ${ROSEIOT_MAIL_SMTP_AUTH:false}
+      "[mail.smtp.starttls.enable]": ${ROSEIOT_MAIL_SMTP_STARTTLS:false}
   docker:
     compose:
       skip:
@@ -21,7 +32,7 @@ spring:
   data:
     web:
       pageable:
-        default-page-size: 50
+        default-page-size: 10
         max-page-size: 100
   jackson:
     deserialization:
@@ -75,8 +86,9 @@ roseiot:
         key-prefix: "auth:reset-token-use:"
         max-attempts: 20
   password-reset:
-    logging:
-      enabled: ${ROSEIOT_PASSWORD_RESET_LOGGING_ENABLED:false}
+    email:
+      enabled: ${ROSEIOT_PASSWORD_RESET_EMAIL_ENABLED:false}
+      from: ${ROSEIOT_PASSWORD_RESET_EMAIL_FROM:}
   auth:
     jwt:
       secret: ${ROSEIOT_AUTH_JWT_SECRET}

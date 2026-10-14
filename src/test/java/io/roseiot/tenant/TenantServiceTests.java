@@ -46,6 +46,11 @@ class TenantServiceTests {
     }
 
     @Test
+    void exposesDefaultTenantIdThroughTheFeatureService() {
+        assertThat(service.defaultTenantId()).isEqualTo(1L);
+    }
+
+    @Test
     void updateByIdRejectsUnknownTenant() {
         when(tenantMapper.selectByIdForUpdate(TENANT_ID)).thenReturn(null);
         assertThatThrownBy(() -> service.update(TENANT_ID, "Name", null)).isInstanceOf(BusinessException.class);
