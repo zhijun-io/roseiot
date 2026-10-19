@@ -10,6 +10,9 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 interface PasswordResetTokenMapper extends BaseMapper<PasswordResetTokenRow> {
+    @Select("SELECT user_id FROM password_reset_tokens WHERE token_digest = #{digest}")
+    Long findUserIdByDigest(@Param("digest") String digest);
+
     @Select("""
             SELECT id, user_id, token_digest, created_at, expires_at, used_at
             FROM password_reset_tokens
@@ -30,11 +33,8 @@ interface PasswordResetTokenMapper extends BaseMapper<PasswordResetTokenRow> {
 
     @Update("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP "
             + "WHERE user_id = #{userId} AND used_at IS NULL")
-    int invalidateUnusedForUser(@Param("userId") long userId);
+    int consumeAllOutstandingForUser(@Param("userId") long userId);
 
     @Update("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = #{id} AND used_at IS NULL")
     int invalidate(@Param("id") long id);
-
-    @Update("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = #{id} AND used_at IS NULL")
-    int markUsed(@Param("id") long id);
 }

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.roseiot.TestcontainersConfiguration;
 import java.io.IOException;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,8 +45,9 @@ class AuthenticationIT {
     private CapturingResetEmailSender resetEmailSender;
 
     @BeforeEach
-    void clearCapturedEmail() {
+    void clearCapturedEmail() throws IOException, InterruptedException {
         resetEmailSender.clear();
+        query("DELETE FROM auth_rate_limits");
     }
 
     @Test
@@ -178,16 +178,23 @@ class AuthenticationIT {
         assertThat(known.getResponseBody()).isEqualTo(unknown.getResponseBody());
         assertThat(new String(known.getResponseBody())).contains("If the account exists");
 
-        String resetUrl = resetEmailSender.lastResetUrl();
-        String token = resetUrl.substring(resetUrl.indexOf("token=") + "token=".length());
+        String firstToken = resetToken(resetEmailSender.resetUrls().get(0));
+        restTestClient
+                .post()
+                .uri("/api/auth/password-reset-requests")
+                .body(new PasswordResetRequest(email))
+                .exchange()
+                .expectStatus()
+                .isOk();
+        String secondToken = resetToken(resetEmailSender.resetUrls().get(1));
         assertThat(query("SELECT COUNT(*) FROM password_reset_tokens WHERE token_digest = '"
-                        + UserSessionService.digest(token) + "'"))
+                        + UserSessionService.digest(firstToken) + "' AND used_at IS NULL"))
                 .isEqualTo("1");
 
         restTestClient
                 .post()
                 .uri("/api/auth/password-resets")
-                .body(new PasswordResetCompletionRequest(token, "RecoveredPassword!789"))
+                .body(new PasswordResetCompletionRequest(firstToken, "RecoveredPassword!789"))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -203,7 +210,7 @@ class AuthenticationIT {
         restTestClient
                 .post()
                 .uri("/api/auth/password-resets")
-                .body(new PasswordResetCompletionRequest(token, "AnotherPassword!987"))
+                .body(new PasswordResetCompletionRequest(secondToken, "AnotherPassword!987"))
                 .exchange()
                 .expectStatus()
                 .isEqualTo(422);
@@ -231,8 +238,7 @@ class AuthenticationIT {
                 .exchange()
                 .expectStatus()
                 .isOk();
-        String resetUrl = resetEmailSender.lastResetUrl();
-        String token = resetUrl.substring(resetUrl.indexOf("token=") + "token=".length());
+        String token = resetToken(resetEmailSender.resetUrls().getFirst());
         String digest = UserSessionService.digest(token);
         assertThat(query("UPDATE password_reset_tokens "
                         + "SET created_at = CURRENT_TIMESTAMP - INTERVAL '1 hour', "
@@ -247,6 +253,33 @@ class AuthenticationIT {
                 .exchange()
                 .expectStatus()
                 .isEqualTo(422);
+    }
+
+    @Test
+    void passwordResetCompletionRateLimitUsesPeerAddressAndReturnsGenericResponse() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            restTestClient
+                    .post()
+                    .uri("/api/auth/password-resets")
+                    .body(new PasswordResetCompletionRequest("invalid-token", "RecoveredPassword!789"))
+                    .exchange()
+                    .expectStatus()
+                    .isEqualTo(422);
+        }
+
+        restTestClient
+                .post()
+                .uri("/api/auth/password-resets")
+                .header("X-Forwarded-For", "203.0.113.45")
+                .body(new PasswordResetCompletionRequest("invalid-token", "RecoveredPassword!789"))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
+                .expectHeader()
+                .valueEquals("Retry-After", "900")
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Too many authentication attempts. Try again later.");
     }
 
     @Test
@@ -321,6 +354,10 @@ class AuthenticationIT {
         return result.getStdout().strip();
     }
 
+    private String resetToken(String resetUrl) {
+        return resetUrl.substring(resetUrl.indexOf("token=") + "token=".length());
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class TestMailConfiguration {
         @Bean
@@ -331,19 +368,19 @@ class AuthenticationIT {
     }
 
     static class CapturingResetEmailSender implements PasswordResetEmailSender {
-        private final AtomicReference<String> lastResetUrl = new AtomicReference<>();
+        private final java.util.List<String> resetUrls = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
         public void send(String recipient, String resetUrl) {
-            lastResetUrl.set(resetUrl);
+            resetUrls.add(resetUrl);
         }
 
-        String lastResetUrl() {
-            return lastResetUrl.get();
+        java.util.List<String> resetUrls() {
+            return java.util.List.copyOf(resetUrls);
         }
 
         void clear() {
-            lastResetUrl.set(null);
+            resetUrls.clear();
         }
     }
 

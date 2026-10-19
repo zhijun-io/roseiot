@@ -1,5 +1,6 @@
 package io.roseiot.auth;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -35,8 +36,9 @@ class AuthController {
     }
 
     @PostMapping("/auth/password-resets")
-    ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody PasswordResetCompletionRequest request) {
-        passwordResets.complete(request.token(), request.newPassword());
+    ResponseEntity<MessageResponse> resetPassword(
+            @Valid @RequestBody PasswordResetCompletionRequest request, HttpServletRequest servletRequest) {
+        passwordResets.complete(request.token(), request.newPassword(), servletRequest.getRemoteAddr());
         return noStore().body(new MessageResponse("Password has been reset."));
     }
 

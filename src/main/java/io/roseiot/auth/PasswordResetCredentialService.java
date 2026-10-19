@@ -46,7 +46,6 @@ class PasswordResetCredentialService {
         if (account == null || !"ACTIVE".equals(account.getStatus())) {
             return null;
         }
-        resetTokens.invalidateUnusedForUser(account.getUserId());
         String rawToken = newToken();
         Instant now = Instant.now();
         var row = new PasswordResetTokenRow();
@@ -61,23 +60,28 @@ class PasswordResetCredentialService {
     @Transactional
     void completeReset(String rawToken, String newPassword) {
         authenticationService.validateNewPassword(newPassword);
-        PasswordResetTokenRow token = resetTokens.findByDigestForUpdate(UserSessionService.digest(rawToken));
+        String tokenDigest = UserSessionService.digest(rawToken);
+        Long userId = resetTokens.findUserIdByDigest(tokenDigest);
+        if (userId == null || users.lockUserForPasswordReset(userId) == null) {
+            throw new InvalidResetTokenException();
+        }
+        PasswordResetTokenRow token = resetTokens.findByDigestForUpdate(tokenDigest);
         Instant now = Instant.now();
-        if (token == null || token.getUsedAt() != null || !token.getExpiresAt().isAfter(now)) {
+        if (token == null
+                || token.getUserId().longValue() != userId.longValue()
+                || token.getUsedAt() != null
+                || !token.getExpiresAt().isAfter(now)) {
             throw new InvalidResetTokenException();
         }
-        if (users.lockUserForPasswordReset(token.getUserId()) == null) {
-            throw new InvalidResetTokenException();
-        }
-        AccountCredentials account = users.findCredentialsByUserId(token.getUserId());
+        AccountCredentials account = users.findCredentialsByUserId(userId);
         if (account == null || !"ACTIVE".equals(account.getStatus())) {
             throw new InvalidResetTokenException();
         }
-        if (users.changePassword(token.getUserId(), passwordEncoder.encode(newPassword)) != 1) {
+        if (users.changePassword(userId, passwordEncoder.encode(newPassword)) != 1) {
             throw new InvalidResetTokenException();
         }
-        resetTokens.markUsed(token.getId());
-        sessions.revokeAllForUser(token.getUserId());
+        resetTokens.consumeAllOutstandingForUser(userId);
+        sessions.revokeAllForUser(userId);
     }
 
     @Transactional

@@ -1,12 +1,8 @@
 package io.roseiot.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -103,12 +99,7 @@ class UserSessionService implements SessionLifecycle {
     }
 
     static String digest(String token) {
-        try {
-            byte[] bytes = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII));
-            return HexFormat.of().formatHex(bytes);
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is unavailable", impossible);
-        }
+        return SecretDigest.sha256Hex(token);
     }
 
     private String newRefreshToken() {

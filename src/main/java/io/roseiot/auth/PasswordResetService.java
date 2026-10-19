@@ -43,7 +43,10 @@ class PasswordResetService {
         }
     }
 
-    void complete(String token, String newPassword) {
+    void complete(String token, String newPassword, String sourceAddress) {
+        if (!throttle.allow("password-reset-completion", sourceAddress, 10, Duration.ofMinutes(15))) {
+            throw new RateLimitedException();
+        }
         credentials.completeReset(token, newPassword);
     }
 }
