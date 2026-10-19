@@ -11,3 +11,5 @@
 - [受控的平台与租户账户创建](2026-10-19-controlled-account-provisioning.md)
 - [权限目录的代码定义与数据库投影](2026-10-19-permission-catalog-ownership.md)
 - [审计记录与认证事件的独立边界](2026-10-19-audit-and-auth-event-boundaries.md)
+- [账户注销与个人数据去标识化](2026-10-19-account-withdrawal-and-anonymization.md)
+- [阶段 1 首批 MFA 因子](2026-10-19-initial-mfa-factors.md)
