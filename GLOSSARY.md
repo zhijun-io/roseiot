@@ -1,52 +1,80 @@
 # Roseiot 领域词汇
 
-Roseiot 是一个多租户 IoT 管理平台。本词汇表定义产品、设备及其所有权边界中的统一语言。
+Roseiot 是一个多租户 IoT 管理平台。本词汇表定义当前已确认的跨模块领域术语；具体 API、字段约束和用例流程以对应 Spec 为准。
 
 ## 参与方与边界
 
 **租户（Tenant）**：
-拥有产品、设备、数据和告警的组织隔离边界。
+拥有用户、角色及其业务资源的隔离边界。平台保留 `default` tenant 承载平台身份、平台角色和平台资源；客户租户承载其成员及租户业务资源。
 _避免使用_：账号、客户、组织（用于表达同一概念时）
 
 **用户（User）**：
-可登录平台的**人类主体**（单一持久化模型）。`tenant_id` 必填，且每个 User 只绑定一个租户；平台管理员 User 属于保留租户 `default`，客户 User 属于各自客户租户。一个 User 可以拥有多个角色，且只能拥有所属租户中的角色。设备不是 User。
-_避免使用_：设备用户；把 User 仅理解为「租户内成员」；平台作用域用户（旧称）
+可登录平台的**人类主体**。每个 User 必须且只属于一个 Tenant；平台用户属于 `default` tenant，客户用户属于各自客户租户。一个 User 可以没有角色，也可以拥有多个所属租户中的角色。设备不是 User。
+_避免使用_：设备用户；把 User 仅理解为「租户内成员」；跨租户用户
 
 **用户凭证（User Credential）**：
-属于一个 User 的认证秘密及其密码恢复状态。当前保存密码哈希和至多一条当前密码重置状态；密码明文和重置 token 明文不持久化。设备凭证由 Device 能力独立拥有。
-_避免使用_：用户身份；设备凭证；将短期重置流程状态误称为独立长期凭证
-
-**登录会话（Login Session）**：
-一个浏览器或设备完成认证后持续访问 Roseiot 的独立周期；每个登录会话可单独续期或撤销。一个用户可以同时拥有多个登录会话，是否允许由系统认证设置决定。
-_避免使用_：用户身份；设备身份；把多个设备访问混为一个会话
+由 `UserCredential` 表示，保存用户密码哈希及账户恢复凭证状态。它与 User 一对一；不保存 MFA 因子或 OAuth2 客户端秘密。密码明文和恢复 token 明文不得持久化。
+_避免使用_：用户身份；MFA 凭证；设备凭证
 
 **默认租户（Default Tenant）**：
-固定多租户部署中的保留平台租户，内部 ID 为 `1`、对外 code 为 `default`，承载平台资源目录；客户业务数据归属各自租户。租户使用自增 `BIGINT` 内部主键，API 通过唯一 code 定位；迁移不预置任何角色。
+保留的 `default` 租户，承载平台用户、`PLATFORM` 角色和平台资源。它不是普通客户租户；其内部 ID 由数据库生成，对外使用唯一 code `default`。
 _避免使用_：系统租户（含义易混）；超级租户
 
-**平台管理员（Platform Administrator）**：
-属于 `default` 租户且被授予平台管理 ACTION 的 User；角色名称不决定平台身份，也不自动获得客户业务数据访问权。
-_避免使用_：`SYSTEM_ADMIN` 角色；空 tenant_id 用户
+**平台用户（Platform User）**：
+属于 `default` tenant 的 User。只有其有效 `PLATFORM` scope 角色关联了相应 BUTTON 权限标识时，才可执行对应平台操作；平台身份不自动授予客户租户业务数据访问权。
+_避免使用_：仅凭角色名称判断的管理员；默认拥有客户数据权限的平台用户
 
 **状态（Status）**：
-实体当前可用状态。Tenant、User 和 Resource 分别使用各自的状态枚举；当前值为 `ACTIVE`、`DISABLED`，不同实体的状态转换规则独立。
+实体当前可用状态。Tenant、User 和 Resource 分别使用各自的状态枚举；当前阶段定义的值为 `ACTIVE`、`DISABLED`，不同实体的状态转换规则独立。
 
-**ACTION**：
-资源目录中表示可授权业务操作的资源类型。其稳定 `code`（如 `device.read`）是 RBAC 的最小授权键，可关联到角色，并由受保护 API 上的 Spring Security 注解检查。一个 ACTION 可以保护多个 API。
-_避免使用_：Permission（旧模型名称）；Authority；scope（OAuth scope，易混淆）
+## 身份与授权
 
 **角色（Role）**：
-属于一个且仅一个租户的 ACTION 集合。Role 使用自增 ID 定位；角色名称只用于显示，不直接授权 API。创建租户时为首位管理员生成包含全部可分配租户 ACTION 的角色，其它角色按需创建。
-_避免使用_：Authority、Spring `ROLE_*` 作为产品术语
+属于且只属于一个 Tenant，并具有 `PLATFORM` 或 `TENANT` scope。角色由其关联的 BUTTON 权限标识授权；名称仅用于显示。用户多个有效同 scope 角色的权限按并集计算。
+_避免使用_：Authority、Spring `ROLE_*` 作为产品术语；以角色名称授权
+
+**SYSTEM_ADMIN**：
+由 Flyway 初始化并受保护的内置平台角色，属于 `default` tenant，关联源码定义的 PLATFORM BUTTON 权限。首位平台管理员通过受控运维 SQL 关联该角色；其角色记录及权限关联不能通过普通管理 API 修改、停用或删除。
+_避免使用_：平台管理员用户身份；可由租户创建的普通角色
+
+**资源（Resource / Resource Catalog）**：
+用于组织管理导航并定义可授权操作的目录项。每个 Resource 有 `PLATFORM` 或 `TENANT` scope，以及 `GROUP`、`MENU` 或 `BUTTON` 类型；父子资源必须属于同一 scope，层级为 GROUP → MENU → BUTTON。
+_避免使用_：只表示菜单的资源；由前端可见性代替服务端授权
+
+**GROUP**：
+Resource 类型，用于组织菜单，不直接授予 API 权限，也没有路由地址。
 
 **MENU**：
-资源目录中描述导航层级与展示元数据的资源类型。MENU 可有自己的稳定 code，但该 code 不是授权键；菜单是否可见由用户已获准的 ACTION 及其菜单归属推导，父子关系不隐含授权继承。
+Resource 类型，用于导航展示，可配置路由地址，但不直接授予 API 权限。菜单可见性由已授予的 BUTTON 及其祖先菜单推导，父子关系不隐含授权继承。
 
-**资源 code（Resource Code）**：
-标识对应资源对象的稳定字符串。MENU 和 ACTION 有 code；Tenant 使用唯一 code 对外定位，Role 不使用 code。只有 ACTION code 用作 API 授权键。
+**BUTTON**：
+Resource 类型，代表可授权操作，具有稳定且必填的权限标识。后端受保护操作检查该标识；按钮资源不配置路由地址。
+_避免使用_：前端按钮显示状态作为授权；旧称 `ACTION` 资源类型
+
+**权限标识（Permission Identifier）**：
+在源码中定义并由受保护 API 操作引用的稳定授权键。每个可分配权限标识对应一个 BUTTON Resource；一个标识可以保护多个 API。角色名称、MENU 标识和客户端传值均不作为授权依据。
+_避免使用_：角色名；菜单 code；客户端声明的权限
+
+**资源范围（Resource Scope）**：
+资源及角色的授权边界，取 `PLATFORM` 或 `TENANT`。租户角色只能关联同租户允许范围内的 TENANT BUTTON；平台操作需对应 PLATFORM 权限标识。
+
+**租户资源范围（Tenant Resource Grant）**：
+`tenant_resource` 表示一个普通租户可使用的 TENANT scope BUTTON 集合，是该租户角色可分配权限的上限；它本身不授予用户权限。
+_避免使用_：Tenant 对 API 的直接授权；菜单可见范围
+
+**角色资源关联（Role Resource Assignment）**：
+`role_resource` 表示角色获得某 BUTTON 权限标识的关联。GROUP 和 MENU 不可直接分配给角色。
+
+**租户上下文（Tenant Context）**：
+由已认证主体确定的租户边界，用于约束其可访问资源。客户端提交的 tenant ID 不能单独决定授权范围。
+_避免使用_：请求租户 ID；当前客户
+
+**资源授权（Resource Authorization）**：
+服务端根据已认证主体的有效角色、权限标识、scope、租户归属及资源状态，判断其是否可以执行操作。
+_避免使用_：登录校验；页面权限；隐藏按钮
 
 **个人操作（Authenticated Self-service）**：
-有效登录用户对自身资料与密码的操作能力，无需角色或 ACTION。目标由认证主体确定，不能指定其他用户；仍受账户、租户、会话状态与密码校验约束。
+有效登录用户对自身资料与凭证的操作能力，无需角色或权限标识。目标由认证主体确定，不能指定其他用户；仍受账户、租户、会话状态与密码校验约束。
 
 ## 设备模型
 
@@ -66,15 +94,26 @@ _避免使用_：共享模板、数据模板、设备 Schema、TSL（用于泛�
 已经终止正常使用且不再以原身份继续接入的设备。
 _避免使用_：已删除设备、已迁移设备
 
-## 租户角色
+## 成员与邀请
 
 **租户管理员（Tenant Administrator）**：
-属于客户租户且获授成员管理与邀请 ACTION 的主体；具体角色由租户管理，客户租户角色不能获得平台管理 ACTION。
-_避免使用_：`SYSTEM_ADMIN`（不存在的角色）；超级管理员
+属于某个客户租户且拥有相应 TENANT scope 权限的 User。该身份由权限决定，不由角色名称推断。
+_避免使用_：按显示名称判断的管理员；超级管理员
 
 **租户用户（Tenant User）**：
-属于租户且按需分配业务角色的主体；角色决定可执行的 ACTION。
+属于一个客户租户的 User；可拥有零个或多个该租户的角色。没有角色的用户可登录并访问 `/api/me/**` 与明确开放的公开接口。
 _避免使用_：普通用户、客户用户
+
+**用户邀请（User Invitation）**：
+`UserInvitation` 表示邀请某邮箱加入一个租户的待处理准入流程。邀请必须通过邮件发送一次性、限时链接；接受时必须设置密码，链接的有效持有证明邮箱控制权。邀请可不分配角色，也可分配当前租户的一个或多个角色，不直接关联 Resource 或权限标识。
+_避免使用_：公开注册；邀请即已创建的活动账户
+
+**邀请角色（Invitation Role Assignment）**：
+邀请接受后为新用户建立的可选角色关联。角色必须属于邀请所指租户；未指定角色时，用户激活后不因此获得管理权限。
+
+**受控首管引导（Controlled Administrator Bootstrap）**：
+首次创建平台管理员的受控部署流程：default tenant 与受保护 SYSTEM_ADMIN 角色由 Flyway 初始化；首位管理员由具备事务、唯一约束和重放保护的一次性运维 SQL 创建并关联角色，不提供公开 setup API。
+_避免使用_：公开初始化接口；Flyway 中的默认管理员密码
 
 ## 生命周期
 
@@ -242,17 +281,40 @@ _避免使用_：规则动作、告警类型
 
 ## 权限与审计
 
-**租户上下文（Tenant Context）**：
-从已认证主体确定的当前租户边界，用于约束其可访问的资源范围。
-_避免使用_：请求租户 ID、当前客户
+**系统设置（System Setting）**：
+`SystemSetting` 是平台级、按类别校验的配置。已确定类别为 `general`、`security`、`password-policy`、`mfa`、`oauth2`、`mail`；各类别使用专属字段，不是任意键值存储。秘密不得由读取 API 回显。
 
-**资源授权（Resource Authorization）**：
-判断一个已认证主体是否可以对特定租户资源执行某项操作。
-_避免使用_：登录校验、页面权限
+**用户设置（User Setting）**：
+`UserSetting` 保存用户级分类设置，每个用户每个类别至多一条。已确定类别为 `mfa`、`oauth2` 和 `appearance`；使用专属 schema。用户 MFA 秘密属于受保护的 MFA 设置，不属于 UserCredential。
+
+**租户设置（Tenant Setting）**：
+`TenantSetting` 保存归属于单一租户的已批准设置。具体类别和字段须由对应 Spec 定义，不预设任意键值接口。
+
+**OAuth2 客户端（OAuth2 Client）**：
+`OAuth2Client` 表示平台配置的外部 OAuth2/OIDC 身份提供方客户端，包括其注册配置和受保护的客户端秘密；本项目作为 Relying Party，不表示 Roseiot 自建授权服务器。
+
+**OAuth2 客户端模板（OAuth2 Client Template）**：
+`OAuth2ClientTemplate` 保存用于创建外部 OAuth2/OIDC 客户端的配置模板。模板与已配置客户端是不同模型。
+
+**用户 OAuth2 客户端关联（User OAuth2 Client Link）**：
+`UserOAuth2Client` 将一个本地用户与外部客户端身份关联。OIDC 身份按 issuer 与 subject 识别；不能仅凭邮箱自动关联用户。
+
+**MFA（Multi-factor Authentication）**：
+多因素认证能力。系统设置控制平台开放哪些已实现方法，用户设置记录其启用方法及受保护因子材料。MFA 不建独立 `MfaFactor` 领域模型，也不属于 UserCredential。
 
 **审计记录（Audit Record）**：
-对安全或业务敏感操作的主体、动作、目标、结果和时间形成的不可由普通用户修改的证据。
+`AuditRecord` 是对已认证管理或账户安全操作及明确允许的生命周期操作记录的追加式证据，包含操作者、目标、结果和时间；不得包含密码、原始 token 或其他秘密。
 _避免使用_：应用日志、调试日志、完整请求快照
+
+**认证事件（Auth Event）**：
+`AuthEvent` 记录认证流程中的成功、失败和状态变化，可以没有已识别的 User，例如未知邮箱的登录尝试。它与 AuditRecord 是独立模型和查询资源；二者可用关联 ID 追踪，但不要求一对多外键。
+_避免使用_：AuditRecord；假定每个认证事件都已登录
+
+**审计事件（Audit Event）**：
+由受控 AOP 或显式审计 Service 发布、供异步写入 AuditRecord 的类型化事件。每个用例只使用一种发布路径；事件需可靠登记、可重试、幂等。
+
+**认证事件发布（Auth Event Publication）**：
+认证流程显式调用 AuthEvent Service 发布类型化事件，后续异步写入 AuthEvent。不得由审计 AOP 代写；事件不得依赖易丢失的进程内队列。
 
 **应用日志（Application Log）**：
 用于观察和诊断软件运行情况的技术记录，不作为业务操作的权威证据。
@@ -309,11 +371,11 @@ _避免使用_：消息标识符、告警 ID
 _避免使用_：用户 ID、租户邮箱
 
 **租户用户关系（Tenant Membership）**：
-用户属于某个租户并在其中承担固定角色的关系。
+用户属于一个租户的归属关系。角色分配是独立关系，可为零个、一个或多个所属租户内的角色。
 _避免使用_：用户账号、租户上下文
 
 **有效成员（Active Member）**：
-当前可以在所属租户内登录并执行获授权操作的租户用户。
+账户及所属租户均处于有效状态、可以登录并执行其权限允许操作的租户用户；拥有角色不是成员有效的必要条件。
 _避免使用_：在线用户、启用租户
 
 **停用成员（Deactivated Member）**：
