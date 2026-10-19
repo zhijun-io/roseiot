@@ -5,7 +5,8 @@
 ## 决策
 
 - [Roseiot 后端与 Nextboard 的开发边界](2026-10-19-backend-and-nextboard.md)
-- [用户租户归属与角色范围](2026-10-19-tenant-identity-and-role-scope.md)
+- [用户租户归属与角色归属](2026-10-19-tenant-identity-and-role-ownership.md)
+- [租户开通与启用](2026-10-19-tenant-provisioning-and-activation.md)
 - [基于分层资源目录的 RBAC](2026-10-19-resource-based-rbac.md)
 - [受控的平台与租户账户创建](2026-10-19-controlled-account-provisioning.md)
 - [权限目录的代码定义与数据库投影](2026-10-19-permission-catalog-ownership.md)
