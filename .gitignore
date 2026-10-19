@@ -1,0 +1,43 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+# Local-only link to the sibling Nextboard checkout
+/nextboard
+*.pem
+*.key
+*.p12
+*.jks
+
+# Local editor and operating system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Generated build and runtime files
+target/
+build/
+dist/
+coverage/
+*.class
+*.jar
+*.log
+logs/
+tmp/
+*.pid
+
+# Maven / Java generated files
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+*.class
+*.jar
+
+# Local environment files
+!.env.sample
+
+# Test reports and test infrastructure
+surefire-reports/
+failsafe-reports/
+.testcontainers.properties
