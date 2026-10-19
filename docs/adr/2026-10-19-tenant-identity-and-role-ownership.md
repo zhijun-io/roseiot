@@ -27,4 +27,4 @@ Roseiot 需要同时支持平台管理身份和客户租户成员。若用户可
 
 ## 依据
 
-- [阶段 1 管理模块 Spec（GitHub Issue #9）](https://github.com/zhijun-io/roseiot/issues/9)
+- [阶段 1 管理模块 Spec](../../.scratch/phase-1-admin/spec.md)

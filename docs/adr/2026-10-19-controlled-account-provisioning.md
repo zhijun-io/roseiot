@@ -24,4 +24,4 @@
 
 ## 依据
 
-- [阶段 1 管理模块 Spec（GitHub Issue #9）](https://github.com/zhijun-io/roseiot/issues/9)
+- [阶段 1 管理模块 Spec](../../.scratch/phase-1-admin/spec.md)

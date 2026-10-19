@@ -4,7 +4,7 @@ Roseiot 是一个面向跨行业 IoT 平台运营方与租户的多租户平台�
 
 ## 项目状态
 
-阶段 0「环境与工程基线」已完成。阶段 1 管理模块正在逐步实现；当前已提供首位系统管理员初始化及本地密码登录、首次登录强制改密和密码恢复。其他规划中的产品能力不代表已经交付。
+阶段 0「环境与工程基线」已完成。当前仓库提供可启动、可测试的后端工程骨架，尚未实现阶段 1 管理模块或后续业务功能。规划中的产品能力不代表已经交付。
 
 仓库根目录的 `renovate.json` 由 Renovate 根据依赖清单与工具文件自动识别技术栈，不自定义宽泛的依赖分组。稳定依赖的 patch/minor/pin 更新通过检查后可自动合并；major 和 0.x 更新需人工审核。自动合并前需在 GitHub 设置必需状态检查，并启用 Renovate GitHub App 或自托管服务。
 
@@ -16,10 +16,10 @@ Roseiot 是一个面向跨行业 IoT 平台运营方与租户的多租户平台�
 
 ## 需求与开发流程
 
-产品需求使用 [PRD 生成提示词](docs/prd-generation-prompt.md)整理并确认，结果记录在 [产品需求文档](docs/prd.md)。后续以已确认的 PRD 为依据创建模块或垂直切片 Spec；Spec 细化用户流程、业务规则、API、领域模型和验收标准，并发布到 GitHub Issues 跟踪。确认 Spec 后再制定实现计划并开发。
+产品需求使用 [PRD 生成提示词](docs/prd-generation-prompt.md)整理并确认，结果记录在 [产品需求文档](docs/prd.md)。后续以已确认的 PRD 为依据创建模块或垂直切片 Spec；Spec 细化用户流程、业务规则、API、领域模型和验收标准，并按 Matt skills 本地 tracker 约定保存在 `.scratch/<feature>/spec.md`，实现任务放在同目录的 `issues/` 中。项目任务文件约定见 [Issue tracker](docs/agents/issue-tracker.md)。确认 Spec 后再制定实现计划并开发。
 
 ```text
-PRD 生成提示词 → PRD → Spec（GitHub Issue）→ Plan → 实现与验证
+PRD 生成提示词 → PRD → Spec 与任务文件（.scratch）→ Plan → 实现与验证
 ```
 
 Spec、PRD 与实现不一致时，先确认产品需求并更新相应文档，不从技术设计或规划内容推断未确认的产品规则。开发 Agent 的项目约定见 [AGENTS.md](AGENTS.md)。
@@ -66,7 +66,7 @@ Spec、PRD 与实现不一致时，先确认产品需求并更新相应文档，
 - `GET /actuator/health/liveness`
 - `GET /actuator/health/readiness`
 
-首位系统管理员初始化已通过 Flyway 提供身份与 RBAC 基础 schema，并创建默认租户和受保护的系统管理员角色。尚无系统权限目录，当前内置角色不关联权限；首位管理员需使用[受控初始化流程](docs/operations/bootstrap-system-admin.md)。本地密码认证运行配置见[认证运维说明](docs/operations/local-authentication.md)。
+阶段 0 已启用 Flyway，但没有业务 schema；数据库迁移随首个业务用例引入。
 
 ## 文档
 

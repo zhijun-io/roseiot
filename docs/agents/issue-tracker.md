@@ -1,48 +1,50 @@
-# Issue tracker: GitHub
+# 本地 Spec 与任务文件
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+本项目使用 Matt skills 默认的本地 Markdown tracker。Spec 与任务文件纳入 Git，离线可读、可评审；不创建或引用 GitHub Issue。
 
-> This checkout currently has no GitHub remote. Configure the correct remote before running tracker commands; do not guess the repository.
+## 文件布局
 
-## Conventions
+- `.scratch/<feature-slug>/spec.md`：一个功能或垂直切片的需求契约。
+- `.scratch/<feature-slug>/issues/<NN>-<slug>.md`：一个可独立实施的 tracer-bullet 任务，每个任务单独一个文件，按依赖顺序从 `01` 编号。
+- `.scratch/README.md`：Spec 索引；具体任务状态和阻塞关系以各任务文件为准。
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --json number,title,body,labels,comments`.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
-- **Make an issue a sub-issue of a parent**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards (`gh` 2.94+). Older `gh`: `gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>` (database id, as in **Blocking** below). Without sub-issues, put `Part of #<parent>` at the top of the child body.
-- **Comment on an issue**: `gh issue comment <number> --body "..."`
-- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+Spec 使用 `Problem Statement`、`Solution`、`User Stories`、`Implementation Decisions`、`Testing Decisions`、`Out of Scope` 和 `Further Notes` 等章节。验收标准使用 Markdown checkbox，以便在实现过程中追踪。
 
-Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
+任务沿用 Matt skills 的本地模板：
 
-## Pull requests as a triage surface
+```markdown
+# <NN>: <任务标题>
 
-**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
+**What to build:** 用户可见或可验证的端到端行为。
 
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
+**Blocked by:** 阻塞任务编号和标题，或 `None (can start immediately)`。
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>`.
-- **List external PRs for triage**: `gh api --paginate 'repos/{owner}/{repo}/pulls?state=open' --jq '.[] | select(.author_association | IN("OWNER","MEMBER","COLLABORATOR") | not) | {number, title, author: .user.login, author_association, labels: [.labels[].name]}'`.
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+**Status:** ready-for-agent
 
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42` and fall back to `gh issue view 42`.
+- [ ] 验收标准
+```
 
-## When a skill says "publish to the issue tracker"
+任务应是可独立演示或验证的纵向切片，而不是按数据库、API、UI 等技术层横向拆分。`Blocked by` 明确列出真正的前置任务；没有未完成阻塞项的任务才可标为 `ready-for-agent`。任务被阻塞时，状态设为 `blocked` 并保留阻塞关系。依赖完成后，维护者将任务状态更新为 `ready-for-agent`。
 
-Create a GitHub issue.
+## 状态
 
-## When a skill says "fetch the relevant ticket"
+本项目在任务文件的 `Status` 字段使用以下状态：
 
-Read it as in **Read an issue** above.
+- `needs-triage`：尚待维护者评估。
+- `needs-info`：需要补充需求信息。
+- `ready-for-agent`：需求、验收标准与依赖已明确，可以开始实施。
+- `ready-for-human`：需要人工判断或外部操作后实施。
+- `in-progress`：已开始实施。
+- `blocked`：存在尚未解除的阻塞；在 `Blocked by` 中写明依赖。
+- `done`：验收标准全部满足且验证证据已记录。
+- `wontfix`：明确决定不实施。
 
-## Wayfinding operations
+状态不替代验收标准。完成任务时勾选验收标准，并在相关实现提交或验证记录中留下证据；不要只改状态。
 
-Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
+## 操作约定
 
-- **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
-- **Child ticket**: a GitHub sub-issue linked to the map. Where sub-issues are unavailable, put `Part of #<map>` at the top of the child body and link it in the map body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, assign it to the driving dev.
-- **Blocking**: use GitHub native issue dependencies as the canonical blocker relation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric database ID, not issue number or node ID. Where dependencies are unavailable, put `Blocked by: #<n>, #<n>` at the top of the child body. A ticket is unblocked when every blocker is closed.
-- **Frontier query**: list the map's open child issues, then exclude any with an open blocker or assignee; first in map order wins.
-- **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
-- **Resolve**: comment with the answer, close the issue, then append a context pointer to the map's Decisions-so-far.
+- 创建或更新 Spec 时，沿用 `.scratch/<feature-slug>/spec.md`；拆分实现工作时，为每个任务创建独立 Markdown 文件。
+- 先列出任务之间的真实阻塞关系；编号按依赖顺序排列，且每个 `Blocked by` 使用对应编号和标题。
+- 任务描述聚焦用户可见或可验证的端到端行为，避免具体文件路径和代码片段。
+- 所有本地任务使用本地路径和编号，不保留远程 Issue 编号或链接。
+- 未经用户要求，不自动提交或推送。

@@ -46,11 +46,11 @@
 
 ### Issue tracker
 
-Issues and specs live in GitHub Issues and use the `gh` CLI. Configure this repository's GitHub remote before using tracker commands. See `docs/agents/issue-tracker.md`.
+Specs and implementation tickets live as version-controlled Markdown under `.scratch/<feature>/spec.md` and `.scratch/<feature>/issues/`, following the Matt skills local tracker layout. Read `docs/agents/issue-tracker.md` for file layout, status values, and dependency conventions. Do not create or reference remote issues for local tickets unless explicitly requested.
 
 ### Triage labels
 
-Use `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+Use the local ticket statuses `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `in-progress`, `blocked`, `done`, and `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
