@@ -66,7 +66,7 @@ Spec、PRD 与实现不一致时，先确认产品需求并更新相应文档，
 - `GET /actuator/health/liveness`
 - `GET /actuator/health/readiness`
 
-阶段 0 已启用 Flyway，但没有业务 schema；数据库迁移随首个业务用例引入。
+阶段 1.1 的首位系统管理员初始化已通过 Flyway 提供身份与 RBAC 基础 schema，并创建默认租户和受保护的系统管理员角色。尚无系统权限目录，当前内置角色不关联权限；首位管理员需使用[受控初始化流程](docs/operations/bootstrap-system-admin.md)，尚未提供登录或管理 API。
 
 ## 文档
 
