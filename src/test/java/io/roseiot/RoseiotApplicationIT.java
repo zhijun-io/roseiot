@@ -27,7 +27,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureRestTestClient
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.docker.compose.enabled=false")
+        properties = {
+            "spring.docker.compose.enabled=false",
+            "app.auth.jwt.hmac-secret=cm9zZWlvdC10ZXN0LWtleS1tdXN0LWJlLWF0LWxlYXN0LTMyLWJ5dGVz"
+        })
 class RoseiotApplicationIT {
 
     @Autowired
@@ -142,7 +145,7 @@ class RoseiotApplicationIT {
 
     @Test
     void noPublicSetupEndpointIsExposed() {
-        restTestClient.post().uri("/api/setup").exchange().expectStatus().isNotFound();
+        restTestClient.post().uri("/api/setup").exchange().expectStatus().isUnauthorized();
     }
 
     private Callable<ExecResult> bootstrapAttempt(String sql, CyclicBarrier barrier, String name) {
