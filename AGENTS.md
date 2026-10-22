@@ -16,7 +16,7 @@
 ## 后端重新开发
 
 - 后端统一使用 Spring Boot；涉及设计、实现、调试、测试或部署时，必须先阅读本机全局 `spring-boot-developer` 技能（`~/.agents/skills/spring-boot-developer/SKILL.md`）并按任务加载专题指南。
-- Roseiot 的目标平台包括管理、通知、IoT 和 AI 模块。管理模块负责用户、角色、资源和系统设置等平台管理能力；各模块随已确认需求逐步实现。
+- Roseiot 面向企业内部员工，提供私有化部署的 IoT 管理能力；产品范围以 [PRD](docs/prd.md) 为准。产品与物模型、设备资产、设备监控、告警处理和远程控制等能力尚未实现，不能从既有技术设计推定为已确认需求。
 - 默认采用模块化单体。优先按功能保持内聚，不为未来模块预建空包或占位接口；跨功能通过有真实调用方的 Service API 协作，不直接互调 Mapper 或泄漏持久化实体。只有存在真实解耦需求时才用应用事件。
 - 根据 Roseiot 的需求和后端功能规划逐步开发 Nextboard 页面与菜单。Nextboard 是独立的 Next.js Admin Dashboard，只使用本地演示数据，不调用 Roseiot API，也不依赖后端运行。
 - Nextboard 源码位于同级项目，仓库中的 `nextboard` 软链接只用于查看；修改 Nextboard 时应在其实际项目目录内工作。

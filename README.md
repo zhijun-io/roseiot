@@ -1,6 +1,6 @@
 # Roseiot
 
-Roseiot 是一个面向跨行业 IoT 平台运营方与租户的多租户平台，计划逐步提供平台管理、IoT、通知和 AI 能力。后端使用 Spring Boot 开发，项目仓库位于 [GitHub](https://github.com/zhijun-io/roseiot)。项目采用 [Apache License 2.0](LICENSE)；公开分发前，请将 LICENSE 中的版权持有人占位符替换为实际权利人。
+Roseiot 是面向企业内部员工的 IoT 管理平台，计划支持私有化部署，提供产品与物模型、设备资产、设备监控、告警处理和远程控制等能力。后端使用 Spring Boot 开发，项目仓库位于 [GitHub](https://github.com/zhijun-io/roseiot)。项目采用 [Apache License 2.0](LICENSE)；公开分发前，请将 LICENSE 中的版权持有人占位符替换为实际权利人。
 
 ## 项目状态
 
